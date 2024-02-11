@@ -106,7 +106,7 @@ impl eframe::App for App {
             .text("Integral radius")
             .clamp_to_range(false));
 
-            ui.add(egui::Slider::new(&mut self.radius_fractional, 0.0..=1.0)
+            ui.add(egui::Slider::new(&mut self.radius_fractional, -1.0..=1.0)
             .text("Fractional radius")
             .fixed_decimals(2));
 
@@ -216,7 +216,7 @@ impl eframe::App for App {
 
                 if self.view_blocks_interior {
                     for coord in self.blocks_interior.get_block_coords() {
-                        plot_ui.polygon(square_at_coords(coord).stroke(Stroke {width: 1.0, color: Color32::BLACK}).fill_color(Color32::BLUE));
+                        plot_ui.polygon(square_at_coords(coord).stroke(Stroke {width: 1.0, color: Color32::BLACK}).fill_color(Color32::LIGHT_RED));
                     }
                 }
 
