@@ -1,6 +1,6 @@
 use crate::data_structures::Blocks;
 
-pub fn generate_alg_centerpoints(radius: f64, center_offset_x: f64, center_offset_y: f64) -> Blocks {
+pub fn generate_alg_centerpoint(radius: f64, center_offset_x: f64, center_offset_y: f64) -> Blocks {
     let edge_length = ((2.0*radius).ceil() as usize) + 4; // the 4 is needed as a buffer.. i think we're able to get away with less but it doesn't matter
     let origin = [(edge_length / 2) as f64, (edge_length / 2) as f64]; 
     // in bitmatrix coordinates, where is the center of the grid?

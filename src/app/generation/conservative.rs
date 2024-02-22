@@ -28,7 +28,7 @@ pub fn generate_alg_conservative(radius: f64, center_offset_x: f64, center_offse
         || (d_x_left.powi(2) + d_y_top.powi(2) <= radius.powi(2))
         || (d_x_right.powi(2) + d_y_top.powi(2) <= radius.powi(2)) {
             output_vec.push(true);
-        } else if (d_x_left <= 0.0 && d_x_right >= 0.0) { // Vertical strip
+        } else if d_x_left <= 0.0 && d_x_right >= 0.0 { // Vertical strip
             // Step two: If none of the corner points are in the disk, then the circle must cross a single edge of the box twice.
             // so then the circle center must be in a strip a cardinal direction away from the box.
             // Case on horizontal or vertical strip
@@ -43,7 +43,7 @@ pub fn generate_alg_conservative(radius: f64, center_offset_x: f64, center_offse
             } else {
                 output_vec.push(false);
             };
-        } else if (d_y_bottom <= 0.0 && d_y_top >= 0.0)  {
+        } else if d_y_bottom <= 0.0 && d_y_top >= 0.0 {
             if (d_x_left.abs() <= radius) || (d_x_right.abs() <= radius) {
                 output_vec.push(true);
             } else {

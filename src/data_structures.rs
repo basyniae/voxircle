@@ -45,7 +45,7 @@ impl Blocks {
 
         for b in &self.blocks {
             
-            if (*b == false) {
+            if *b == false {
                 // if not a point in the set of blocks, then certainly not a point in the interior
                 output_vec.push(false);
             } else if (i % self.edge_length == 0) 
@@ -55,7 +55,7 @@ impl Blocks {
                 // If on the boundary, output not-interior (valid via judicious padding of the interesting structure)
                 output_vec.push(false);
             } else if (self.blocks[i+1] == false)
-            || (self.blocks[(i-1)] == false)
+            || (self.blocks[i-1] == false)
             || (self.blocks[i+self.edge_length] == false)
             || (self.blocks[i-self.edge_length] == false) { // actually check the neighbors
                 output_vec.push(false);
