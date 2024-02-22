@@ -5,11 +5,10 @@ mod metrics;
 use std::default::Default;
 use std::f64::consts::PI;
 use std::ops::Not;
-use eframe::egui::text_selection::visuals;
 use eframe::epaint::{Color32, Stroke};
-use eframe::egui::{self, Visuals};
+use eframe::egui::{self};
 use eframe::egui::{Layout, Direction};
-use egui_plot::{uniform_grid_spacer, HLine, Line, Plot, PlotPoints, Points, Polygon, VLine};
+use egui_plot::{uniform_grid_spacer, HLine, Line, Plot, PlotPoint, PlotPoints, Points, Polygon, Text, VLine};
 
 use crate::data_structures::Blocks;
 
@@ -38,6 +37,8 @@ pub struct App {
     view_blocks_all: bool,
     view_blocks_boundary: bool,
     view_blocks_interior: bool,
+
+    view_area: bool,
 }
 
 
@@ -93,10 +94,10 @@ impl eframe::App for App {
                     ui.label("Include a particular block iff its centerpoint is in the disk");
                 },
                 Algorithm::Square => {
-                    ui.label("Include a particular block iff it is in a square of the specified radius");
+                    ui.label("Include a particular block iff its centerpoint is in a square of the specified radius");
                 },
                 Algorithm::Diamond => {
-                    ui.label("Include a particular block iff it is in a diamond of the specified radius");
+                    ui.label("Include a particular block iff its centerpoint is in a diamond of the specified radius");
                 },
             };
 
@@ -132,6 +133,7 @@ impl eframe::App for App {
             ui.checkbox(&mut self.view_blocks_all, "View all blocks");
             ui.checkbox(&mut self.view_blocks_boundary, "View boundary blocks");
             ui.checkbox(&mut self.view_blocks_interior, "View interior blocks");
+            ui.checkbox(&mut self.view_area, "View area numbers");
 
             // Generate action
             ui.separator();
@@ -173,8 +175,12 @@ impl eframe::App for App {
         });
 
         // Viewport
+
         egui::CentralPanel::default().show(ctx, |ui| {
             // ui.heading("Viewport");
+
+            let center_offset_x = self.center_offset_x;
+            let center_offset_y = self.center_offset_y;
 
             Plot::new("my_plot")
             .data_aspect(1.0) // so that squares in the rasterization always look square in the viewport
@@ -189,13 +195,13 @@ impl eframe::App for App {
             .allow_boxed_zoom(false) // we shouldn't need this, there's a maximal reasonable zoom in level and the reasonable zoom out level is only as big as the circle we're generating
             // .coordinates_formatter(egui_plot::Corner::RightBottom //  this is showing the coords in a fixed place on the screen... we wanted to edit the formatting of the coords floating around the cursor
             //     CoordinatesFormatter::with_decimals(5))
-            .label_formatter(|_name, value| {
+            .label_formatter(move |_name, mouse_coord| {
                 // if !name.is_empty() {  // Can condition formatting only on name of object! So if we want to have different tooltips for different objects this is what we must do
                 //     format!("{}: {:.*}%", name, 1, value.y)
                 // } else {
                 //     "".to_owned()
-                // }
-                format!("{0:.0}, {1:.0}", value.x.trunc(), value.y.trunc()) // Use trunc instead of floor for symmtery preservation around the axis! Nasty but work
+                // } // FIXME: think about integer coords for odd & even circles (no +/- zero for even circles)... ideally have it dep. only on 
+                format!("{0:.0}, {1:.0}", (mouse_coord.x).trunc(), (mouse_coord.y).trunc()) // Use trunc instead of floor for symmtery preservation around the axis! Nasty but works
             })
             .include_x(self.radius + 1.0)
             .include_x(-self.radius - 1.0)
@@ -225,6 +231,20 @@ impl eframe::App for App {
                 plot_ui.line(circle_at_coords(self.center_offset_x, self.center_offset_y, self.radius));
                 plot_ui.hline(HLine::new(self.center_offset_y));
                 plot_ui.vline(VLine::new(self.center_offset_x));
+
+                if self.view_area {
+                    let square = generate_all_blocks(&Algorithm::Square, 10.0, self.center_offset_x, self.center_offset_y);
+                    for coord in square.get_block_coords() {
+                        let cell_center = [coord[0]+0.5, coord[1]+0.5];
+                        plot_ui.text(Text::new(PlotPoint::from(cell_center), 
+                        format!("{:.2}", generation::percentage::cell_disk_intersection_area(self.radius, 
+                            coord[0] - self.center_offset_x, 
+                            coord[0]+1.0 - self.center_offset_x, 
+                            coord[1] - self.center_offset_y, 
+                            coord[1]+1.0 - self.center_offset_y))
+                        ))
+                    }
+                }
 
 
             }); 
