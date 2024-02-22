@@ -14,7 +14,6 @@ use crate::data_structures::Blocks;
 
 use self::generation::{generate_all_blocks, Algorithm};
 
-#[derive(Default)]
 pub struct App {
     algorithm: Algorithm,
 
@@ -38,7 +37,39 @@ pub struct App {
     view_blocks_boundary: bool,
     view_blocks_interior: bool,
 
-    view_area: bool,
+    view_overlap_area: bool,
+}
+
+// Defaults should be such that we get useful output on startup
+// esp. some positive integral radius, auto generate on, and view blocks on
+impl Default for App {
+    fn default() -> Self {
+        Self { 
+            algorithm: Default::default(), 
+
+            radius: Default::default(), 
+            radius_integral: 5, 
+            radius_fractional: Default::default(), 
+
+            center_offset_x: Default::default(), 
+            center_offset_y: Default::default(), 
+
+            blocks_all: Default::default(), 
+            blocks_boundary: Default::default(), 
+            blocks_interior: Default::default(), 
+
+            nr_blocks_total: Default::default(), 
+            nr_blocks_interior: Default::default(), 
+            nr_blocks_boundary: Default::default(), 
+
+            auto_generate: true, 
+
+            view_blocks_all: true, 
+            view_blocks_boundary: false, 
+            view_blocks_interior: false, 
+            view_overlap_area: false 
+        }
+    }
 }
 
 
@@ -133,7 +164,7 @@ impl eframe::App for App {
             ui.checkbox(&mut self.view_blocks_all, "View all blocks");
             ui.checkbox(&mut self.view_blocks_boundary, "View boundary blocks");
             ui.checkbox(&mut self.view_blocks_interior, "View interior blocks");
-            ui.checkbox(&mut self.view_area, "View area numbers");
+            ui.checkbox(&mut self.view_overlap_area, "View area numbers");
 
             // Generate action
             ui.separator();
@@ -167,10 +198,11 @@ impl eframe::App for App {
             ui.with_layout(Layout::centered_and_justified(Direction::LeftToRight), |ui| {
                 // Easier to format as single string (want it centered)
                 ui.label(format!(
-                    "nr. blocks: {}, nr. boundary blocks: {}, nr. interior blocks: {}, build sequence: #, program by Basyniae", 
-                    self.nr_blocks_total, 
-                    self.nr_blocks_boundary, 
-                    self.nr_blocks_interior))
+                    "nr. blocks: {}, nr. boundary blocks: {}, nr. interior blocks: {}, build sequence: {:?}, program by Basyniae", 
+                    format_block_count(self.nr_blocks_total), 
+                    format_block_count(self.nr_blocks_boundary), 
+                    format_block_count(self.nr_blocks_interior),
+                    self.blocks_all.get_build_sequence()))
             })
         });
 
@@ -178,9 +210,6 @@ impl eframe::App for App {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             // ui.heading("Viewport");
-
-            let center_offset_x = self.center_offset_x;
-            let center_offset_y = self.center_offset_y;
 
             Plot::new("my_plot")
             .data_aspect(1.0) // so that squares in the rasterization always look square in the viewport
@@ -232,7 +261,7 @@ impl eframe::App for App {
                 plot_ui.hline(HLine::new(self.center_offset_y));
                 plot_ui.vline(VLine::new(self.center_offset_x));
 
-                if self.view_area {
+                if self.view_overlap_area {
                     let square = generate_all_blocks(&Algorithm::Square, 10.0, self.center_offset_x, self.center_offset_y);
                     for coord in square.get_block_coords() {
                         let cell_center = [coord[0]+0.5, coord[1]+0.5];
@@ -275,4 +304,12 @@ fn circle_at_coords(center_x: f64, center_y: f64, radius: f64) -> Line {
     }).collect();
 
     Line::new(circlepts)
+}
+
+fn format_block_count(nr_blocks: u64) -> String {
+    if nr_blocks <= 64 {
+        format!("{}", nr_blocks)
+    } else {
+        format!("{} = {}s{}", nr_blocks, nr_blocks.div_euclid(64), nr_blocks.rem_euclid(64))
+    }
 }
