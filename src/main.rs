@@ -1,3 +1,5 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
+// (ripped straight from the example)
 
 mod app;
 pub mod data_structures;
@@ -7,7 +9,6 @@ use eframe::egui::ViewportBuilder;
 use eframe::{Theme, HardwareAcceleration};
 
 fn main() {
-    println!("Hello, world!");
     let options = eframe::NativeOptions {
             viewport: ViewportBuilder::default(),
             vsync: false,
@@ -17,7 +18,7 @@ fn main() {
             hardware_acceleration: HardwareAcceleration::Preferred,
             renderer: Default::default(),
             follow_system_theme: false,
-            default_theme: Theme::Dark,
+            default_theme: Theme::Dark, 
             run_and_return: false,
             event_loop_builder: None,
             shader_version: None,
@@ -28,7 +29,7 @@ fn main() {
 
     // Use `let _`  to ignore the result properly...
     let _ = eframe::run_native(
-        "Voxel circles", 
+        "Voxircles", 
         options, 
         Box::new(|cc|  Box::new(crate::app::App::new(cc)))
     );
