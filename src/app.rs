@@ -259,8 +259,7 @@ impl eframe::App for App {
                         format_block_count(self.nr_blocks_total),
                         format_block_count(self.nr_blocks_boundary),
                         format_block_count(self.nr_blocks_interior),
-                        [0]
-                        // self.blocks_all.get_build_sequence() FIXME: enable (am troubleshooting now)
+                        self.blocks_all.get_build_sequence()
                     )
                 )
             })
