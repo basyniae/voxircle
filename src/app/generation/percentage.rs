@@ -4,28 +4,41 @@ use crate::data_structures::Blocks;
 
 // logic + geometry + integration
 // Percentage is to be supplied as float between 0 and 1 (note that unexpected behaviour may occur if it 0.0 or 1.0 exactly due to numerical errors)
-pub fn generate_alg_percentage(radius: f64, center_offset_x: f64, center_offset_y: f64, percentage: f64) -> Blocks {
-    let edge_length = ((2.0*radius).ceil() as usize) + 4; // the 4 is needed as a buffer.. 
+pub fn generate_alg_percentage(
+    radius: f64,
+    center_offset_x: f64,
+    center_offset_y: f64,
+    percentage: f64
+) -> Blocks {
+    let edge_length = ((2.0 * radius).ceil() as usize) + 4; // the 4 is needed as a buffer..
     // i think we're able to get away with less but it doesn't matter. Buffer is required to make the interior work as expected
-    let origin = [(edge_length / 2) as f64, (edge_length / 2) as f64]; 
+    let origin = [(edge_length / 2) as f64, (edge_length / 2) as f64];
     // in bitmatrix coordinates, where is the center of the grid?
     let mut output_vec = Vec::new();
 
-    // The above part is the same for all algorithms (I think at this stage)
+    for i in 0..edge_length.pow(2) {
+        // loop over all coords
 
+        // Bottom right coordinate of the box in bitmatrix coordinates is [i % edge_length, i / edge_length], so to get the center we add 0.5.
+        let mut x_center = ((i % edge_length) as f64) + 0.5 - (origin[0] + center_offset_x); // Relative to the circle center, what is the x-position of the center of the box?
+        let mut y_center = ((i / edge_length) as f64) + 0.5 - (origin[1] + center_offset_y); // "" "" what is the y-position of the center of the box
 
-    for i in 0..edge_length.pow(2) { // loop over all coords
+        // Symmetrize. We may assume that the origin is to the bottom left of the box center, and under the bottom-left to top-right diagonal
+        //  by dihedral symmetry of the square.
+        // Formulaically: x_center >= 0, y_center >= 0, y_center >= x_center
+        // Compute this via an if tree casing on signs
+        if x_center < 0.0 {
+            x_center = -x_center;
+        }
+        if y_center < 0.0 {
+            y_center = -y_center;
+        }
+        if x_center > y_center {
+            (y_center, x_center) = (x_center, y_center);
+        }
 
-        // Bottom right coordinate of the box in bitmatrix coordinates is [i % edge_length, i / edge_length]
-        // Want to get at the distance from the corners of a box to the origin + offset (we do this component-wise)
-        let d_x_left = ((i % edge_length) as f64) - (origin[0] + center_offset_x); // how far to the right of the left boundary of the box is the origin + offset?
-        let d_x_right = ((i % edge_length) as f64 + 1.0) - (origin[0] + center_offset_x);
-        let d_y_bottom = ((i / edge_length) as f64) - (origin[1] + center_offset_y);
-        let d_y_top = ((i / edge_length) as f64 + 1.0) - (origin[1] + center_offset_y);
-
-        
-        output_vec.push(cell_disk_intersection_area(radius, d_x_left, d_x_right, d_y_bottom, d_y_top) >= percentage)
-
+        // Then compute the area under the assumptions on the location above and compare to the desired percentage
+        output_vec.push(cell_disk_intersection_area(radius, x_center, y_center) >= percentage);
     }
 
     Blocks {
@@ -38,33 +51,34 @@ pub fn generate_alg_percentage(radius: f64, center_offset_x: f64, center_offset_
 // With -radius <= x0 <= x1 <= radius, what is the area of the semicircle y=sqrt(R^2-x^2) from x0 to x1?
 // Have an exact primitive for non-edge cases
 fn area_of_semicircle_section(x0: f64, x1: f64, radius: f64) -> f64 {
-    if !((-radius <= x0) && (x0 <= x1) && (x1 <= radius)) { // -radius <= x0 <= x1 <= radius
-        panic!("ooo...")
+    if !(-radius <= x0 && x0 <= x1 && x1 <= radius) {
+        // -radius <= x0 <= x1 <= radius
+        panic!("ooo...");
     }
 
     // Primitive in case |x| != R
     fn primitive(x: f64, radius: f64) -> f64 {
         let sq = (radius.powi(2) - x.powi(2)).sqrt();
-        0.5 * (x * sq + radius.powi(2) * (x/sq).atan())
+        0.5 * (x * sq + radius.powi(2) * (x / sq).atan())
     }
 
-    let area_x0_to_0 : f64;
+    let area_x0_to_0: f64;
     if x0 <= -radius {
-        area_x0_to_0 = -radius * PI/4.0;
+        area_x0_to_0 = (-radius * PI) / 4.0;
     } else if x0 >= radius {
-        area_x0_to_0 = radius * PI/4.0;
+        area_x0_to_0 = (radius * PI) / 4.0;
     } else {
         area_x0_to_0 = primitive(x0, radius);
-    };
-    
-    let area_x1_to_0 : f64;
+    }
+
+    let area_x1_to_0: f64;
     if x1 <= -radius {
-        area_x1_to_0 = -radius * PI/4.0;
+        area_x1_to_0 = (-radius * PI) / 4.0;
     } else if x0 >= radius {
-        area_x1_to_0 = radius * PI/4.0;
+        area_x1_to_0 = (radius * PI) / 4.0;
     } else {
         area_x1_to_0 = primitive(x1, radius);
-    };
+    }
 
     area_x1_to_0 - area_x0_to_0 // fundamental theorem of calculus (finite additivity of integral)
 }
@@ -76,204 +90,197 @@ fn intersection_hline_circle(y: f64, radius: f64) -> [f64; 2] {
     [-positive_intersection, positive_intersection]
 }
 
-pub fn cell_disk_intersection_area(radius: f64, d_x_left: f64, d_x_right: f64, d_y_bottom: f64, d_y_top: f64) -> f64 {
-    
+pub fn cell_disk_intersection_area(radius: f64, x_center: f64, y_center: f64) -> f64 {
+    let area: f64; // We compute this area and see if its less than the percentage parameter
 
-    let mut area = 0f64; // We compute this area and see if its less than the percentage parameter
+    // Get the coordinates of the sides of the box
+    let x_left = x_center - 0.5; // what is the x-coordinate of the left boundary of the box?
+    let x_right = x_center + 0.5; // what is the x-coordinate of the right boundary of the box?
+    let y_bottom = y_center - 0.5; // etc.
+    let y_top = y_center + 0.5;
 
+    // Symmetrization makes it so that
+    // x_left <= 0.5, x_right <= -0.5,  y_bottom <= 0.5, y_top <= -0.5,
+    //  as well as the origin-under-diagonal condition (which is also some sort of linear inequality)
+    //  x_left <= y_bottom, x_right <= y_top
 
     // Precompute which corner points are in the the disk (we condition on these a bunch)
     // write L for left, R for right, B for bottom, T for top.
-    let LB = (d_x_left.powi(2) + d_y_bottom.powi(2) <= radius.powi(2));
-    let RB = (d_x_right.powi(2) + d_y_bottom.powi(2) <= radius.powi(2));
-    let LT = (d_x_left.powi(2) + d_y_top.powi(2) <= radius.powi(2));
-    let RT = (d_x_right.powi(2) + d_y_top.powi(2) <= radius.powi(2));
+    let rt = x_right.powi(2) + y_top.powi(2) <= radius.powi(2);
+    let lt = x_left.powi(2) + y_top.powi(2) <= radius.powi(2);
+    let rb = x_right.powi(2) + y_bottom.powi(2) <= radius.powi(2);
+    let lb = x_left.powi(2) + y_bottom.powi(2) <= radius.powi(2);
 
-    if LB && RB && LT && RT {
-        // We have that the box is contained in the disk <=> all corner of the box are in the disk. Then the area is 1.0 
-        // (aim to call arctan and sqrt as little as possible)
-        area = 1.0;
-    } else if (d_x_left.powi(2) + d_y_bottom.powi(2) > (radius+0.5).powi(2))
-    && (d_x_right.powi(2) + d_y_bottom.powi(2) > (radius+0.5).powi(2))
-    && (d_x_left.powi(2) + d_y_top.powi(2) > (radius+0.5).powi(2))
-    && (d_x_right.powi(2) + d_y_top.powi(2) > (radius+0.5).powi(2)) {
+    // Due to symmetrization we get LB => RB => LT => RT (logical implies)
+    // Example: if we know LT is in the disk, then automatically also RB and LB are in the disk
+
+    if
+        x_left.powi(2) + y_bottom.powi(2) > (radius + 0.5).powi(2) &&
+        x_right.powi(2) + y_bottom.powi(2) > (radius + 0.5).powi(2) &&
+        x_left.powi(2) + y_top.powi(2) > (radius + 0.5).powi(2) &&
+        x_right.powi(2) + y_top.powi(2) > (radius + 0.5).powi(2)
+    {
         // If every corner point is more than radius + 0.5 away from the center, then the area of the intersection is zero
         // Worst case is for very small circle with center on the midpoint of an edge of the box.
-        area = 0.0
+        area = 0.0;
         // These two statements should catch both the bulk of the interior and the bulk of the exterior
         // we can use more expensive functions for the remaining O(radius) cases (linear since the it scales as a boundary)
-
-        // May assume (due to first if statement) that at least one corner point is not in the disk. Match on # corner points in the disk.
     } else {
-        match LB as u8 + RB as u8 + LT as u8 + RT as u8 { // TODO: refactor to include the area=1.0 case of complete inclusion
+        match (lb as u8) + (rb as u8) + (lt as u8) + (rt as u8) {
+            4 => {
+                // Recall from contained.rs that if all cornerpoints are contained in the disk, then
+                //  then the entire box is in the disk. So the overlap area is 1 (the entire box).
+                area = 1.0;
+            }
             3 => {
-                // Missing one point. case on which one. See last entry for explanation.
-                if !LB { // FIXME: bug on integral radius
-                    // missing bottom left
-                    // pick the left entry
-                    let d_x_intercept = intersection_hline_circle(d_y_bottom, radius)[0];
+                // Missing one point. By symmetry, it must be the top right
+                // Find intersection of top edge with the circle.
+                let x_intercept = intersection_hline_circle(y_top, radius)[1];
+                // We pick the rightmost intersection point, since the top right point is missing (draw a picture)
+                // Note that x_left < x_intercept < x_right.
 
-                    area = 1.0 * (d_x_right - d_x_intercept) + area_of_semicircle_section(d_x_left, d_x_intercept, radius) - (d_x_intercept - d_x_left) * (-d_y_top)
-                    // make sure the signs are positive for each area: we have d_x_right > d_x_right
-                    
-                } else if !RB {
-                    // missing bottom right
-                    let d_x_intercept = intersection_hline_circle(d_y_bottom, radius)[1];
-
-                    area = 1.0 * (d_x_intercept - d_x_left) + area_of_semicircle_section(d_x_intercept, d_x_right, radius) - (d_x_right - d_x_intercept) * (-d_y_top)
-                    // The formulas are the same as top right, we just flip vertically so d_y_top and d_y_bottom are interchanged
-                } else if !LT { // FIXME: bug on integral radius
-                    // missing top left
-                    // pick the left entry
-                    let d_x_intercept = intersection_hline_circle(d_y_top, radius)[0];
-
-                    area = 1.0 * (d_x_right - d_x_intercept) + area_of_semicircle_section(d_x_left, d_x_intercept, radius) - (d_x_intercept - d_x_left) * d_y_bottom
-                    // make sure the signs are positive for each area
-
-                } else if !RT {
-                    // missing top right
-                    // Find intersection of top edge with circle. intersection_hline_circle computes the distance from the origin
-                    let d_x_intercept = intersection_hline_circle(d_y_top, radius)[1];
-                    // we pick the rightmost intersection point, since the bottom LEFT point is missing (draw a picture)
-
-                    // The area is
-                    area = 1.0 * (d_x_intercept - d_x_left) + area_of_semicircle_section(d_x_intercept, d_x_right, radius) - (d_x_right - d_x_intercept) * d_y_bottom
-                    // Namely divide the intersection of the box and disk into a rectangle and the region under the curve. The rectangle is the first term,
-                    //  the region under the curve are the last two turns (first compute the are under the semicircle to the x-axis, then subtract the rectangle we shouldn't count)
-                    // The signs work out since we're in the upper right quadrant (also checked this for the origin being to the right of the left boundary of the square)
-                } else {
-                    panic!("Has to miss one point (impossible to get here)")
-                }
-            },
+                // The area is
+                area =
+                    1.0 * (x_intercept - x_left) +
+                    area_of_semicircle_section(x_intercept, x_right, radius) -
+                    (x_right - x_intercept) * y_bottom;
+                // Namely divide the intersection of the box and disk into a rectangle and the region under the curve. The rectangle is the first term,
+                //  the region under the curve are the last two turns (first compute the are under the semicircle to the x-axis, then subtract the rectangle we shouldn't count)
+                // The signs work out since we're in the upper right quadrant (also checked this for the origin being to the right of the left boundary of the square)
+                //  (note that every term in the expression for the area should be positive)
+            }
             2 => {
-                // Note that by the geometry, the two points have to be adjacent. So that leaves four possibilities: either both on left, right, bottom, or top.
-                // Choose coordinate x to integrate over for {top, bottom}, choose coordinate y for {left, right}. Then we don't need to compute the intersection of the circle with an edge!
-                // Choose nice absolute value so we can combine the formulas for the same coordinate to integrate over
-                if LT && RT {
-                    // integrate over x (the multiplication by 1.0 is to indicate that it is an area of 1.0 by d_y_top)
-                    area = area_of_semicircle_section(d_x_left, d_x_right, radius) - 1.0 * (-d_y_top);
-                } else if LB && RB {
-                    // integrate over x
-                    area = area_of_semicircle_section(d_x_left, d_x_right, radius) - 1.0 * d_y_bottom;
-                } else if LT && LB {
-                    // integrate over y (origin is to the left)
-                    area = area_of_semicircle_section(d_y_bottom, d_y_top, radius) - 1.0 * d_x_left;
-                } else if RT && RB {
-                    // integrate over y
-                    area = area_of_semicircle_section(d_y_bottom, d_y_top, radius) - 1.0 * (-d_x_right);
-                }
-            },
-            1 => {
-                // We want to pick the easiest possible integration coordinate. Case on which cardinal strip the origin is in, so we can avoid bend points
-                // recall from `conservative.rs`: vertical strip is d_x_left <= 0.0 && d_x_right >= 0.0. Horizontal strip is d_y_bottom <= 0.0 && d_y_top >= 0.0
-                if !(d_y_bottom <= 0.0 && d_y_top >= 0.0) {
-                    // Not in the horizontal strip. So no bend point in the x direction, so it can be used as an integration coordinate.
-                    // Case on which corner point
-                    if LB {
-                        let d_x_intercept = intersection_hline_circle(d_y_bottom, radius)[1];
-                        area = area_of_semicircle_section(d_x_left, d_x_intercept, radius) - (d_x_intercept - d_x_left) * (d_y_bottom)
-                    } else if RB {
-                        let d_x_intercept = intersection_hline_circle(d_y_bottom, radius)[0];
-                        area = area_of_semicircle_section(d_x_intercept, d_x_right, radius) - (d_x_right - d_x_intercept) * (d_y_bottom)
-                    } else if LT {
-                        let d_x_intercept = intersection_hline_circle(d_y_top, radius)[1];
-                        area = area_of_semicircle_section(d_x_left, d_x_intercept, radius) - (d_x_intercept - d_x_left) * (-d_y_top)
-                    } else if RT {
-                        let d_x_intercept = intersection_hline_circle(d_y_top, radius)[0];
-                        area = area_of_semicircle_section(d_x_intercept, d_x_right, radius) - (d_x_right - d_x_intercept) * (-d_y_top)
-                    } else {
-                        panic!("impossible")
-                    }
-                } else if !(d_x_left <= 0.0 && d_x_right >= 0.0) {
-                    // Not in the vertical strip, so use y as integration coordinate FIXME: all are wrong. found a mistaking, testing..
-                    if LB {
-                        let d_y_intercept = intersection_hline_circle(d_x_left, radius)[1];
-                        area = area_of_semicircle_section(d_y_bottom, d_y_intercept, radius) - (d_y_intercept - d_y_bottom) * (d_x_left)
-                    } else if RB {
-                        let d_y_intercept = intersection_hline_circle(d_x_right, radius)[1];
-                        area = area_of_semicircle_section(d_y_bottom, d_y_intercept, radius) - (d_y_intercept - d_y_bottom) * (-d_x_right)
-                    } else if LT  {
-                        let d_y_intercept = intersection_hline_circle(d_x_left, radius)[0];
-                        area = area_of_semicircle_section(d_y_intercept, d_y_top, radius) - (d_y_top - d_y_intercept) * (d_x_left)
-                    } else if RT {
-                        let d_y_intercept = intersection_hline_circle(d_x_right, radius)[0];
-                        area = area_of_semicircle_section(d_y_intercept, d_y_top, radius) - (d_y_top - d_y_intercept) * (-d_x_right)
-                    }
+                // Missing two points. By symmetry, it must be top left and top right.
+                // Two cases: either the the circle pokes through the top edge or it doesn't.
+                // Note that since exactly two points are missing, if the circle pokes through the top edge it does so twice.
+                // Meaning that the vertical strip must contain the origin: x_left < 0 < x_right, and also that radius > y_top
+                //  (by symmetry, x_right > 0 always)
+                if x_left < 0.0 && radius > y_top.abs() {
+                    let x_intercept_left = intersection_hline_circle(y_top, radius)[0];
+                    let x_intercept_right = intersection_hline_circle(y_top, radius)[1];
+                    // Have x_left < x_intercept_left < x_intercept_right < x_right
+
+                    area =
+                        area_of_semicircle_section(x_left, x_intercept_left, radius) -
+                        (x_intercept_left - x_left) * y_bottom +
+                        (x_intercept_right - x_intercept_left) * 1.0 +
+                        (area_of_semicircle_section(x_intercept_right, x_right, radius) -
+                            (x_right - x_intercept_right) * y_bottom);
                 } else {
-                    // Origin both in horizontal and vertical strip, so the origin must be in the cell
-                    // Split along the horizontal and vertical lines through the origin
-                    if LB {
-                        let d_x_intercept = intersection_hline_circle(d_y_bottom, radius)[1];
-                        area = area_of_semicircle_section(d_x_left, 0.0, radius) + 2.0 * area_of_semicircle_section(0.0, d_x_intercept, radius) + (d_x_intercept - d_x_left) * (-d_y_bottom)
-                    } else if RB {
-                        let d_x_intercept = intersection_hline_circle(d_y_bottom, radius)[0];
-                        area = area_of_semicircle_section(0.0, d_x_right, radius) + 2.0 * area_of_semicircle_section(d_x_intercept, 0.0, radius) + (d_x_right - d_x_intercept) * (-d_y_bottom)
-                    } else if LT {
-                        let d_x_intercept = intersection_hline_circle(d_y_top, radius)[1];
-                        area = area_of_semicircle_section(d_x_left, 0.0, radius) + 2.0 * area_of_semicircle_section(0.0, d_x_intercept, radius) + (d_x_intercept - d_x_left) * (d_y_top)
-                    } else if RT {
-                        let d_x_intercept = intersection_hline_circle(d_y_top, radius)[0];
-                        area = area_of_semicircle_section(0.0, d_x_right, radius) + 2.0 * area_of_semicircle_section(d_x_intercept, 0.0, radius) + (d_x_right - d_x_intercept) * (d_y_top)
-                    }
+                    // In case the circle does not poke through the the top edge, the area is
+                    area = area_of_semicircle_section(x_left, x_right, radius) - 1.0 * y_bottom;
+                    // namely it is the area of the semicircle section.
+                }
+            }
+            1 => {
+                // Missing three points. By symmetry, only the RB point is in the disk.
+                // Two cases: either the origin is above or below the bottom edge of the box.
+                if y_bottom > 0.0 {
+                    // Origin below the bottom edge
+                    // No turning point, we can integrate as normal
+                    let x_intercept = intersection_hline_circle(y_bottom, radius)[1];
+                    // Have x_left < x_intercept < x_right
+
+                    area =
+                        area_of_semicircle_section(x_left, x_intercept, radius) -
+                        (x_intercept - x_left) * y_bottom;
+                } else {
+                    // Origin above the bottom edge
+                    // Turning point in the x-direction. So need to split up the area into sections
+                    let x_intercept = intersection_hline_circle(y_bottom, radius)[1];
+                    // Have x_left < x_intercept < x_right
+
+                    area =
+                        area_of_semicircle_section(x_left, x_intercept, radius) -
+                        (x_intercept - x_left) * y_bottom +
+                        2.0 * area_of_semicircle_section(x_intercept, radius, radius);
+                    // First two terms compute the area under the curve from x_left to x_intercept
+                    // Third terms is the area of the remaining slice (the turning point is at x1 = radius,
+                    //  our area function is sufficiently robust to handle that)
                 }
             }
             0 => {
-                // For nonzero area we have to have that it's in a cardinal strip (as in `conservative.rs`)
-                // Also use this condition for computation.
-                if d_x_left <= 0.0 && d_x_right >= 0.0 {
-                    // in vertical strip
-                    // Case on to the top or inside or bottom
-                    if d_y_top >= 0.0 {
-                        // origin to the top
-                        let d_x_intercepts = intersection_hline_circle(d_y_top, radius);
-                        if d_x_intercepts[0].is_nan() && d_x_intercepts[1].is_nan() { // No intersection case
-                            area = 0.0
-                        } else {
-                            area = area_of_semicircle_section(d_x_intercepts[0], d_x_intercepts[1], radius) - (d_x_intercepts[1] - d_x_intercepts[0]) * (-d_y_top)
-                        }
-                    } else if d_y_bottom <= 0.0 {
-                        // origin to the bottom
-                        let d_x_intercepts = intersection_hline_circle(d_y_bottom, radius);
-                        if d_x_intercepts[0].is_nan() && d_x_intercepts[1].is_nan() { // No intersection case
-                            area = 0.0
-                        } else {
-                            area = area_of_semicircle_section(d_x_intercepts[0], d_x_intercepts[1], radius) - (d_x_intercepts[1] - d_x_intercepts[0]) * (d_y_bottom)
-                        }
-                    } else {
-                        // TODO: origin inside the cell, no corner hit. (very nasty case! Need to compute all intersections)
-                        todo!()
+                // No cornerpoints are in the disk
+                // Three cases: either the origin is outside of the box and the disk peeks through the bottom edge,
+                //  or the origin is inside the box, or neither of those things happens (in which case the area is zero).
+                if y_bottom > 0.0 && x_left < 0.0 && radius > y_bottom.abs() {
+                    // y_bottom > 0.0 <=> origin is outside of the box
+                    // x_left < 0.0 <=> origin is in vertical strip, radius > y_bottom then means the disk peeks through the bottom edge
+                    let x_intercept_left = intersection_hline_circle(y_bottom, radius)[0];
+                    let x_intercept_right = intersection_hline_circle(y_bottom, radius)[1];
+                    // Get x_left < x_intercept_left < x_intercept_right < x_right
+                    area =
+                        area_of_semicircle_section(x_intercept_left, x_intercept_right, radius) -
+                        (x_intercept_right - x_intercept_left) * y_bottom;
+                    // Compute the area as usual
+                } else if y_bottom < 0.0 {
+                    // Origin inside the circle.
+                    // (running time note: this is a very rare case. only happens once and only for very small radii)
+                    // Kind of nasty. The disk may peek through all edges (take say the box centered at (0,0), a radius strictly between 1 and sqrt 2)
+                    // Idea: Compute area of complete disk, subtract peek-through regions
+                    let mut running_area = PI * radius.powi(2);
+
+                    // Casing on peek-through is just casing on radius being greater than the edge coordinates.
+                    //  They are all essentially independent (we don't use dihedral symmetry for this computation)
+                    if radius > y_top.abs() {
+                        // Peek through top edge
+                        let x_intercept_left = intersection_hline_circle(y_top, radius)[0];
+                        let x_intercept_right = intersection_hline_circle(y_top, radius)[1];
+                        running_area -=
+                            area_of_semicircle_section(
+                                x_intercept_left,
+                                x_intercept_right,
+                                radius
+                            ) -
+                            (x_intercept_right - x_intercept_left) * y_top.abs();
                     }
-                } else if d_y_bottom <= 0.0 && d_y_top >= 0.0 {
-                    // in horizontal strip
-                    // Case on left or right (note that inside is already covered by the above case)
-                    if d_x_left <= 0.0 {
-                        // origin to left
-                        let d_y_intercepts = intersection_hline_circle(d_x_left, radius);
-                        if d_y_intercepts[0].is_nan() && d_y_intercepts[1].is_nan() {
-                            area = 0.0
-                        } else {
-                            area = area_of_semicircle_section(d_y_intercepts[0], d_y_intercepts[0], radius) - (d_y_intercepts[1] - d_y_intercepts[0]) * (-d_x_left)
-                        }
-                    } else if d_x_right >= 0.0 {
-                        // origin to right                            
-                        let d_y_intercepts = intersection_hline_circle(d_x_right, radius);
-                        if d_y_intercepts[0].is_nan() && d_y_intercepts[1].is_nan() {
-                            area = 0.0
-                        } else {
-                            area = area_of_semicircle_section(d_y_intercepts[0], d_y_intercepts[0], radius) - (d_y_intercepts[1] - d_y_intercepts[0]) * (d_x_right)
-                        }
-                    } else {
-                        panic!("Impossible! but via a nontrivial argument")
+                    if radius > y_bottom.abs() {
+                        // Peek through bottom edge
+                        let x_intercept_left = intersection_hline_circle(y_bottom, radius)[0];
+                        let x_intercept_right = intersection_hline_circle(y_bottom, radius)[1];
+                        running_area -=
+                            area_of_semicircle_section(
+                                x_intercept_left,
+                                x_intercept_right,
+                                radius
+                            ) -
+                            (x_intercept_right - x_intercept_left) * y_bottom.abs();
                     }
+                    if radius > x_right.abs() {
+                        // Peek through right edge
+                        let y_intercept_bottom = intersection_hline_circle(x_right, radius)[0];
+                        let y_intercept_top = intersection_hline_circle(x_right, radius)[1];
+                        running_area -=
+                            area_of_semicircle_section(
+                                y_intercept_bottom,
+                                y_intercept_top,
+                                radius
+                            ) -
+                            (y_intercept_top - y_intercept_bottom) * x_right.abs();
+                    }
+                    if radius > x_left.abs() {
+                        // Peek through top edge
+                        let y_intercept_bottom = intersection_hline_circle(x_left, radius)[0];
+                        let y_intercept_top = intersection_hline_circle(x_left, radius)[1];
+                        running_area -=
+                            area_of_semicircle_section(
+                                y_intercept_bottom,
+                                y_intercept_top,
+                                radius
+                            ) -
+                            (y_intercept_top - y_intercept_bottom) * y_top.abs();
+                    }
+
+                    area = running_area;
                 } else {
-                    area = 0.0
+                    // No overlap case
+                    area = 0.0;
                 }
-            },
+            }
             _ => {
-                panic!("Nr. of points cannot be different from 3, 2, 1, or 0.")
+                panic!("Nr. of points cannot be different from 4, 3, 2, 1, or 0.");
             }
         }
     }
-
     area
 }

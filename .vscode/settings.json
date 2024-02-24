@@ -1,5 +1,9 @@
 {
     "rust-analyzer.linkedProjects": [
         ".\\Cargo.toml"
-    ]
+    ],
+    "editor.tokenColorCustomizations": {
+        "comments": "",
+        "textMateRules": []
+    }
 }
