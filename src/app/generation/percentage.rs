@@ -141,7 +141,7 @@ pub fn cell_disk_intersection_area(radius: f64, x_center: f64, y_center: f64) ->
 
                 // The area is
                 area =
-                    1.0 * (x_intercept - x_left) +
+                    (x_intercept - x_left) * 1.0 +
                     area_of_semicircle_section(x_intercept, x_right, radius) -
                     (x_right - x_intercept) * y_bottom;
                 // Namely divide the intersection of the box and disk into a rectangle and the region under the curve. The rectangle is the first term,

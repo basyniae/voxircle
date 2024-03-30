@@ -1,5 +1,5 @@
 mod generation;
-mod preprocessing;
+mod helpers;
 mod metrics;
 
 use std::default::Default;
@@ -8,6 +8,7 @@ use std::ops::Not;
 use eframe::epaint::{ Color32, Stroke };
 use eframe::egui::{ self };
 use eframe::egui::{ Layout, Direction };
+use eframe::glow::BLUE;
 use egui_plot::{
     uniform_grid_spacer,
     HLine,
@@ -24,6 +25,7 @@ use egui_plot::{
 use crate::data_structures::Blocks;
 
 use self::generation::{ generate_all_blocks, Algorithm };
+use self::helpers::convex_hull::{ get_convex_hull, line_segments_from_conv_hull };
 
 pub struct App {
     algorithm: Algorithm,
@@ -48,7 +50,11 @@ pub struct App {
     view_blocks_boundary: bool,
     view_blocks_interior: bool,
 
-    view_overlap_area: bool,
+    view_intersect_area: bool,
+
+    view_convex_hull: bool,
+    convex_hull: Vec<[f64; 2]>,
+    outer_corners: Vec<[f64; 2]>,
 }
 
 // Defaults should be such that we get useful output on startup
@@ -78,7 +84,11 @@ impl Default for App {
             view_blocks_all: true,
             view_blocks_boundary: false,
             view_blocks_interior: false,
-            view_overlap_area: false,
+            view_intersect_area: false,
+
+            view_convex_hull: true, //FIXME: Make default false (this is for troubleshooting)
+            convex_hull: Default::default(),
+            outer_corners: Default::default(),
         }
     }
 }
@@ -206,12 +216,13 @@ impl eframe::App for App {
                 self.center_offset_y = 0.5;
             }
 
-            // Viewport options
+            // Viewport options TODO: Arrange nicely (two column layout will do the job)
             ui.separator();
             ui.checkbox(&mut self.view_blocks_all, "View all blocks");
             ui.checkbox(&mut self.view_blocks_boundary, "View boundary blocks");
             ui.checkbox(&mut self.view_blocks_interior, "View interior blocks");
-            ui.checkbox(&mut self.view_overlap_area, "View area numbers");
+            ui.checkbox(&mut self.view_intersect_area, "View intersect area");
+            ui.checkbox(&mut self.view_convex_hull, "View convex hull");
 
             // Generate action
             ui.separator();
@@ -245,6 +256,9 @@ impl eframe::App for App {
                     self.nr_blocks_total = self.blocks_all.get_nr_blocks();
                     self.nr_blocks_interior = self.blocks_interior.get_nr_blocks();
                     self.nr_blocks_boundary = self.blocks_boundary.get_nr_blocks();
+
+                    self.convex_hull = get_convex_hull(self.blocks_all.get_block_coords());
+                    self.outer_corners = self.blocks_all.get_outer_corners();
                 }
             });
         });
@@ -255,10 +269,12 @@ impl eframe::App for App {
                 // Easier to format as single string (want it centered)
                 ui.label(
                     format!(
-                        "nr. blocks: {}, nr. boundary blocks: {}, nr. interior blocks: {}, build sequence: {:?}, program by Basyniae",
+                        "nr. blocks: {}, nr. boundary blocks: {}, nr. interior blocks: {}, {}, build sequence: {:?}, program by Basyniae",
                         format_block_count(self.nr_blocks_total),
                         format_block_count(self.nr_blocks_boundary),
                         format_block_count(self.nr_blocks_interior),
+                        // TODO: Better to run these once every time a new shape is generated. But it's not like we're running into performance issues
+                        format_block_diamter(self.blocks_all.get_diameters()),
                         self.blocks_all.get_build_sequence()
                     )
                 )
@@ -290,7 +306,7 @@ impl eframe::App for App {
                 .include_x(self.radius + 1.0)
                 .include_x(-self.radius - 1.0)
                 .show(ui, |plot_ui| {
-                    // Plot all blocks
+                    // * Viewport plotting * //
                     if self.view_blocks_all {
                         for coord in self.blocks_all.get_block_coords() {
                             plot_ui.polygon(
@@ -331,7 +347,8 @@ impl eframe::App for App {
                     plot_ui.hline(HLine::new(self.center_offset_y));
                     plot_ui.vline(VLine::new(self.center_offset_x));
 
-                    if self.view_overlap_area {
+                    // TODO: Don't display zeros. Dynamically size grid
+                    if self.view_intersect_area {
                         let square = generate_all_blocks(
                             &Algorithm::Square,
                             10.0,
@@ -369,6 +386,24 @@ impl eframe::App for App {
                             );
                         }
                     }
+
+                    // Prehaps better to use the plot_ui.shape
+                    if self.view_convex_hull {
+                        for i in line_segments_from_conv_hull(self.convex_hull.clone()) {
+                            let pts: PlotPoints = (0..=1).map(|t| i[t]).collect();
+                            plot_ui.line(Line::new(pts).color(Color32::RED));
+                        }
+                    }
+
+                    for [i, j] in &self.outer_corners {
+                        plot_ui.points(
+                            Points::new(vec![[*i, *j]])
+                                .radius(3.0)
+                                .color(Color32::BLUE)
+                        );
+                    }
+
+                    // plot_ui.points(Points::new(PlotPoints::from(value)).radius(3.0).color(Color32::BLUE))
                 });
         });
     }
@@ -402,5 +437,13 @@ fn format_block_count(nr_blocks: u64) -> String {
         format!("{}", nr_blocks)
     } else {
         format!("{} = {}s{}", nr_blocks, nr_blocks.div_euclid(64), nr_blocks.rem_euclid(64))
+    }
+}
+
+fn format_block_diamter(diameters: [u64; 2]) -> String {
+    if diameters[0] == diameters[1] {
+        format!("block diameter: {}", diameters[0])
+    } else {
+        format!("block diameters: {}x by {}y", diameters[0], diameters[1])
     }
 }
