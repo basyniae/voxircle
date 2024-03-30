@@ -8,7 +8,6 @@ use std::ops::Not;
 use eframe::epaint::{ Color32, Stroke };
 use eframe::egui::{ self };
 use eframe::egui::{ Layout, Direction };
-use eframe::glow::BLUE;
 use egui_plot::{
     uniform_grid_spacer,
     HLine,
@@ -257,8 +256,8 @@ impl eframe::App for App {
                     self.nr_blocks_interior = self.blocks_interior.get_nr_blocks();
                     self.nr_blocks_boundary = self.blocks_boundary.get_nr_blocks();
 
-                    self.convex_hull = get_convex_hull(self.blocks_all.get_block_coords());
                     self.outer_corners = self.blocks_all.get_outer_corners();
+                    self.convex_hull = get_convex_hull(&self.outer_corners);
                 }
             });
         });
