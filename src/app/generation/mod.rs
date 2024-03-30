@@ -3,8 +3,9 @@
 mod centerpoint;
 mod contained;
 mod conservative;
-pub mod percentage;
+pub mod percentage; // want it public because we use the circle intersection area as a widget
 mod square;
+mod diamond;
 
 use crate::data_structures::Blocks;
 
@@ -12,6 +13,7 @@ use self::{
     centerpoint::generate_alg_centerpoint,
     conservative::generate_alg_conservative,
     contained::generate_alg_contained,
+    diamond::generate_alg_diamond,
     percentage::generate_alg_percentage,
     square::generate_alg_square,
 };
@@ -36,16 +38,22 @@ pub fn generate_all_blocks(
 ) -> Blocks {
     match algorithm {
         Algorithm::Conservative => {
-            generate_alg_conservative(radius, center_offset_x, center_offset_y)
+            generate_alg_conservative(radius, center_offset_x, center_offset_y) //
         }
-        Algorithm::Percentage(param) => {
-            generate_alg_percentage(radius, center_offset_x, center_offset_y, *param)
+        Algorithm::Percentage(percentage) => {
+            generate_alg_percentage(radius, center_offset_x, center_offset_y, *percentage) //
         }
-        Algorithm::Contained => { generate_alg_contained(radius, center_offset_x, center_offset_y) }
+        Algorithm::Contained => {
+            generate_alg_contained(radius, center_offset_x, center_offset_y) //
+        }
         Algorithm::CenterPoint => {
-            generate_alg_centerpoint(radius, center_offset_x, center_offset_y)
+            generate_alg_centerpoint(radius, center_offset_x, center_offset_y) //
         }
-        Algorithm::Square => { generate_alg_square(radius, center_offset_x, center_offset_y) }
-        Algorithm::Diamond => todo!(),
+        Algorithm::Square => {
+            generate_alg_square(radius, center_offset_x, center_offset_y) //
+        }
+        Algorithm::Diamond => {
+            generate_alg_diamond(radius, center_offset_x, center_offset_y) //
+        }
     }
 }

@@ -1,6 +1,6 @@
 use crate::data_structures::Blocks;
 
-pub fn generate_alg_square(radius: f64, center_offset_x: f64, center_offset_y: f64) -> Blocks {
+pub fn generate_alg_diamond(radius: f64, center_offset_x: f64, center_offset_y: f64) -> Blocks {
     let edge_length = ((2.0 * radius).ceil() as usize) + 4; // the 4 is needed as a buffer..
     // i think we're able to get away with less but it doesn't matter. Buffer is required to make the interior work as expected
     let origin = [(edge_length / 2) as f64, (edge_length / 2) as f64];
@@ -13,8 +13,8 @@ pub fn generate_alg_square(radius: f64, center_offset_x: f64, center_offset_y: f
         // loop over all coords
         let d_x = ((i % edge_length) as f64) + 0.5 - (origin[0] + center_offset_x);
         let d_y = ((i / edge_length) as f64) + 0.5 - (origin[1] + center_offset_y);
-        // Standard formula for square
-        output_vec.push(d_x.abs() <= radius && d_y.abs() <= radius);
+        // standard formula for diamond
+        output_vec.push(d_x.abs() + d_y.abs() <= radius);
     }
 
     Blocks {
