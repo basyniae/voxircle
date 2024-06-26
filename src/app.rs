@@ -85,7 +85,7 @@ impl Default for App {
             view_blocks_interior: false,
             view_intersect_area: false,
 
-            view_convex_hull: true, //FIXME: Make default false (this is for troubleshooting)
+            view_convex_hull: false,
             convex_hull: Default::default(),
             outer_corners: Default::default(),
         }
