@@ -33,6 +33,14 @@ impl Vec2 {
     pub fn ip(&self, other: Vec2) -> f64 {
         self.x * other.x + self.y * other.y
     }
+    
+    pub fn onenorm(&self) -> f64 {
+        self.x.abs()+self.y.abs()
+    }
+    
+    pub fn infnorm(&self) -> f64 {
+        f64::max(self.x.abs(), self.y.abs())
+    }
 }
 
 impl ops::Add<Vec2> for Vec2 {
@@ -79,17 +87,21 @@ impl From<[f64; 4]> for Mat2 {
 }
 
 impl Mat2 {
-    /// Determinant
-    pub fn det(&self) -> f64 {
-        self.a * self.d - self.b * self.c
+    pub fn from_rows(row1: Vec2, row2: Vec2) -> Mat2 {
+        Mat2::from([row1.x, row1.y, row2.x, row2.y])
     }
 
     pub fn from_columns(col1: Vec2, col2: Vec2) -> Mat2 {
         Mat2::from([col1.x, col2.x, col1.y, col2.y])
     }
 
-    pub fn from_rows(row1: Vec2, row2: Vec2) -> Mat2 {
-        Mat2::from([row1.x, row1.y, row2.x, row2.y])
+    pub fn diagonal(a: f64, d: f64) -> Mat2 {
+        Mat2::from([a, 0.0, 0.0, d])
+    }
+    
+    /// Determinant
+    pub fn det(&self) -> f64 {
+        self.a * self.d - self.b * self.c
     }
 
     pub fn transpose(&self) -> Mat2 {
