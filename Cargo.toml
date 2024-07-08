@@ -11,3 +11,4 @@ egui_extras = {version = "0.26.0", features = ["image"]}
 egui_plot = "0.26.0"
 image = {version = "0.24.8"}
 exitcode = "1.1.2"
+itertools = "0.13.0"
