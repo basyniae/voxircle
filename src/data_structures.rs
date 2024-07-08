@@ -1,12 +1,14 @@
+use crate::app::helpers::lin_alg::Vec2;
+
 // Captures a bit matrix. The length of the vector should always be edge_length**2
 // Order is x first left to right, then y down to up (to match coord space)
 #[derive(Default, Clone)]
 pub struct Blocks {
     pub blocks: Vec<bool>,
     pub edge_length: usize, // of type usize because we index with it a bunch of times
-    pub origin: [f64; 2], // At which bitmatrix coords is the center of the circle?
-    // For a block-diameter 4 circle it would be [2.0,2.0], for a block-diameter 5 circle it would be [2.5,2.5]
-    // but how does this work paradigmatically
+    pub origin: Vec2,       // At which bitmatrix coords is the center of the circle?
+                            // For a block-diameter 4 circle it would be [2.0,2.0], for a block-diameter 5 circle it would be [2.5,2.5]
+                            // but how does this work paradigmatically
 }
 
 impl Blocks {
@@ -18,8 +20,8 @@ impl Blocks {
         for b in &self.blocks {
             if *b {
                 output_vec.push([
-                    ((i % self.edge_length) as f64) - self.origin[0], // Get integer x position (which is bot. left), then make origin center
-                    ((i / self.edge_length) as f64) - self.origin[1],
+                    ((i % self.edge_length) as f64) - self.origin.x, // Get integer x position (which is bot. left), then make origin center
+                    ((i / self.edge_length) as f64) - self.origin.y,
                 ]);
             }
             i += 1;
@@ -47,19 +49,17 @@ impl Blocks {
             if *b == false {
                 // if not a point in the set of blocks, then certainly not a point in the interior
                 output_vec.push(false);
-            } else if
-                i % self.edge_length == 0 ||
-                i % self.edge_length == self.edge_length - 1 ||
-                i / self.edge_length == 0 ||
-                i / self.edge_length == self.edge_length - 1
+            } else if i % self.edge_length == 0
+                || i % self.edge_length == self.edge_length - 1
+                || i / self.edge_length == 0
+                || i / self.edge_length == self.edge_length - 1
             {
                 // If on the boundary, output not-interior (valid via judicious padding of the interesting structure)
                 output_vec.push(false);
-            } else if
-                self.blocks[i + 1] == false ||
-                self.blocks[i - 1] == false ||
-                self.blocks[i + self.edge_length] == false ||
-                self.blocks[i - self.edge_length] == false
+            } else if self.blocks[i + 1] == false
+                || self.blocks[i - 1] == false
+                || self.blocks[i + self.edge_length] == false
+                || self.blocks[i - self.edge_length] == false
             {
                 // actually check the neighbors
                 output_vec.push(false);
@@ -116,7 +116,7 @@ impl Blocks {
                         prev_block_had_block_below = true;
                     }
 
-                    // If there is no block left-diagonally above the currently block
+                    // If there is no block left-diagonally above the current block
                     //  we must be past the 45° point. (this assumes "niceness" of the input)
                     if !self.blocks[(i + 1) * self.edge_length + j - 1] {
                         // so break the outer loop as soon as we've scanned the full row
@@ -181,21 +181,21 @@ impl Blocks {
         for corner_point in 0..self.edge_length.pow(2) {
             // Filter out those corner points which don't have a 2×2 around them
             // (using bottom right index to match corners to their block)
-            if
-                corner_point / self.edge_length == self.edge_length - 1 || // if on left edge
-                corner_point % self.edge_length == self.edge_length - 1 // if on top edge
+            if corner_point / self.edge_length == self.edge_length - 1 || // if on left edge
+                corner_point % self.edge_length == self.edge_length - 1
+            // if on top edge
             {
                 // do nothing
-            } else if
-                (self.blocks[corner_point] as u8) +
-                    (self.blocks[corner_point + 1] as u8) +
-                    (self.blocks[corner_point + self.edge_length] as u8) +
-                    (self.blocks[corner_point + self.edge_length + 1] as u8) == 1
+            } else if (self.blocks[corner_point] as u8)
+                + (self.blocks[corner_point + 1] as u8)
+                + (self.blocks[corner_point + self.edge_length] as u8)
+                + (self.blocks[corner_point + self.edge_length + 1] as u8)
+                == 1
             {
                 // add to output
                 output.push([
-                    ((corner_point % self.edge_length) as f64) - self.origin[0] + 1.0,
-                    ((corner_point / self.edge_length) as f64) - self.origin[1] + 1.0,
+                    ((corner_point % self.edge_length) as f64) - self.origin.x + 1.0,
+                    ((corner_point / self.edge_length) as f64) - self.origin.y + 1.0,
                 ]);
             }
         }

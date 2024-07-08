@@ -1,37 +1,41 @@
 mod generation;
-mod helpers;
+pub mod helpers;
 mod metrics;
 
+use crate::app::helpers::lin_alg::{Mat2, Vec2};
+use crate::data_structures::Blocks;
+use eframe::egui::{self};
+use eframe::egui::{Direction, Layout};
+use eframe::epaint::{Color32, Stroke};
+use egui_plot::{
+    uniform_grid_spacer, HLine, Line, Plot, PlotPoint, PlotPoints, Points, Polygon, Text, VLine,
+};
 use std::default::Default;
 use std::f64::consts::PI;
 use std::ops::Not;
-use eframe::epaint::{ Color32, Stroke };
-use eframe::egui::{ self };
-use eframe::egui::{ Layout, Direction };
-use egui_plot::{
-    uniform_grid_spacer,
-    HLine,
-    Line,
-    Plot,
-    PlotPoint,
-    PlotPoints,
-    Points,
-    Polygon,
-    Text,
-    VLine,
-};
 
-use crate::data_structures::Blocks;
-
-use self::generation::{ generate_all_blocks, Algorithm };
-use self::helpers::convex_hull::{ get_convex_hull, line_segments_from_conv_hull };
+use self::generation::{generate_all_blocks, Algorithm};
+use self::helpers::convex_hull::{get_convex_hull, line_segments_from_conv_hull};
 
 pub struct App {
     algorithm: Algorithm,
 
-    radius: f64,
-    radius_integral: u64,
-    radius_fractional: f64,
+    radius_a: f64, // These two are specified (a is the x-axis if tilt = 0)
+    radius_b: f64,
+    radius_major: f64, // The algorithms which do not (yet) support ellipses use larger radius
+    radius_minor: f64,
+    tilt: f64,
+
+    sqrt_quad_form: Mat2,
+    // The square root of the PSD symmetric quadratic form X defining the ellipse:
+    //  (x,y)^TX(x,y)=1
+    // store [a,b,c,d] for [[a,b],[c,d]] (obviously)
+    radius_a_integral: u64,
+    radius_a_fractional: f64,
+    radius_b_integral: u64,
+    radius_b_fractional: f64,
+    circle_mode: bool,
+
     center_offset_x: f64,
     center_offset_y: f64,
 
@@ -61,14 +65,26 @@ pub struct App {
 impl Default for App {
     fn default() -> Self {
         Self {
-            algorithm: Default::default(),
+            algorithm: Algorithm::Conservative,
 
-            radius: Default::default(),
-            radius_integral: 5,
-            radius_fractional: Default::default(),
+            radius_a: Default::default(),
+            radius_b: Default::default(),
+            radius_major: Default::default(),
+            radius_minor: Default::default(),
+
+            tilt: 2.0,
+
+            sqrt_quad_form: Mat2::from([1.0, 0.0, 0.0, 1.0]),
+
+            radius_a_integral: 0,
+            radius_a_fractional: 0.25,
+            radius_b_integral: 11, // TODO: Change to 5,5 radii default
+            radius_b_fractional: Default::default(),
 
             center_offset_x: Default::default(),
             center_offset_y: Default::default(),
+
+            circle_mode: false, // TODO: Change default to true (this is for debugging)
 
             blocks_all: Default::default(),
             blocks_boundary: Default::default(),
@@ -137,15 +153,15 @@ impl eframe::App for App {
 
             // additional algorithm options + description
             match self.algorithm {
-                Algorithm::Conservative => {
+                Algorithm::Conservative => { //TODO: implement ellipse
                     ui.label(
-                        "Include a particular block in the voxelization iff it has nonempty intersection with the disk"
+                        "Include a particular block in the voxelization iff it has nonempty intersection with the ellipse"
                     );
                 }
-                Algorithm::Percentage(percentage) => {
+                Algorithm::Percentage(percentage) => { //TODO: implement ellipse
                     ui.label(
                         format!(
-                            "Include a particular block in the voxelization iff more than {:.0}% of it is contained in the disk",
+                            "Include a particular block in the voxelization iff more than {:.0}% of it is contained in the ellipse",
                             100.0 * percentage
                         )
                     );
@@ -162,10 +178,10 @@ impl eframe::App for App {
                     self.algorithm = Algorithm::Percentage(perc_slider);
                 }
                 Algorithm::Contained => {
-                    ui.label("Include a particular block iff it is fully contained in the disk");
+                    ui.label("Include a particular block iff it is fully contained in the ellipse");
                 }
                 Algorithm::CenterPoint => {
-                    ui.label("Include a particular block iff its centerpoint is in the disk");
+                    ui.label("Include a particular block iff its centerpoint is in the ellipse");
                 }
                 Algorithm::Square => {
                     ui.label(
@@ -181,25 +197,108 @@ impl eframe::App for App {
 
             // Radius
             ui.separator();
-            ui.add(
-                egui::Slider
-                    ::new(&mut self.radius_integral, 0..=30)
-                    .text("Integral radius")
-                    .clamp_to_range(false)
-            );
+            if self.circle_mode {
+                ui.add(
+                    egui::Slider
+                    ::new(&mut self.radius_a_integral, 0..=30)
+                        .text("Integral radius")
+                        .clamp_to_range(false)
+                );
 
-            ui.add(
-                egui::Slider
-                    ::new(&mut self.radius_fractional, -1.0..=1.0)
-                    .text("Fractional radius")
-                    .fixed_decimals(2)
-            );
+                ui.add(
+                    egui::Slider
+                    ::new(&mut self.radius_a_fractional, -1.0..=1.0)
+                        .text("Fractional radius")
+                        .fixed_decimals(2)
+                );
 
-            self.radius = (&(self.radius_integral as f64) + &self.radius_fractional).clamp(
-                0.0,
-                f64::MAX
-            );
-            ui.label(format!("Radius: {:.02}", self.radius));
+                self.radius_a = (&(self.radius_a_integral as f64) + &self.radius_a_fractional).clamp(
+                    0.0,
+                    f64::MAX
+                );
+
+                // TODO: Do we want to change all the b variables and radius to defaults?
+                // Yes, take a screenshot if you want to save the settings
+                self.radius_b_fractional = self.radius_a_fractional;
+                self.radius_b_integral = self.radius_a_integral;
+
+                self.radius_b = self.radius_a;
+
+                self.radius_minor = self.radius_a;
+                self.radius_major = self.radius_a;
+
+                self.tilt = 0.0;
+
+                ui.label(format!("Radius: {:.02}", self.radius_a));
+            }
+            else {
+                // radius a
+                ui.add(
+                    egui::Slider
+                    ::new(&mut self.radius_a_integral, 0..=30)
+                        .text("Integral radius A")
+                        .clamp_to_range(false)
+                );
+
+                ui.add(
+                    egui::Slider
+                    ::new(&mut self.radius_a_fractional, -1.0..=1.0)
+                        .text("Fractional radius A")
+                        .fixed_decimals(2)
+                );
+
+                self.radius_a = (&(self.radius_a_integral as f64) + &self.radius_a_fractional).clamp(
+                    0.0,
+                    f64::MAX
+                );
+
+
+                // radius b
+                ui.add(
+                    egui::Slider
+                    ::new(&mut self.radius_b_integral, 0..=30)
+                        .text("Integral radius B")
+                        .clamp_to_range(false)
+                );
+
+                ui.add(
+                    egui::Slider
+                    ::new(&mut self.radius_b_fractional, -1.0..=1.0)
+                        .text("Fractional radius B")
+                        .fixed_decimals(2)
+                );
+
+                self.radius_b = (&(self.radius_b_integral as f64) + &self.radius_b_fractional).clamp(
+                    0.0,
+                    f64::MAX
+                );
+
+                self.radius_major = f64::max(self.radius_a,self.radius_b);
+                self.radius_minor = f64::min(self.radius_a,self.radius_b);
+
+                if self.radius_a == self.radius_major {
+                    ui.label(format!("Radius A: {:.02} (major)", self.radius_a));
+                    ui.label(format!("Radius B: {:.02} (minor)", self.radius_b));
+                } else {
+                    ui.label(format!("Radius A: {:.02} (minor)", self.radius_a));
+                    ui.label(format!("Radius B: {:.02} (major)", self.radius_b));
+                }
+
+                ui.add(
+                    egui::Slider
+                    ::new(&mut self.tilt, -6.28..=6.28)
+                        .text("Tilt (radians)")
+                        .fixed_decimals(2)
+                );
+            }
+            ui.checkbox(&mut self.circle_mode, "Circle mode");
+
+            // Compute inv sqrt of quadratic for of ellipse
+            let c = self.tilt.cos();
+            let s = self.tilt.sin();
+            self.sqrt_quad_form = Mat2::from_rows(1.0 /self.radius_a * Vec2::from([c,s]), 1.0 / self.radius_b * Vec2::from([s, -c]));
+
+            ui.label(format!("sqrt of quadratic form: {:?}", self.sqrt_quad_form));
 
             // Centerpoint
             ui.separator();
@@ -233,9 +332,10 @@ impl eframe::App for App {
                     // Generate from circle with selected algorithm
                     self.blocks_all = generate_all_blocks(
                         &self.algorithm,
-                        self.radius,
                         self.center_offset_x,
-                        self.center_offset_y
+                        self.center_offset_y,
+                        self.sqrt_quad_form,
+                        self.radius_major,
                     );
 
                     // run preprocessing
@@ -273,8 +373,8 @@ impl eframe::App for App {
                         format_block_count(self.nr_blocks_boundary),
                         format_block_count(self.nr_blocks_interior),
                         // TODO: Better to run these once every time a new shape is generated. But it's not like we're running into performance issues
-                        format_block_diamter(self.blocks_all.get_diameters()),
-                        self.blocks_all.get_build_sequence()
+                        format_block_diameter(self.blocks_all.get_diameters()),
+                        [0] //self.blocks_all.get_build_sequence() //FIXME: Redo (also doesn't make sense for ellipses I suppose
                     )
                 )
             })
@@ -288,8 +388,8 @@ impl eframe::App for App {
             Plot::new("my_plot")
                 .data_aspect(1.0) // so that squares in the rasterization always look square in the viewport
                 // Grid lines of increasing thickness at distance 1.0, 5.0, 10.0 for counting
-                .x_grid_spacer(uniform_grid_spacer(|_gridinput| { [1.0, 5.0, 10.0] }))
-                .y_grid_spacer(uniform_grid_spacer(|_gridinput| { [1.0, 5.0, 10.0] }))
+                .x_grid_spacer(uniform_grid_spacer(|_gridinput| [1.0, 5.0, 10.0]))
+                .y_grid_spacer(uniform_grid_spacer(|_gridinput| [1.0, 5.0, 10.0]))
                 // .clamp_grid(true) // Clamp grid to the figure (so we don't have lines outside it) I don't think we want that
                 .allow_boxed_zoom(false) // we shouldn't need this, there's a maximal reasonable zoom in level and the reasonable zoom out level is only as big as the circle we're generating
                 // .coordinates_formatter(egui_plot::Corner::RightBottom //  this is showing the coords in a fixed place on the screen... we wanted to edit the formatting of the coords floating around the cursor
@@ -300,18 +400,25 @@ impl eframe::App for App {
                     // } else {
                     //     "".to_owned()
                     // } // FIXME: think about integer coords for odd & even circles (no +/- zero for even circles)... ideally have it dep. only on
-                    format!("{0:.0}, {1:.0}", mouse_coord.x.trunc(), mouse_coord.y.trunc()) // Use trunc instead of floor for symmtery preservation around the axis! Nasty but works
+                    format!(
+                        "{0:.0}, {1:.0}",
+                        mouse_coord.x.trunc(),
+                        mouse_coord.y.trunc()
+                    ) // Use trunc instead of floor for symmtery preservation around the axis! Nasty but works
                 })
-                .include_x(self.radius + 1.0)
-                .include_x(-self.radius - 1.0)
+                .include_x(self.radius_major + 1.0)
+                .include_x(-self.radius_major - 1.0)
                 .show(ui, |plot_ui| {
                     // * Viewport plotting * //
                     if self.view_blocks_all {
                         for coord in self.blocks_all.get_block_coords() {
                             plot_ui.polygon(
                                 square_at_coords(coord)
-                                    .stroke(Stroke { width: 1.0, color: Color32::BLACK })
-                                    .fill_color(Color32::WHITE)
+                                    .stroke(Stroke {
+                                        width: 1.0,
+                                        color: Color32::BLACK,
+                                    })
+                                    .fill_color(Color32::WHITE),
                             );
                         }
                     }
@@ -320,8 +427,11 @@ impl eframe::App for App {
                         for coord in self.blocks_boundary.get_block_coords() {
                             plot_ui.polygon(
                                 square_at_coords(coord)
-                                    .stroke(Stroke { width: 1.0, color: Color32::BLACK })
-                                    .fill_color(Color32::RED)
+                                    .stroke(Stroke {
+                                        width: 1.0,
+                                        color: Color32::BLACK,
+                                    })
+                                    .fill_color(Color32::RED),
                             );
                         }
                     }
@@ -330,36 +440,43 @@ impl eframe::App for App {
                         for coord in self.blocks_interior.get_block_coords() {
                             plot_ui.polygon(
                                 square_at_coords(coord)
-                                    .stroke(Stroke { width: 1.0, color: Color32::BLACK })
-                                    .fill_color(Color32::LIGHT_RED)
+                                    .stroke(Stroke {
+                                        width: 1.0,
+                                        color: Color32::BLACK,
+                                    })
+                                    .fill_color(Color32::LIGHT_RED),
                             );
                         }
                     }
 
                     // Plot true center, true circle, and horizontal + vertical lines through true center
                     plot_ui.points(
-                        Points::new(vec![[self.center_offset_x, self.center_offset_y]]).radius(5.0)
+                        Points::new(vec![[self.center_offset_x, self.center_offset_y]]).radius(5.0),
                     );
-                    plot_ui.line(
-                        circle_at_coords(self.center_offset_x, self.center_offset_y, self.radius)
-                    );
+                    plot_ui.line(ellipse_at_coords(
+                        self.center_offset_x,
+                        self.center_offset_y,
+                        self.radius_a,
+                        self.radius_b,
+                        self.tilt,
+                    ));
                     plot_ui.hline(HLine::new(self.center_offset_y));
                     plot_ui.vline(VLine::new(self.center_offset_x));
 
-                    // TODO: Don't display zeros. Dynamically size grid
                     if self.view_intersect_area {
                         let square = generate_all_blocks(
                             &Algorithm::Square,
-                            10.0,
                             self.center_offset_x,
-                            self.center_offset_y
+                            self.center_offset_y,
+                            self.sqrt_quad_form,
+                            self.radius_minor + 2.0,
                         );
                         for coord in square.get_block_coords() {
                             let cell_center = [coord[0] + 0.5, coord[1] + 0.5];
                             let mut x_center = cell_center[0] - self.center_offset_x;
                             let mut y_center = cell_center[1] - self.center_offset_y;
 
-                            // Dihedral symmetry swaps (see percentage.rs for explanation
+                            // Dihedral symmetry swaps (see percentage.rs for explanation)
                             if x_center < 0.0 {
                                 x_center = -x_center;
                             }
@@ -370,19 +487,20 @@ impl eframe::App for App {
                                 (y_center, x_center) = (x_center, y_center);
                             }
 
-                            plot_ui.text(
-                                Text::new(
-                                    PlotPoint::from(cell_center),
-                                    format!(
-                                        "{:.2}",
-                                        generation::percentage::cell_disk_intersection_area(
-                                            self.radius,
-                                            x_center,
-                                            y_center
-                                        )
-                                    )
-                                )
-                            );
+                            plot_ui.text(Text::new(PlotPoint::from(cell_center), {
+                                let value = generation::percentage::cell_disk_intersection_area(
+                                    self.radius_major,
+                                    x_center,
+                                    y_center,
+                                );
+
+                                if value == 0.0 {
+                                    // Don't show zero intersect area
+                                    "".to_string()
+                                } else {
+                                    format!("{:.2}", value)
+                                }
+                            }));
                         }
                     }
 
@@ -395,11 +513,8 @@ impl eframe::App for App {
                     }
 
                     for [i, j] in &self.outer_corners {
-                        plot_ui.points(
-                            Points::new(vec![[*i, *j]])
-                                .radius(3.0)
-                                .color(Color32::BLUE)
-                        );
+                        plot_ui
+                            .points(Points::new(vec![[*i, *j]]).radius(3.0).color(Color32::BLUE));
                     }
 
                     // plot_ui.points(Points::new(PlotPoints::from(value)).radius(3.0).color(Color32::BLUE))
@@ -413,18 +528,31 @@ fn square_at_coords(coord: [f64; 2]) -> Polygon {
     let x = coord[0];
     let y = coord[1];
 
-    let square_pts = PlotPoints::new(
-        vec![[x + 0.0, y + 0.0], [x + 0.0, y + 1.0], [x + 1.0, y + 1.0], [x + 1.0, y + 0.0]]
-    );
+    let square_pts = PlotPoints::new(vec![
+        [x + 0.0, y + 0.0],
+        [x + 0.0, y + 1.0],
+        [x + 1.0, y + 1.0],
+        [x + 1.0, y + 0.0],
+    ]);
 
     Polygon::new(square_pts).name("square".to_owned())
 }
 
-fn circle_at_coords(center_x: f64, center_y: f64, radius: f64) -> Line {
+fn ellipse_at_coords(
+    center_x: f64,
+    center_y: f64,
+    radius_a: f64,
+    radius_b: f64,
+    tilt: f64,
+) -> Line {
     let circlepts: PlotPoints = (0..1000)
         .map(|i| {
             let t = ((i as f64) * (2.0 * PI)) / 1000.0;
-            [center_x + radius * t.cos(), center_y + radius * t.sin()]
+            let notilt = [radius_a * t.cos(), radius_b * t.sin()];
+            [
+                center_x + notilt[0] * tilt.cos() + notilt[1] * tilt.sin(),
+                center_y + notilt[0] * tilt.sin() - notilt[1] * tilt.cos(),
+            ]
         })
         .collect();
 
@@ -435,11 +563,16 @@ fn format_block_count(nr_blocks: u64) -> String {
     if nr_blocks <= 64 {
         format!("{}", nr_blocks)
     } else {
-        format!("{} = {}s{}", nr_blocks, nr_blocks.div_euclid(64), nr_blocks.rem_euclid(64))
+        format!(
+            "{} = {}s{}",
+            nr_blocks,
+            nr_blocks.div_euclid(64),
+            nr_blocks.rem_euclid(64)
+        )
     }
 }
 
-fn format_block_diamter(diameters: [u64; 2]) -> String {
+fn format_block_diameter(diameters: [u64; 2]) -> String {
     if diameters[0] == diameters[1] {
         format!("block diameter: {}", diameters[0])
     } else {
