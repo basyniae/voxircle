@@ -38,7 +38,7 @@ pub struct App {
 
     center_offset_x: f64,
     center_offset_y: f64,
-
+    
     blocks_all: Blocks,
     blocks_boundary: Blocks,
     blocks_interior: Blocks,
@@ -290,6 +290,8 @@ impl eframe::App for App {
                         .text("Tilt (radians)")
                         .fixed_decimals(2)
                 );
+                //TODO: Add predefined angles (0, 30°, 45°, 1:2, 1:3, 2:3, 1:4)
+                //TODO: Make circular slider for more intuitive controls (need to build this myself probably)
             }
             ui.checkbox(&mut self.circle_mode, "Circle mode");
 
@@ -332,8 +334,7 @@ impl eframe::App for App {
                     // Generate from circle with selected algorithm
                     self.blocks_all = generate_all_blocks(
                         &self.algorithm,
-                        self.center_offset_x,
-                        self.center_offset_y,
+                        Vec2::from([self.center_offset_x, self.center_offset_y]),
                         self.sqrt_quad_form,
                         self.radius_major,
                     );
@@ -466,8 +467,7 @@ impl eframe::App for App {
                     if self.view_intersect_area {
                         let square = generate_all_blocks(
                             &Algorithm::Square,
-                            self.center_offset_x,
-                            self.center_offset_y,
+                            Vec2::from([self.center_offset_x, self.center_offset_y]),
                             self.sqrt_quad_form,
                             self.radius_minor + 2.0,
                         );

@@ -1,18 +1,18 @@
 use std::f64::consts::PI;
-
+use crate::app::helpers::circle_geometry::{area_of_semicircle_section, intersection_hline_circle};
+use crate::app::helpers::lin_alg::Vec2;
 use crate::data_structures::Blocks;
 
 // logic + geometry + integration
 // Percentage is to be supplied as float between 0 and 1 (note that unexpected behaviour may occur if it 0.0 or 1.0 exactly due to numerical errors)
 pub fn generate_alg_percentage(
     radius: f64,
-    center_offset_x: f64,
-    center_offset_y: f64,
+    center_offset: Vec2,
     percentage: f64
 ) -> Blocks {
     let edge_length = ((2.0 * radius).ceil() as usize) + 4; // the 4 is needed as a buffer..
     // i think we're able to get away with less but it doesn't matter. Buffer is required to make the interior work as expected
-    let origin = [(edge_length / 2) as f64, (edge_length / 2) as f64];
+    let origin = Vec2::from([(edge_length / 2) as f64, (edge_length / 2) as f64]);
     // in bitmatrix coordinates, where is the center of the grid?
     let mut output_vec = Vec::new();
 
@@ -20,8 +20,8 @@ pub fn generate_alg_percentage(
         // loop over all coords
 
         // Bottom right coordinate of the box in bitmatrix coordinates is [i % edge_length, i / edge_length], so to get the center we add 0.5.
-        let mut x_center = ((i % edge_length) as f64) + 0.5 - (origin[0] + center_offset_x); // Relative to the circle center, what is the x-position of the center of the box?
-        let mut y_center = ((i / edge_length) as f64) + 0.5 - (origin[1] + center_offset_y); // "" "" what is the y-position of the center of the box
+        let mut x_center = ((i % edge_length) as f64) + 0.5 - (origin.x + center_offset.x); // Relative to the circle center, what is the x-position of the center of the box?
+        let mut y_center = ((i / edge_length) as f64) + 0.5 - (origin.y + center_offset.y); // "" "" what is the y-position of the center of the box
 
         // Symmetrize. We may assume that the origin is to the bottom left of the box center, and under the bottom-left to top-right diagonal
         //  by dihedral symmetry of the square.
@@ -46,48 +46,6 @@ pub fn generate_alg_percentage(
         edge_length,
         origin,
     }
-}
-
-// With -radius <= x0 <= x1 <= radius, what is the area of the semicircle y=sqrt(R^2-x^2) from x0 to x1?
-// Have an exact primitive for non-edge cases
-fn area_of_semicircle_section(x0: f64, x1: f64, radius: f64) -> f64 {
-    if !(-radius <= x0 && x0 <= x1 && x1 <= radius) {
-        // -radius <= x0 <= x1 <= radius
-        panic!("ooo...");
-    }
-
-    // Primitive in case |x| != R
-    fn primitive(x: f64, radius: f64) -> f64 {
-        let sq = (radius.powi(2) - x.powi(2)).sqrt();
-        0.5 * (x * sq + radius.powi(2) * (x / sq).atan())
-    }
-
-    let area_x0_to_0: f64;
-    if x0 <= -radius {
-        area_x0_to_0 = (-radius * PI) / 4.0;
-    } else if x0 >= radius {
-        area_x0_to_0 = (radius * PI) / 4.0;
-    } else {
-        area_x0_to_0 = primitive(x0, radius);
-    }
-
-    let area_x1_to_0: f64;
-    if x1 <= -radius {
-        area_x1_to_0 = (-radius * PI) / 4.0;
-    } else if x0 >= radius {
-        area_x1_to_0 = (radius * PI) / 4.0;
-    } else {
-        area_x1_to_0 = primitive(x1, radius);
-    }
-
-    area_x1_to_0 - area_x0_to_0 // fundamental theorem of calculus (finite additivity of integral)
-}
-
-// Given a circle of given radius centered at (0,0), and a y level, return the pair of intersections that result from intersecting the circle and line
-// First the negative, then the positive
-fn intersection_hline_circle(y: f64, radius: f64) -> [f64; 2] {
-    let positive_intersection = (radius.powi(2) - y.powi(2)).sqrt();
-    [-positive_intersection, positive_intersection]
 }
 
 pub fn cell_disk_intersection_area(radius: f64, x_center: f64, y_center: f64) -> f64 {

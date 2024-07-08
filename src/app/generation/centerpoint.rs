@@ -10,26 +10,26 @@ pub fn generate_alg_centerpoint(
     let origin = Vec2::from([(edge_length / 2) as f64, (edge_length / 2) as f64]);
     // in bitmatrix coordinates, where is the center of the grid?
 
-    let output_vec = (0..edge_length.pow(2))
+    let blocks = (0..edge_length.pow(2))
         .map(|i| {
             // loop over all coords
             // Bottom right coordinate of the cell in bitmatrix coordinates is [i % edge_length, i / edge_length]
             // To get centerpoint of the cell, need to add [0.5, 0.5]
             // Want to get at the distance from the centerpoint of a cell to the origin + offset (we do this component-wise)
 
-            let d = Vec2::from([
+            let c = Vec2::from([
                 (i % edge_length) as f64 + 0.5,
                 (i / edge_length) as f64 + 0.5,
             ]) - (origin + center_offset);
 
             // Rely on sqrt_quad_form matrix characterization of ellipse
-            let m = sqrt_quad_form * d;
+            let m = sqrt_quad_form * c;
             m.normsq() <= 1.0
         })
         .collect();
 
     Blocks {
-        blocks: output_vec,
+        blocks,
         edge_length,
         origin,
     }
