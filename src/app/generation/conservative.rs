@@ -12,17 +12,14 @@ pub fn generate_alg_conservative(radius: f64, center_offset: Vec2, sqrt_quad_for
     
     // For tilt 0, there is no real need to do this sort of computation: the max x is radius_a,
     // the min x is -radius_a, the max y is radius_b, the min y is radius_a
+    // Note point symmetry of the ellipse around 0 gives min_x = -max_x.
     let X = sqrt_quad_form.transpose() * sqrt_quad_form;
     let max_x = Vec2::from([
         (X.d/(X.a * X.d - X.b * X.b)).sqrt(), -(X.b/X.d) * (X.d/(X.a * X.d - X.b * X.b)).sqrt()
     ]);
-    let min_x = -max_x;
     let max_y = Vec2::from([
         -(X.b/X.a) * (X.a/(X.a*X.d - X.b * X.b)).sqrt(), (X.a/(X.a*X.d - X.b * X.b)).sqrt()
-    ]); // formulas derived algebraically, matches Desmos (It
-    let min_y = -max_y;
-
-    let zero = Vec2::from([0.0, 0.0]);
+    ]); // formulas derived algebraically
 
     // TODO: parallelize using .map() with a very long map
     let blocks = (0..edge_length.pow(2))
@@ -52,26 +49,18 @@ pub fn generate_alg_conservative(radius: f64, center_offset: Vec2, sqrt_quad_for
             } else if lb.x <= 0.0 && lb.y <= 0.0 && rt.x >= 0.0 && rt.y >= 0.0 {
                 // check if the origin (center of the ellipse) is in the box
                 true
-                // TODO: maybe implement some heuristic... so that not all boxes have to do the 16 line checks
-            } else if line_segments_intersect([zero, max_x], [lb, rb])
-                || line_segments_intersect([zero, max_x], [rb, rt])
-                || line_segments_intersect([zero, max_x], [rt, lt])
-                || line_segments_intersect([zero, max_x], [lt, lb])
-                || line_segments_intersect([zero, min_x], [lb, rb])
-                || line_segments_intersect([zero, min_x], [rb, rt])
-                || line_segments_intersect([zero, min_x], [rt, lt])
-                || line_segments_intersect([zero, min_x], [lt, lb])
-                || line_segments_intersect([zero, max_y], [lb, rb])
-                || line_segments_intersect([zero, max_y], [rb, rt])
-                || line_segments_intersect([zero, max_y], [rt, lt])
-                || line_segments_intersect([zero, max_y], [lt, lb])
-                || line_segments_intersect([zero, min_y], [lb, rb])
-                || line_segments_intersect([zero, min_y], [rb, rt])
-                || line_segments_intersect([zero, min_y], [rt, lt])
-                || line_segments_intersect([zero, min_y], [lt, lb])
+            } else if line_segments_intersect([-max_x, max_x], [lb, rb])
+                || line_segments_intersect([-max_x, max_x], [rb, rt])
+                || line_segments_intersect([-max_x, max_x], [rt, lt])
+                || line_segments_intersect([-max_x, max_x], [lt, lb])
+                || line_segments_intersect([-max_y, max_y], [lb, rb])
+                || line_segments_intersect([-max_y, max_y], [rb, rt])
+                || line_segments_intersect([-max_y, max_y], [rt, lt])
+                || line_segments_intersect([-max_y, max_y], [lt, lb])
             {
                 // check by extreme points
-                // (these are the combinations of the extreme points x,y points of the ellipse and edges of the box)
+                // (these are the combinations of points on the ellipse where extreme values of x and y are achieved
+                //  and edges of the box)
                 true
             } else {
                 false
