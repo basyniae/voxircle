@@ -4,7 +4,6 @@ use crate::app::helpers::optimization::minimize_maximum_straight_lines;
 // Return true if the closed line segments intersect, false otherwise
 pub fn line_segments_intersect(line_one: [Vec2; 2], line_two: [Vec2; 2]) -> bool {
     let pure_intersect = intersect_lines(line_one, line_two);
-
     match pure_intersect {
         None => false,
         Some(params) => {
@@ -21,13 +20,13 @@ pub fn line_segments_intersect(line_one: [Vec2; 2], line_two: [Vec2; 2]) -> bool
 // Any pair of parameters if the lines are parallel and have intersection...
 pub fn intersect_lines(line_one: [Vec2; 2], line_two: [Vec2; 2]) -> Option<[f64; 2]> {
     let p_1 = line_one[0];
-    let d_1 = line_one[0] - line_one[1];
+    let d_1 = line_one[1] - line_one[0]; // End minus start for direction vector
     let p_2 = line_two[0];
-    let d_2 = line_two[0] - line_two[1];
+    let d_2 = line_two[1] - line_two[0];
 
     // Consider the matrix with row vectors d_1, d_2, we want to invert this matrix
     // Compute the determinant
-    let X = Mat2::from_rows(d_1, -1.0 * d_2);
+    let X = Mat2::from_columns(d_1, -1.0 * d_2);
 
     let det = X.det();
 

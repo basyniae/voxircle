@@ -3,6 +3,7 @@
 
 mod app;
 pub mod data_structures;
+mod formatting;
 
 use std::default::Default;
 use eframe::egui::ViewportBuilder;
@@ -29,7 +30,7 @@ fn main() {
 
     // Use `let _`  to ignore the result properly...
     let _ = eframe::run_native(
-        "Voxircles",
+        "Voxircle",
         options,
         Box::new(|cc| Box::new(crate::app::App::new(cc)))
     );
