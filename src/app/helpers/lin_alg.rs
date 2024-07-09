@@ -66,6 +66,14 @@ impl ops::Mul<Vec2> for f64 {
     }
 }
 
+impl ops::Neg for Vec2 {
+    type Output = Vec2;
+
+    fn neg(self) -> Self::Output {
+        -1.0 * self
+    }
+}
+
 /// Order: [[a,b], [c,d]] (row column as usual)
 #[derive(Default, Debug, Clone, Copy, PartialEq)]
 pub struct Mat2 {
@@ -144,7 +152,7 @@ impl ops::Mul<Vec2> for Mat2 {
     fn mul(self, vec: Vec2) -> Self::Output {
         Vec2::from([
             self.a * vec.x + self.b * vec.y,
-            self.c * vec.x + self.c * vec.y,
+            self.c * vec.x + self.d * vec.y,
         ])
     }
 }

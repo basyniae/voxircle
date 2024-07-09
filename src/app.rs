@@ -8,13 +8,13 @@ use eframe::egui::{self};
 use eframe::egui::{Direction, Layout};
 use eframe::epaint::{Color32, Stroke};
 use egui_plot::{
-    uniform_grid_spacer, HLine, Line, Plot, PlotPoint, PlotPoints, Points, Polygon, Text, VLine,
+    HLine, Line, Plot, PlotPoint, PlotPoints, Points, Polygon, Text, uniform_grid_spacer, VLine,
 };
 use std::default::Default;
 use std::f64::consts::PI;
 use std::ops::Not;
-
-use self::generation::{generate_all_blocks, Algorithm};
+use crate::formatting;
+use self::generation::{Algorithm, generate_all_blocks};
 use self::helpers::convex_hull::{get_convex_hull, line_segments_from_conv_hull};
 
 pub struct App {
@@ -38,7 +38,7 @@ pub struct App {
 
     center_offset_x: f64,
     center_offset_y: f64,
-    
+
     blocks_all: Blocks,
     blocks_boundary: Blocks,
     blocks_interior: Blocks,
@@ -72,7 +72,7 @@ impl Default for App {
             radius_major: Default::default(),
             radius_minor: Default::default(),
 
-            tilt: 2.0,
+            tilt: 3.9,
 
             sqrt_quad_form: Mat2::from([1.0, 0.0, 0.0, 1.0]),
 
@@ -153,7 +153,7 @@ impl eframe::App for App {
 
             // additional algorithm options + description
             match self.algorithm {
-                Algorithm::Conservative => { //TODO: implement ellipse
+                Algorithm::Conservative => {
                     ui.label(
                         "Include a particular block in the voxelization iff it has nonempty intersection with the ellipse"
                     );
@@ -300,7 +300,9 @@ impl eframe::App for App {
             let s = self.tilt.sin();
             self.sqrt_quad_form = Mat2::from_rows(1.0 /self.radius_a * Vec2::from([c,s]), 1.0 / self.radius_b * Vec2::from([s, -c]));
 
-            ui.label(format!("sqrt of quadratic form: {:?}", self.sqrt_quad_form));
+            // ui.label(format!("Sqrt of quadratic form: {:?}", self.sqrt_quad_form));
+            // ui.label(format!("Transpose of sqrt quadratic form: {:?}", self.sqrt_quad_form.transpose()));
+            // ui.label(format!("Quadratic form: {:?}", self.sqrt_quad_form.transpose() * self.sqrt_quad_form));
 
             // Centerpoint
             ui.separator();
@@ -370,11 +372,11 @@ impl eframe::App for App {
                 ui.label(
                     format!(
                         "nr. blocks: {}, nr. boundary blocks: {}, nr. interior blocks: {}, {}, build sequence: {:?}, program by Basyniae",
-                        format_block_count(self.nr_blocks_total),
-                        format_block_count(self.nr_blocks_boundary),
-                        format_block_count(self.nr_blocks_interior),
+                        formatting::format_block_count(self.nr_blocks_total),
+                        formatting::format_block_count(self.nr_blocks_boundary),
+                        formatting::format_block_count(self.nr_blocks_interior),
                         // TODO: Better to run these once every time a new shape is generated. But it's not like we're running into performance issues
-                        format_block_diameter(self.blocks_all.get_diameters()),
+                        formatting::format_block_diameter(self.blocks_all.get_diameters()),
                         [0] //self.blocks_all.get_build_sequence() //FIXME: Redo (also doesn't make sense for ellipses I suppose
                     )
                 )
@@ -400,7 +402,7 @@ impl eframe::App for App {
                     //     format!("{}: {:.*}%", name, 1, value.y)
                     // } else {
                     //     "".to_owned()
-                    // } // FIXME: think about integer coords for odd & even circles (no +/- zero for even circles)... ideally have it dep. only on
+                    // } // FIXME: think about integer coords for odd & even circles (no +/- zero for even circles)... ideally have it dep. only on...
                     format!(
                         "{0:.0}, {1:.0}",
                         mouse_coord.x.trunc(),
@@ -559,23 +561,3 @@ fn ellipse_at_coords(
     Line::new(circlepts)
 }
 
-fn format_block_count(nr_blocks: u64) -> String {
-    if nr_blocks <= 64 {
-        format!("{}", nr_blocks)
-    } else {
-        format!(
-            "{} = {}s{}",
-            nr_blocks,
-            nr_blocks.div_euclid(64),
-            nr_blocks.rem_euclid(64)
-        )
-    }
-}
-
-fn format_block_diameter(diameters: [u64; 2]) -> String {
-    if diameters[0] == diameters[1] {
-        format!("block diameter: {}", diameters[0])
-    } else {
-        format!("block diameters: {}x by {}y", diameters[0], diameters[1])
-    }
-}

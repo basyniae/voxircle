@@ -9,76 +9,78 @@ pub fn generate_alg_conservative(radius: f64, center_offset: Vec2, sqrt_quad_for
     // in bitmatrix coordinates, where is the center of the grid?
 
     // The above part is the same for all algorithms (I think at this stage)
+    
+    // For tilt 0, there is no real need to do this sort of computation: the max x is radius_a,
+    // the min x is -radius_a, the max y is radius_b, the min y is radius_a
+    let X = sqrt_quad_form.transpose() * sqrt_quad_form;
+    let max_x = Vec2::from([
+        (X.d/(X.a * X.d - X.b * X.b)).sqrt(), -(X.b/X.d) * (X.d/(X.a * X.d - X.b * X.b)).sqrt()
+    ]);
+    let min_x = -max_x;
+    let max_y = Vec2::from([
+        -(X.b/X.a) * (X.a/(X.a*X.d - X.b * X.b)).sqrt(), (X.a/(X.a*X.d - X.b * X.b)).sqrt()
+    ]); // formulas derived algebraically, matches Desmos (It
+    let min_y = -max_y;
 
-    // FIXME: Compute points on the ellipse with extreme x or y coordinate (taking 0 as the origin)
-    let maxx = Vec2::from([1.0, 0.0]);
-    let minx = Vec2::from([1.0, 0.0]);
-    let maxy = Vec2::from([1.0, 0.0]);
-    let miny = Vec2::from([1.0, 0.0]);
-
-    let O = Vec2::from([0.0, 0.0]);
+    let zero = Vec2::from([0.0, 0.0]);
 
     // TODO: parallelize using .map() with a very long map
-    let mut output_vec = Vec::new();
-    for i in 0..edge_length.pow(2) {
-        // loop over all coords
-        // Step one: Check if any corner points are in the disk (same code as in `contained` but with || instead of &&)
+    let blocks = (0..edge_length.pow(2))
+        .map(|i| {
+            // loop over all coords
+            // Step one: Check if any corner points are in the disk (same code as in `contained` but with || instead of &&)
 
-        // Bottom right coordinate of the box in bitmatrix coordinates is [i % edge_length, i / edge_length]
-        // We have that the box is contained in the disk <=> all corner of the box are in the disk
-        // Want to get at the distance from the corners of a box to the origin + offset (we do this component-wise)
-        let d_x_left = ((i % edge_length) as f64) - (origin.x + center_offset.x);
-        let d_x_right = ((i % edge_length) as f64) + 1.0 - (origin.x + center_offset.x);
-        let d_y_bottom = ((i / edge_length) as f64) - (origin.y + center_offset.y);
-        let d_y_top = ((i / edge_length) as f64) + 1.0 - (origin.y + center_offset.y);
+            // Bottom right coordinate of the box in bitmatrix coordinates is [i % edge_length, i / edge_length]
+            // We have that the box is contained in the disk <=> all corner of the box are in the disk
+            // Want to get at the distance from the corners of a box to the origin + offset (we do this component-wise)
+            let lb = Vec2::from([(i % edge_length) as f64,
+                (i / edge_length) as f64 ]) - (origin + center_offset);
+            let rb = lb + Vec2::from([1.0, 0.0]);
+            let lt = lb + Vec2::from([0.0, 1.0]);
+            let rt = lb + Vec2::from([1.0, 1.0]);
 
-        let dLB = Vec2::from([d_x_left, d_y_bottom]);
-        let dRB = Vec2::from([d_x_right, d_y_bottom]);
-        let dLT = Vec2::from([d_x_left, d_y_top]);
-        let dRT = Vec2::from([d_x_right, d_y_top]);
+            // Apply the rotate/scale sqrt_quad_form to all corner points LB, RB, LT, RT
+            let m_lb = sqrt_quad_form * lb;
+            let m_rb = sqrt_quad_form * rb;
+            let m_lt = sqrt_quad_form * lt;
+            let m_rt = sqrt_quad_form * rt;
 
-        // Apply the rotate/scale sqrt_quad_form to all corner points LB, RB, LT, RT
-
-        let mLB = sqrt_quad_form * dLB;
-        let mRB = sqrt_quad_form * dRB;
-        let mLT = sqrt_quad_form * dLT;
-        let mRT = sqrt_quad_form * dRT;
-
-        if mLB.normsq() <= 1.0 || mRB.normsq() <= 1.0 || mLT.normsq() <= 1.0 || mRT.normsq() <= 1.0
-        {
-            // Any extreme point of the box is in the ellipse (so their intersection is nonempty)
-            output_vec.push(true);
-        // } else if d_x_left <= 0.0 || d_x_right >= 0.0 || d_y_top >= 0.0 || d_y_bottom <= 0.0 {
-        //     // check if the origin (center of the ellipse) is in the box
-        //     output_vec.push(true);
-        //     // TODO: implement some heuristic... so that not all boxes have to do the 16 line checks
-        } else if line_segments_intersect([O, maxx], [dLB, dRB])
-            || line_segments_intersect([O, maxx], [dRB, dRT])
-            || line_segments_intersect([O, maxx], [dRT, dLT])
-            || line_segments_intersect([O, maxx], [dLT, dLB])
-            || line_segments_intersect([O, minx], [dLB, dRB])
-            || line_segments_intersect([O, minx], [dRB, dRT])
-            || line_segments_intersect([O, minx], [dRT, dLT])
-            || line_segments_intersect([O, minx], [dLT, dLB])
-            || line_segments_intersect([O, maxy], [dLB, dRB])
-            || line_segments_intersect([O, maxy], [dRB, dRT])
-            || line_segments_intersect([O, maxy], [dRT, dLT])
-            || line_segments_intersect([O, maxy], [dLT, dLB])
-            || line_segments_intersect([O, miny], [dLB, dRB])
-            || line_segments_intersect([O, miny], [dRB, dRT])
-            || line_segments_intersect([O, miny], [dRT, dLT])
-            || line_segments_intersect([O, miny], [dLT, dLB])
-        {
-            // check by extreme points
-            // (these are the combinations of the extreme points x,y points of the ellipse and edges of the box)
-            output_vec.push(true);
-        } else {
-            output_vec.push(false);
-        }
-    }
+            if m_lb.normsq() <= 1.0 || m_rb.normsq() <= 1.0 || m_lt.normsq() <= 1.0 || m_rt.normsq() <= 1.0
+            {
+                // Any extreme point of the box is in the ellipse (so their intersection is nonempty)
+                true
+            } else if lb.x <= 0.0 && lb.y <= 0.0 && rt.x >= 0.0 && rt.y >= 0.0 {
+                // check if the origin (center of the ellipse) is in the box
+                true
+                // TODO: maybe implement some heuristic... so that not all boxes have to do the 16 line checks
+            } else if line_segments_intersect([zero, max_x], [lb, rb])
+                || line_segments_intersect([zero, max_x], [rb, rt])
+                || line_segments_intersect([zero, max_x], [rt, lt])
+                || line_segments_intersect([zero, max_x], [lt, lb])
+                || line_segments_intersect([zero, min_x], [lb, rb])
+                || line_segments_intersect([zero, min_x], [rb, rt])
+                || line_segments_intersect([zero, min_x], [rt, lt])
+                || line_segments_intersect([zero, min_x], [lt, lb])
+                || line_segments_intersect([zero, max_y], [lb, rb])
+                || line_segments_intersect([zero, max_y], [rb, rt])
+                || line_segments_intersect([zero, max_y], [rt, lt])
+                || line_segments_intersect([zero, max_y], [lt, lb])
+                || line_segments_intersect([zero, min_y], [lb, rb])
+                || line_segments_intersect([zero, min_y], [rb, rt])
+                || line_segments_intersect([zero, min_y], [rt, lt])
+                || line_segments_intersect([zero, min_y], [lt, lb])
+            {
+                // check by extreme points
+                // (these are the combinations of the extreme points x,y points of the ellipse and edges of the box)
+                true
+            } else {
+                false
+            }
+    })
+    .collect();
 
     Blocks {
-        blocks: output_vec,
+        blocks,
         edge_length,
         origin,
     }
