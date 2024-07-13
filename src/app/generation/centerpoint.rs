@@ -5,8 +5,9 @@ pub fn generate_alg_centerpoint(
     center_offset: Vec2,
     sqrt_quad_form: Mat2,
     radius_major: f64,
+    squircle_parameter: f64,
 ) -> Blocks {
-    let edge_length = ((2.0 * radius_major).ceil() as usize) + 4; // the 4 is needed as a buffer.. i think we're able to get away with less but it doesn't matter
+    let edge_length = (1.5 * 2.0 * radius_major).ceil() as usize; // the 1.5 is needed as a buffer (could theoretically be sqrt(2))
     let origin = Vec2::from([(edge_length / 2) as f64, (edge_length / 2) as f64]);
     // in bitmatrix coordinates, where is the center of the grid?
 
@@ -24,7 +25,7 @@ pub fn generate_alg_centerpoint(
 
             // Rely on sqrt_quad_form matrix characterization of ellipse
             let m = sqrt_quad_form * c;
-            m.normsq() <= 1.0
+            m.pnorm(squircle_parameter) <= 1.0
         })
         .collect();
 
