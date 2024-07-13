@@ -34,7 +34,11 @@ pub struct App {
     radius_a_fractional: f64,
     radius_b_integral: u64,
     radius_b_fractional: f64,
+    
     circle_mode: bool,
+    
+    squircle_parameter: f64,
+    squircle_ui_parameter: f64,
 
     center_offset_x: f64,
     center_offset_y: f64,
@@ -65,7 +69,7 @@ pub struct App {
 impl Default for App {
     fn default() -> Self {
         Self {
-            algorithm: Algorithm::Conservative,
+            algorithm: Algorithm::CenterPoint,
 
             radius_a: Default::default(),
             radius_b: Default::default(),
@@ -76,7 +80,7 @@ impl Default for App {
 
             sqrt_quad_form: Mat2::from([1.0, 0.0, 0.0, 1.0]),
 
-            radius_a_integral: 0,
+            radius_a_integral: 6,
             radius_a_fractional: 0.25,
             radius_b_integral: 11, // TODO: Change to 5,5 radii default
             radius_b_fractional: Default::default(),
@@ -85,6 +89,9 @@ impl Default for App {
             center_offset_y: Default::default(),
 
             circle_mode: false, // TODO: Change default to true (this is for debugging)
+            
+            squircle_parameter: 2.0, // TODO: Default should be 2 (circle / ellipse mode)
+            squircle_ui_parameter: 0.44, // TODO: Default should be 0.666666666666666
 
             blocks_all: Default::default(),
             blocks_boundary: Default::default(),
@@ -133,42 +140,49 @@ impl eframe::App for App {
                 .show_ui(ui, |ui| {
                     ui.selectable_value(
                         &mut self.algorithm,
+                        Algorithm::CenterPoint,
+                        "Center point"
+                    );
+                    ui.selectable_value(
+                        &mut self.algorithm,
                         Algorithm::Conservative,
                         "Conservative"
                     );
                     ui.selectable_value(
                         &mut self.algorithm,
+                        Algorithm::Contained,
+                        "Contained");
+                    ui.selectable_value(
+                        &mut self.algorithm,
                         Algorithm::Percentage(0.5),
                         "Percentage"
                     );
-                    ui.selectable_value(&mut self.algorithm, Algorithm::Contained, "Contained");
-                    ui.selectable_value(
-                        &mut self.algorithm,
-                        Algorithm::CenterPoint,
-                        "Center point"
-                    );
-                    ui.selectable_value(&mut self.algorithm, Algorithm::Square, "Square");
-                    ui.selectable_value(&mut self.algorithm, Algorithm::Diamond, "Diamond");
                 });
 
             // additional algorithm options + description
             match self.algorithm {
-                Algorithm::Conservative => {
+                Algorithm::CenterPoint => {
+                    ui.label("Include a particular block iff its centerpoint is in the ellipse");
+                }
+                Algorithm::Conservative => { //TODO: implement superellipse (squircle)
                     ui.label(
                         "Include a particular block in the voxelization iff it has nonempty intersection with the ellipse"
                     );
                 }
-                Algorithm::Percentage(percentage) => { //TODO: implement ellipse
+                Algorithm::Contained => { //TODO: implement superellipse
+                    ui.label("Include a particular block iff it is fully contained in the ellipse");
+                }
+                Algorithm::Percentage(percentage) => { //TODO: implement ellipse, superellipse
                     ui.label(
                         format!(
-                            "Include a particular block in the voxelization iff more than {:.0}% of it is contained in the ellipse",
+                            "Include a particular block in the voxelization iff more than {:.0}% of it is contained in the cirlce. Ellipses and squircles not implemented.",
                             100.0 * percentage
                         )
                     );
                     let mut perc_slider = percentage.clone();
                     ui.add(
                         egui::Slider
-                            ::new(&mut perc_slider, 0.0..=1.0)
+                        ::new(&mut perc_slider, 0.0..=1.0)
                             .text("")
                             .fixed_decimals(2)
                             .custom_formatter(|n, _| {
@@ -176,22 +190,6 @@ impl eframe::App for App {
                             })
                     );
                     self.algorithm = Algorithm::Percentage(perc_slider);
-                }
-                Algorithm::Contained => {
-                    ui.label("Include a particular block iff it is fully contained in the ellipse");
-                }
-                Algorithm::CenterPoint => {
-                    ui.label("Include a particular block iff its centerpoint is in the ellipse");
-                }
-                Algorithm::Square => {
-                    ui.label(
-                        "Include a particular block iff its centerpoint is in a square of the specified radius"
-                    );
-                }
-                Algorithm::Diamond => {
-                    ui.label(
-                        "Include a particular block iff its centerpoint is in a diamond of the specified radius"
-                    );
                 }
             }
 
@@ -290,7 +288,33 @@ impl eframe::App for App {
                         .text("Tilt (radians)")
                         .fixed_decimals(2)
                 );
-                //TODO: Add predefined angles (0, 30°, 45°, 1:2, 1:3, 2:3, 1:4)
+
+                // Default values
+                ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(egui::Align::Min), |ui|
+                {
+                    if ui.button("0°").clicked() {
+                        self.tilt = 0.0;
+                    }
+                    if ui.button("30°").clicked() {
+                        self.tilt = PI/6.0;
+                    }
+                    if ui.button("45°").clicked() {
+                        self.tilt = PI/4.0;
+                    }
+                    if ui.button("1:2").clicked() {
+                        self.tilt = (0.5_f64).atan();
+                    }
+                    if ui.button("1:3").clicked() {
+                        self.tilt = (0.333333333333_f64).atan();
+                    }
+                    if ui.button("2:3").clicked() {
+                        self.tilt = (0.666666666666_f64).atan();
+                    }
+                    if ui.button("1:4").clicked() {
+                        self.tilt = (0.25_f64).atan();
+                    }
+                });
+
                 //TODO: Make circular slider for more intuitive controls (need to build this myself probably)
             }
             ui.checkbox(&mut self.circle_mode, "Circle mode");
@@ -303,6 +327,31 @@ impl eframe::App for App {
             // ui.label(format!("Sqrt of quadratic form: {:?}", self.sqrt_quad_form));
             // ui.label(format!("Transpose of sqrt quadratic form: {:?}", self.sqrt_quad_form.transpose()));
             // ui.label(format!("Quadratic form: {:?}", self.sqrt_quad_form.transpose() * self.sqrt_quad_form));
+
+            // Squircle parameter
+            ui.separator();
+            ui.add(egui::Slider::new(&mut self.squircle_ui_parameter, 0.0..=1.0)
+                .text("Squircle parameter")
+                .custom_formatter(|param, _| {
+                    format!("{:.02}", 1.0/(1.0 - param) -1.0 - 4.5 * param.powi(2) + 3.0 * param)
+                })
+            //    .custom_parser() TODO: enterable values for the parameter using an inverse
+            );
+            // Default values
+            ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(egui::Align::Min), |ui|
+            {
+                if ui.button("Circle").clicked() {
+                    self.squircle_ui_parameter = 0.666666666666666;
+                }
+                if ui.button("Diamond").clicked() {
+                    self.squircle_ui_parameter = 0.333333333333333;
+                }
+                if ui.button("Square").clicked() {
+                    self.squircle_ui_parameter = 1.0;
+                }
+            });
+            // Aim: Make choice of squircle parameter easy. there are distinct values at 2/3 and 1/3 we want to be exact
+            self.squircle_parameter = 1.0/(1.0 - self.squircle_ui_parameter) -1.0 - 4.5 * self.squircle_ui_parameter.powi(2) + 3.0 * self.squircle_ui_parameter;
 
             // Centerpoint
             ui.separator();
@@ -339,6 +388,7 @@ impl eframe::App for App {
                         Vec2::from([self.center_offset_x, self.center_offset_y]),
                         self.sqrt_quad_form,
                         self.radius_major,
+                        self.squircle_parameter
                     );
 
                     // run preprocessing
@@ -456,22 +506,24 @@ impl eframe::App for App {
                     plot_ui.points(
                         Points::new(vec![[self.center_offset_x, self.center_offset_y]]).radius(5.0),
                     );
-                    plot_ui.line(ellipse_at_coords(
+                    plot_ui.line(superellipse_at_coords(
                         self.center_offset_x,
                         self.center_offset_y,
                         self.radius_a,
                         self.radius_b,
                         self.tilt,
+                        self.squircle_parameter,
                     ));
                     plot_ui.hline(HLine::new(self.center_offset_y));
                     plot_ui.vline(VLine::new(self.center_offset_x));
 
                     if self.view_intersect_area {
                         let square = generate_all_blocks(
-                            &Algorithm::Square,
+                            &Algorithm::CenterPoint,
                             Vec2::from([self.center_offset_x, self.center_offset_y]),
                             self.sqrt_quad_form,
                             self.radius_minor + 2.0,
+                            f64::INFINITY
                         );
                         for coord in square.get_block_coords() {
                             let cell_center = [coord[0] + 0.5, coord[1] + 0.5];
@@ -540,17 +592,23 @@ fn square_at_coords(coord: [f64; 2]) -> Polygon {
     Polygon::new(square_pts).name("square".to_owned())
 }
 
-fn ellipse_at_coords(
-    center_x: f64,
-    center_y: f64,
-    radius_a: f64,
-    radius_b: f64,
-    tilt: f64,
+fn superellipse_at_coords( // TODO: make superellipse at coords
+                           center_x: f64,
+                           center_y: f64,
+                           radius_a: f64,
+                           radius_b: f64,
+                           tilt: f64,
+                           squircle_parameter: f64,
 ) -> Line {
-    let circlepts: PlotPoints = (0..1000)
+    let circlepts: PlotPoints = (0..=1005)
+        // Near the square (squircle_parameter = Infinity) we get weird holes (the parameterization
+        //  is not equally spaced), so need a few more points for it to make sense
         .map(|i| {
             let t = ((i as f64) * (2.0 * PI)) / 1000.0;
-            let notilt = [radius_a * t.cos(), radius_b * t.sin()];
+            let notilt = [
+                radius_a * t.cos().abs().powf(2.0/squircle_parameter) * t.cos().signum(),
+                radius_b * t.sin().abs().powf(2.0/squircle_parameter) * t.sin().signum()
+            ]; // the power is for squircles
             [
                 center_x + notilt[0] * tilt.cos() + notilt[1] * tilt.sin(),
                 center_y + notilt[0] * tilt.sin() - notilt[1] * tilt.cos(),

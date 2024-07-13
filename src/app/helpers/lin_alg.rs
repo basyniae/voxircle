@@ -41,6 +41,26 @@ impl Vec2 {
     pub fn infnorm(&self) -> f64 {
         f64::max(self.x.abs(), self.y.abs())
     }
+    
+    pub fn pnorm(&self, p: f64) -> f64 {
+        assert!(p>=0.0);
+        
+        if p == 0.0 {
+            if self.x != 0.0 || self.y != 0.0 {
+                f64::INFINITY
+            } else if self.x == 0.0 {
+                self.y.abs()
+            } else {
+                self.x.abs()
+            }
+        } else if p == f64::INFINITY {
+            self.infnorm()
+        } else if p == 1.0 {
+            self.onenorm()
+        } else {
+            (self.x.abs().powf(p)+self.y.abs().powf(p)).powf(1.0 / p)
+        }
+    }
 }
 
 impl ops::Add<Vec2> for Vec2 {

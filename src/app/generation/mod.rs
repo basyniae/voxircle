@@ -3,17 +3,15 @@
 mod centerpoint;
 mod conservative;
 mod contained;
-mod diamond;
 pub mod percentage; // want it public because we use the circle intersection area as a widget
-mod square;
 
 use crate::app::helpers::lin_alg::{Vec2, Mat2};
 use crate::data_structures::Blocks;
 
 use self::{
     centerpoint::generate_alg_centerpoint, conservative::generate_alg_conservative,
-    contained::generate_alg_contained, diamond::generate_alg_diamond,
-    percentage::generate_alg_percentage, square::generate_alg_square,
+    contained::generate_alg_contained,
+    percentage::generate_alg_percentage,
 };
 
 #[derive(Debug, PartialEq, Default)]
@@ -23,8 +21,6 @@ pub enum Algorithm {
     Contained,
     #[default]
     CenterPoint, // Easiest algorithm so take as default
-    Square,
-    Diamond,
 }
 
 // Switch between algorithms
@@ -33,6 +29,7 @@ pub fn generate_all_blocks(
     center_offset: Vec2,
     sqrt_quad_form: Mat2,
     radius_major: f64,
+    squircle_parameter: f64,
 ) -> Blocks {
     match algorithm {
         Algorithm::Conservative => {
@@ -58,14 +55,8 @@ pub fn generate_all_blocks(
                 center_offset,
                 sqrt_quad_form,
                 radius_major,
+                squircle_parameter,
             ) //
-        }
-        Algorithm::Square => {
-            generate_alg_square(radius_major, center_offset) //
-        }
-        Algorithm::Diamond => {
-            generate_alg_diamond(radius_major, center_offset)
-            //
         }
     }
 }
