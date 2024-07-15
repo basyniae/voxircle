@@ -6,7 +6,7 @@ mod contained;
 pub mod percentage; // want it public because we use the circle intersection area as a widget
 
 use crate::app::helpers::lin_alg::{Vec2, Mat2};
-use crate::data_structures::Blocks;
+use crate::app::helpers::blocks::Blocks;
 
 use self::{
     centerpoint::generate_alg_centerpoint, conservative::generate_alg_conservative,

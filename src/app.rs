@@ -3,7 +3,7 @@ pub mod helpers;
 mod metrics;
 
 use crate::app::helpers::lin_alg::{Mat2, Vec2};
-use crate::data_structures::Blocks;
+use helpers::blocks::Blocks;
 use eframe::egui::{self};
 use eframe::egui::{Direction, Layout};
 use eframe::epaint::{Color32, Stroke};

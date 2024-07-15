@@ -3,3 +3,5 @@ pub mod linear_geometry;
 pub mod lin_alg;
 pub mod optimization;
 pub(crate) mod circle_geometry;
+pub mod blocks;
+pub mod square;

@@ -1,7 +1,7 @@
 use std::f64::consts::PI;
 use crate::app::helpers::circle_geometry::{area_of_semicircle_section, intersection_hline_circle};
 use crate::app::helpers::lin_alg::Vec2;
-use crate::data_structures::Blocks;
+use crate::app::helpers::blocks::Blocks;
 
 // logic + geometry + integration
 // Percentage is to be supplied as float between 0 and 1 (note that unexpected behaviour may occur if it 0.0 or 1.0 exactly due to numerical errors)
