@@ -30,11 +30,7 @@ pub struct App {
     // The square root of the PSD symmetric quadratic form X defining the ellipse:
     //  (x,y)^TX(x,y)=1
     // store [a,b,c,d] for [[a,b],[c,d]] (obviously)
-    radius_a_integral: u64,
-    radius_a_fractional: f64,
-    radius_b_integral: u64,
-    radius_b_fractional: f64,
-    
+
     circle_mode: bool,
     
     squircle_parameter: f64,
@@ -69,29 +65,24 @@ pub struct App {
 impl Default for App {
     fn default() -> Self {
         Self {
-            algorithm: Algorithm::CenterPoint,
+            algorithm: Algorithm::Contained,
 
-            radius_a: Default::default(),
-            radius_b: Default::default(),
+            radius_a: 2.0, // TODO: change to 5, 5 radius by default
+            radius_b: 2.35,
             radius_major: Default::default(),
             radius_minor: Default::default(),
 
-            tilt: 3.9,
+            tilt: 0.75,
 
             sqrt_quad_form: Mat2::from([1.0, 0.0, 0.0, 1.0]),
 
-            radius_a_integral: 6,
-            radius_a_fractional: 0.25,
-            radius_b_integral: 11, // TODO: Change to 5,5 radii default
-            radius_b_fractional: Default::default(),
-
             center_offset_x: Default::default(),
-            center_offset_y: Default::default(),
+            center_offset_y: 0.5,
 
             circle_mode: false, // TODO: Change default to true (this is for debugging)
             
-            squircle_parameter: 2.0, // TODO: Default should be 2 (circle / ellipse mode)
-            squircle_ui_parameter: 0.44, // TODO: Default should be 0.666666666666666
+            squircle_parameter: 0.61, // TODO: Default should be 2 (circle / ellipse mode)
+            squircle_ui_parameter: 0.378882, // TODO: Default should be 0.666666666666666
 
             blocks_all: Default::default(),
             blocks_boundary: Default::default(),
@@ -195,30 +186,20 @@ impl eframe::App for App {
 
             // Radius
             ui.separator();
+            ui.checkbox(&mut self.circle_mode, "Circle mode");
             if self.circle_mode {
                 ui.add(
                     egui::Slider
-                    ::new(&mut self.radius_a_integral, 0..=30)
-                        .text("Integral radius")
+                    ::new(&mut self.radius_a, 0.0..=30.0)
+                        .text("Radius")
                         .clamp_to_range(false)
+                        .custom_formatter(|param, _| {
+                            format!("{:.02}", param)
+                        })
                 );
-
-                ui.add(
-                    egui::Slider
-                    ::new(&mut self.radius_a_fractional, -1.0..=1.0)
-                        .text("Fractional radius")
-                        .fixed_decimals(2)
-                );
-
-                self.radius_a = (&(self.radius_a_integral as f64) + &self.radius_a_fractional).clamp(
-                    0.0,
-                    f64::MAX
-                );
-
+                
                 // TODO: Do we want to change all the b variables and radius to defaults?
                 // Yes, take a screenshot if you want to save the settings
-                self.radius_b_fractional = self.radius_a_fractional;
-                self.radius_b_integral = self.radius_a_integral;
 
                 self.radius_b = self.radius_a;
 
@@ -226,61 +207,42 @@ impl eframe::App for App {
                 self.radius_major = self.radius_a;
 
                 self.tilt = 0.0;
-
-                ui.label(format!("Radius: {:.02}", self.radius_a));
             }
             else {
+                
+                
                 // radius a
                 ui.add(
                     egui::Slider
-                    ::new(&mut self.radius_a_integral, 0..=30)
-                        .text("Integral radius A")
+                    ::new(&mut self.radius_a, 0.0..=30.0)
+                        .text("Radius A")
                         .clamp_to_range(false)
+                        .custom_formatter(|param, _| {
+                            format!("{:.02}", param)
+                        })
                 );
-
-                ui.add(
-                    egui::Slider
-                    ::new(&mut self.radius_a_fractional, -1.0..=1.0)
-                        .text("Fractional radius A")
-                        .fixed_decimals(2)
-                );
-
-                self.radius_a = (&(self.radius_a_integral as f64) + &self.radius_a_fractional).clamp(
-                    0.0,
-                    f64::MAX
-                );
-
 
                 // radius b
                 ui.add(
                     egui::Slider
-                    ::new(&mut self.radius_b_integral, 0..=30)
-                        .text("Integral radius B")
+                    ::new(&mut self.radius_b, 0.0..=30.0)
+                        .text("Radius B")
                         .clamp_to_range(false)
-                );
-
-                ui.add(
-                    egui::Slider
-                    ::new(&mut self.radius_b_fractional, -1.0..=1.0)
-                        .text("Fractional radius B")
-                        .fixed_decimals(2)
-                );
-
-                self.radius_b = (&(self.radius_b_integral as f64) + &self.radius_b_fractional).clamp(
-                    0.0,
-                    f64::MAX
+                        .custom_formatter(|param, _| {
+                            format!("{:.02}", param)
+                        })
                 );
 
                 self.radius_major = f64::max(self.radius_a,self.radius_b);
                 self.radius_minor = f64::min(self.radius_a,self.radius_b);
-
-                if self.radius_a == self.radius_major {
-                    ui.label(format!("Radius A: {:.02} (major)", self.radius_a));
-                    ui.label(format!("Radius B: {:.02} (minor)", self.radius_b));
-                } else {
-                    ui.label(format!("Radius A: {:.02} (minor)", self.radius_a));
-                    ui.label(format!("Radius B: {:.02} (major)", self.radius_b));
-                }
+                
+                // if self.radius_a == self.radius_major {
+                //     ui.label(format!("Radius A: {:.02} (major)", self.radius_a));
+                //     ui.label(format!("Radius B: {:.02} (minor)", self.radius_b));
+                // } else {
+                //     ui.label(format!("Radius A: {:.02} (minor)", self.radius_a));
+                //     ui.label(format!("Radius B: {:.02} (major)", self.radius_b));
+                // }
 
                 ui.add(
                     egui::Slider
@@ -302,22 +264,22 @@ impl eframe::App for App {
                         self.tilt = PI/4.0;
                     }
                     if ui.button("1:2").clicked() {
-                        self.tilt = (0.5_f64).atan();
+                        self.tilt = 0.5_f64.atan();
                     }
                     if ui.button("1:3").clicked() {
-                        self.tilt = (0.333333333333_f64).atan();
+                        self.tilt = 0.333333333333_f64.atan();
                     }
                     if ui.button("2:3").clicked() {
-                        self.tilt = (0.666666666666_f64).atan();
+                        self.tilt = 0.666666666666_f64.atan();
                     }
                     if ui.button("1:4").clicked() {
-                        self.tilt = (0.25_f64).atan();
+                        self.tilt = 0.25_f64.atan();
                     }
                 });
 
                 //TODO: Make circular slider for more intuitive controls (need to build this myself probably)
             }
-            ui.checkbox(&mut self.circle_mode, "Circle mode");
+
 
             // Compute inv sqrt of quadratic for of ellipse
             let c = self.tilt.cos();
@@ -333,9 +295,13 @@ impl eframe::App for App {
             ui.add(egui::Slider::new(&mut self.squircle_ui_parameter, 0.0..=1.0)
                 .text("Squircle parameter")
                 .custom_formatter(|param, _| {
-                    format!("{:.02}", 1.0/(1.0 - param) -1.0 - 4.5 * param.powi(2) + 3.0 * param)
+                    format!("{:.02}", 1.0/(1.0 - param) - 1.0)
                 })
-            //    .custom_parser() TODO: enterable values for the parameter using an inverse
+               .custom_parser(|s| {
+                   s.parse::<f64>().map(|t| {
+                       1.0 - 1.0 / (t + 1.0)
+                   }).ok()
+               })
             );
             // Default values
             ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(egui::Align::Min), |ui|
@@ -344,14 +310,14 @@ impl eframe::App for App {
                     self.squircle_ui_parameter = 0.666666666666666;
                 }
                 if ui.button("Diamond").clicked() {
-                    self.squircle_ui_parameter = 0.333333333333333;
+                    self.squircle_ui_parameter = 0.5;
                 }
                 if ui.button("Square").clicked() {
                     self.squircle_ui_parameter = 1.0;
                 }
             });
             // Aim: Make choice of squircle parameter easy. there are distinct values at 2/3 and 1/3 we want to be exact
-            self.squircle_parameter = 1.0/(1.0 - self.squircle_ui_parameter) -1.0 - 4.5 * self.squircle_ui_parameter.powi(2) + 3.0 * self.squircle_ui_parameter;
+            self.squircle_parameter = 1.0/(1.0 - self.squircle_ui_parameter) - 1.0;
 
             // Centerpoint
             ui.separator();

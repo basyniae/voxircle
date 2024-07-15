@@ -14,6 +14,21 @@ pub fn line_segments_intersect(line_one: [Vec2; 2], line_two: [Vec2; 2]) -> bool
     }
 }
 
+// Return true if the open ray from ray[0] through ray[1] intersects the closed line segment
+pub fn ray_line_segment_intersect(ray: [Vec2; 2], line: [Vec2; 2]) -> bool {
+    let pure_intersection = intersect_lines(ray, line);
+    match pure_intersection {
+        None => {
+            false
+        }
+        Some(params) => {
+            let s = params[0];
+            let t = params[1];
+            (0.0 < s) && (0.0 <= t) && (t <= 1.0)
+        }
+    }
+}
+
 // Return the pair of parameters for which the lines intersect if the lines are not parallel,
 // (as distance from the first to the second point)
 // None if the lines are parallel and have no intersection,

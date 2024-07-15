@@ -61,6 +61,10 @@ impl Vec2 {
             (self.x.abs().powf(p)+self.y.abs().powf(p)).powf(1.0 / p)
         }
     }
+    
+    pub fn pnormalize(&self, p:f64) -> Vec2 {
+        1.0 / self.pnorm(p) * *self
+    }
 }
 
 impl ops::Add<Vec2> for Vec2 {
