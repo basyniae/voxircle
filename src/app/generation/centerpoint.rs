@@ -1,5 +1,5 @@
 use crate::app::helpers::lin_alg::{Mat2, Vec2};
-use crate::data_structures::Blocks;
+use crate::app::helpers::blocks::Blocks;
 
 pub fn generate_alg_centerpoint(
     center_offset: Vec2,

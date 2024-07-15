@@ -1,7 +1,8 @@
 use crate::app::helpers::circle_geometry::get_squircle_tangent_point;
 use crate::app::helpers::lin_alg::{Mat2, Vec2};
 use crate::app::helpers::linear_geometry::ray_line_segment_intersect;
-use crate::data_structures::Blocks;
+use crate::app::helpers::blocks::Blocks;
+use crate::app::helpers::square::Square;
 
 pub fn generate_alg_contained(
     center_offset: Vec2,
@@ -23,26 +24,13 @@ pub fn generate_alg_contained(
     let blocks = (0..edge_length.pow(2)).map(|i| {
         // Loop over all coords
         // Bottom right coordinate of the box in bitmatrix coordinates is [i % edge_length, i / edge_length]
-        let lb = Vec2::from([(i % edge_length) as f64,
-                             (i / edge_length) as f64 ]) - (origin + center_offset);
-        let rb = lb + Vec2::from([1.0, 0.0]);
-        let lt = lb + Vec2::from([0.0, 1.0]);
-        let rt = lb + Vec2::from([1.0, 1.0]);
-        
-        // Apply the rotate/scale sqrt_quad_form to all corner points LB, RB, LT, RT
-        let m_lb = sqrt_quad_form * lb;
-        let m_rb = sqrt_quad_form * rb;
-        let m_lt = sqrt_quad_form * lt;
-        let m_rt = sqrt_quad_form * rt;
+        let square = Square::new(i, edge_length, origin, center_offset, sqrt_quad_form);
 
         // We have that the box is contained in the disk <=> all corners of the box are in the ellipse
         // Rely on sqrt_quad_form matrix characterization of ellipse
         if squircle_parameter >= 1.0 {
             // Convexity of the squircle with parameter p>=0 gives an easy characterization, just have to check the extreme points
-            m_lb.pnorm(squircle_parameter) <= 1.0
-                && m_rb.pnorm(squircle_parameter) <= 1.0
-                && m_lt.pnorm(squircle_parameter) <= 1.0
-                && m_rt.pnorm(squircle_parameter) <= 1.0
+            square.for_all_m_corners(|corner| corner.pnorm(squircle_parameter) <= 1.0)
         } else { // Case 0 <= p < 1.0
             // The curve of the squircle can poke through the side of the parallelogram
             // So we need that all corners of the parallelogram and the squircle pokes through
@@ -52,27 +40,11 @@ pub fn generate_alg_contained(
             //  the squircle if and only if it intersects *any* of these rays.
             // (The only if direction is the hard one, argue via Rolle's theorem(ish) and direction)
 
-            // TODO: Refactor so that we can easily loop over all edges or vertices in a box. We do this a ton of times so worth it
-            m_lb.pnorm(squircle_parameter) <= 1.0
-                && m_rb.pnorm(squircle_parameter) <= 1.0
-                && m_lt.pnorm(squircle_parameter) <= 1.0
-                && m_rt.pnorm(squircle_parameter) <= 1.0
-                && !ray_line_segment_intersect([squircle_tangent_x, 2.0*squircle_tangent_x], [m_lb, m_rb])
-                && !ray_line_segment_intersect([squircle_tangent_x, 2.0*squircle_tangent_x], [m_rb, m_rt])
-                && !ray_line_segment_intersect([squircle_tangent_x, 2.0*squircle_tangent_x], [m_rt, m_lt])
-                && !ray_line_segment_intersect([squircle_tangent_x, 2.0*squircle_tangent_x], [m_lt, m_lb])
-                && !ray_line_segment_intersect([-squircle_tangent_x, -2.0*squircle_tangent_x], [m_lb, m_rb])
-                && !ray_line_segment_intersect([-squircle_tangent_x, -2.0*squircle_tangent_x], [m_rb, m_rt])
-                && !ray_line_segment_intersect([-squircle_tangent_x, -2.0*squircle_tangent_x], [m_rt, m_lt])
-                && !ray_line_segment_intersect([-squircle_tangent_x, -2.0*squircle_tangent_x], [m_lt, m_lb])
-                && !ray_line_segment_intersect([squircle_tangent_y, 2.0*squircle_tangent_y], [m_lb, m_rb])
-                && !ray_line_segment_intersect([squircle_tangent_y, 2.0*squircle_tangent_y], [m_rb, m_rt])
-                && !ray_line_segment_intersect([squircle_tangent_y, 2.0*squircle_tangent_y], [m_rt, m_lt])
-                && !ray_line_segment_intersect([squircle_tangent_y, 2.0*squircle_tangent_y], [m_lt, m_lb])
-                && !ray_line_segment_intersect([-squircle_tangent_y, -2.0*squircle_tangent_y], [m_lb, m_rb])
-                && !ray_line_segment_intersect([-squircle_tangent_y, -2.0*squircle_tangent_y], [m_rb, m_rt])
-                && !ray_line_segment_intersect([-squircle_tangent_y, -2.0*squircle_tangent_y], [m_rt, m_lt])
-                && !ray_line_segment_intersect([-squircle_tangent_y, -2.0*squircle_tangent_y], [m_lt, m_lb])
+            square.for_all_m_corners(|corner| corner.pnorm(squircle_parameter) <= 1.0)
+                && !square.for_any_m_edge(|edge| ray_line_segment_intersect([squircle_tangent_x, 2.0 * squircle_tangent_x], edge))
+                && !square.for_any_m_edge(|edge| ray_line_segment_intersect([-squircle_tangent_x, -2.0 * squircle_tangent_x], edge))
+                && !square.for_any_m_edge(|edge| ray_line_segment_intersect([squircle_tangent_y, 2.0 * squircle_tangent_y], edge))
+                && !square.for_any_m_edge(|edge| ray_line_segment_intersect([-squircle_tangent_y, -2.0 * squircle_tangent_y], edge))
         }
     }).collect();
 

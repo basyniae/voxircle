@@ -2,12 +2,11 @@
 // (ripped straight from the example)
 
 mod app;
-pub mod data_structures;
 mod formatting;
 
 use std::default::Default;
 use eframe::egui::ViewportBuilder;
-use eframe::{ Theme, HardwareAcceleration };
+use eframe::{HardwareAcceleration, Theme};
 
 fn main() {
     let options = eframe::NativeOptions {
