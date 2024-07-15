@@ -1,4 +1,4 @@
-use crate::app::helpers::geometry::line_segments_intersect;
+use crate::app::helpers::linear_geometry::line_segments_intersect;
 use crate::app::helpers::lin_alg::{Mat2, Vec2};
 use crate::data_structures::Blocks;
 

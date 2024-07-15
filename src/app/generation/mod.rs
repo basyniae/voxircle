@@ -48,6 +48,7 @@ pub fn generate_all_blocks(
                 center_offset,
                 sqrt_quad_form,
                 radius_major,
+                squircle_parameter,
             ) //
         }
         Algorithm::CenterPoint => {
