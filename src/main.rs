@@ -1,12 +1,12 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
-// (ripped straight from the example)
+                                                                   // (ripped straight from the example)
 
 mod app;
 mod formatting;
 
-use std::default::Default;
 use eframe::egui::ViewportBuilder;
 use eframe::{HardwareAcceleration, Theme};
+use std::default::Default;
 
 fn main() {
     let options = eframe::NativeOptions {
@@ -31,6 +31,6 @@ fn main() {
     let _ = eframe::run_native(
         "Voxircle",
         options,
-        Box::new(|cc| Box::new(crate::app::App::new(cc)))
+        Box::new(|cc| Box::new(app::App::new(cc))),
     );
 }

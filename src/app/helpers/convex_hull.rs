@@ -34,9 +34,10 @@ pub fn get_convex_hull(points: &Vec<[f64; 2]>) -> Vec<[f64; 2]> {
         // Pick the largest i such that (p, i, q) is positively oriented
         for i in 0..points.len() {
             if
-                //  check orientation (is the triple product in 2D)
-                (points[i][1] - points[p][1]) * (points[q][0] - points[i][0]) -
-                    (points[i][0] - points[p][0]) * (points[q][1] - points[i][1]) < 0.0
+            //  check orientation (is the triple product in 2D)
+            (points[i][1] - points[p][1]) * (points[q][0] - points[i][0])
+                - (points[i][0] - points[p][0]) * (points[q][1] - points[i][1])
+                < 0.0
             {
                 // If the triple (p, i, q) is oriented counterclockwise (strictly, i.e., not colinear)
                 q = i;

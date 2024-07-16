@@ -33,18 +33,18 @@ impl Vec2 {
     pub fn ip(&self, other: Vec2) -> f64 {
         self.x * other.x + self.y * other.y
     }
-    
+
     pub fn onenorm(&self) -> f64 {
-        self.x.abs()+self.y.abs()
+        self.x.abs() + self.y.abs()
     }
-    
+
     pub fn infnorm(&self) -> f64 {
         f64::max(self.x.abs(), self.y.abs())
     }
-    
+
     pub fn pnorm(&self, p: f64) -> f64 {
-        assert!(p>=0.0);
-        
+        assert!(p >= 0.0);
+
         if p == 0.0 {
             if self.x != 0.0 || self.y != 0.0 {
                 f64::INFINITY
@@ -58,11 +58,11 @@ impl Vec2 {
         } else if p == 1.0 {
             self.onenorm()
         } else {
-            (self.x.abs().powf(p)+self.y.abs().powf(p)).powf(1.0 / p)
+            (self.x.abs().powf(p) + self.y.abs().powf(p)).powf(1.0 / p)
         }
     }
-    
-    pub fn pnormalize(&self, p:f64) -> Vec2 {
+
+    pub fn pnormalize(&self, p: f64) -> Vec2 {
         1.0 / self.pnorm(p) * *self
     }
 }
@@ -130,7 +130,7 @@ impl Mat2 {
     pub fn diagonal(a: f64, d: f64) -> Mat2 {
         Mat2::from([a, 0.0, 0.0, d])
     }
-    
+
     /// Determinant
     pub fn det(&self) -> f64 {
         self.a * self.d - self.b * self.c
