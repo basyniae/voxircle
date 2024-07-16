@@ -354,7 +354,10 @@ impl eframe::App for App {
                         Vec2::from([self.center_offset_x, self.center_offset_y]),
                         self.sqrt_quad_form,
                         self.radius_major,
-                        self.squircle_parameter
+                        self.squircle_parameter,
+                        self.tilt,
+                        self.radius_a,
+                        self.radius_b,
                     );
 
                     // run preprocessing
@@ -489,7 +492,10 @@ impl eframe::App for App {
                             Vec2::from([self.center_offset_x, self.center_offset_y]),
                             self.sqrt_quad_form,
                             self.radius_minor + 2.0,
-                            f64::INFINITY
+                            f64::INFINITY,
+                            self.tilt,
+                            self.radius_a,
+                            self.radius_b,
                         );
                         for coord in square.get_block_coords() {
                             let cell_center = [coord[0] + 0.5, coord[1] + 0.5];

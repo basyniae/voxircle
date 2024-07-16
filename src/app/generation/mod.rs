@@ -30,6 +30,9 @@ pub fn generate_all_blocks(
     sqrt_quad_form: Mat2,
     radius_major: f64,
     squircle_parameter: f64,
+    tilt: f64,
+    radius_a: f64,
+    radius_b: f64,
 ) -> Blocks {
     match algorithm {
         Algorithm::Conservative => {
@@ -37,6 +40,10 @@ pub fn generate_all_blocks(
                 radius_major,
                 center_offset,
                 sqrt_quad_form,
+                squircle_parameter,
+                tilt,
+                radius_a,
+                radius_b
             ) //
         }
         Algorithm::Percentage(percentage) => {
