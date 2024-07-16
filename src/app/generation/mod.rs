@@ -5,13 +5,12 @@ mod conservative;
 mod contained;
 pub mod percentage; // want it public because we use the circle intersection area as a widget
 
-use crate::app::helpers::lin_alg::{Vec2, Mat2};
 use crate::app::helpers::blocks::Blocks;
+use crate::app::helpers::lin_alg::{Mat2, Vec2};
 
 use self::{
     centerpoint::generate_alg_centerpoint, conservative::generate_alg_conservative,
-    contained::generate_alg_contained,
-    percentage::generate_alg_percentage,
+    contained::generate_alg_contained, percentage::generate_alg_percentage,
 };
 
 #[derive(Debug, PartialEq, Default)]
@@ -35,36 +34,29 @@ pub fn generate_all_blocks(
     radius_b: f64,
 ) -> Blocks {
     match algorithm {
-        Algorithm::Conservative => {
-            generate_alg_conservative(
-                radius_major,
-                center_offset,
-                sqrt_quad_form,
-                squircle_parameter,
-                tilt,
-                radius_a,
-                radius_b
-            ) //
-        }
+        Algorithm::Conservative => generate_alg_conservative(
+            radius_major,
+            center_offset,
+            sqrt_quad_form,
+            squircle_parameter,
+            tilt,
+            radius_a,
+            radius_b,
+        ),
         Algorithm::Percentage(percentage) => {
             generate_alg_percentage(radius_major, center_offset, *percentage)
-            //
         }
-        Algorithm::Contained => {
-            generate_alg_contained(
-                center_offset,
-                sqrt_quad_form,
-                radius_major,
-                squircle_parameter,
-            ) //
-        }
-        Algorithm::CenterPoint => {
-            generate_alg_centerpoint(
-                center_offset,
-                sqrt_quad_form,
-                radius_major,
-                squircle_parameter,
-            ) //
-        }
+        Algorithm::Contained => generate_alg_contained(
+            center_offset,
+            sqrt_quad_form,
+            radius_major,
+            squircle_parameter,
+        ),
+        Algorithm::CenterPoint => generate_alg_centerpoint(
+            center_offset,
+            sqrt_quad_form,
+            radius_major,
+            squircle_parameter,
+        ),
     }
 }

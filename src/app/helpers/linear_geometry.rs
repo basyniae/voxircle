@@ -18,9 +18,7 @@ pub fn line_segments_intersect(line_one: [Vec2; 2], line_two: [Vec2; 2]) -> bool
 pub fn ray_line_segment_intersect(ray: [Vec2; 2], line: [Vec2; 2]) -> bool {
     let pure_intersection = intersect_lines(ray, line);
     match pure_intersection {
-        None => {
-            false
-        }
+        None => false,
         Some(params) => {
             let s = params[0];
             let t = params[1];
@@ -82,4 +80,3 @@ pub fn intersect_lines(line_one: [Vec2; 2], line_two: [Vec2; 2]) -> Option<[f64;
         Some([v.x, v.y])
     }
 }
-

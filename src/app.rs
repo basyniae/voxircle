@@ -2,20 +2,20 @@ mod generation;
 pub mod helpers;
 mod metrics;
 
+use self::generation::{generate_all_blocks, Algorithm};
+use self::helpers::convex_hull::{get_convex_hull, line_segments_from_conv_hull};
 use crate::app::helpers::lin_alg::{Mat2, Vec2};
-use helpers::blocks::Blocks;
+use crate::formatting;
 use eframe::egui::{self};
 use eframe::egui::{Direction, Layout};
 use eframe::epaint::{Color32, Stroke};
 use egui_plot::{
-    HLine, Line, Plot, PlotPoint, PlotPoints, Points, Polygon, Text, uniform_grid_spacer, VLine,
+    uniform_grid_spacer, HLine, Line, Plot, PlotPoint, PlotPoints, Points, Polygon, Text, VLine,
 };
+use helpers::blocks::Blocks;
 use std::default::Default;
 use std::f64::consts::PI;
 use std::ops::Not;
-use crate::formatting;
-use self::generation::{Algorithm, generate_all_blocks};
-use self::helpers::convex_hull::{get_convex_hull, line_segments_from_conv_hull};
 
 pub struct App {
     algorithm: Algorithm,
@@ -30,9 +30,8 @@ pub struct App {
     // The square root of the PSD symmetric quadratic form X defining the ellipse:
     //  (x,y)^TX(x,y)=1
     // store [a,b,c,d] for [[a,b],[c,d]] (obviously)
-
     circle_mode: bool,
-    
+
     squircle_parameter: f64,
     squircle_ui_parameter: f64,
 
@@ -80,7 +79,7 @@ impl Default for App {
             center_offset_y: 0.5,
 
             circle_mode: false, // TODO: Change default to true (this is for debugging)
-            
+
             squircle_parameter: 0.61, // TODO: Default should be 2 (circle / ellipse mode)
             squircle_ui_parameter: 0.378882, // TODO: Default should be 0.666666666666666
 
@@ -197,7 +196,6 @@ impl eframe::App for App {
                             format!("{:.02}", param)
                         })
                 );
-                
                 // TODO: Do we want to change all the b variables and radius to defaults?
                 // Yes, take a screenshot if you want to save the settings
 
@@ -209,8 +207,6 @@ impl eframe::App for App {
                 self.tilt = 0.0;
             }
             else {
-                
-                
                 // radius a
                 ui.add(
                     egui::Slider
@@ -235,14 +231,6 @@ impl eframe::App for App {
 
                 self.radius_major = f64::max(self.radius_a,self.radius_b);
                 self.radius_minor = f64::min(self.radius_a,self.radius_b);
-                
-                // if self.radius_a == self.radius_major {
-                //     ui.label(format!("Radius A: {:.02} (major)", self.radius_a));
-                //     ui.label(format!("Radius B: {:.02} (minor)", self.radius_b));
-                // } else {
-                //     ui.label(format!("Radius A: {:.02} (minor)", self.radius_a));
-                //     ui.label(format!("Radius B: {:.02} (major)", self.radius_b));
-                // }
 
                 ui.add(
                     egui::Slider
@@ -564,13 +552,14 @@ fn square_at_coords(coord: [f64; 2]) -> Polygon {
     Polygon::new(square_pts).name("square".to_owned())
 }
 
-fn superellipse_at_coords( // TODO: make superellipse at coords
-                           center_x: f64,
-                           center_y: f64,
-                           radius_a: f64,
-                           radius_b: f64,
-                           tilt: f64,
-                           squircle_parameter: f64,
+fn superellipse_at_coords(
+    // TODO: make superellipse at coords
+    center_x: f64,
+    center_y: f64,
+    radius_a: f64,
+    radius_b: f64,
+    tilt: f64,
+    squircle_parameter: f64,
 ) -> Line {
     let circlepts: PlotPoints = (0..=1005)
         // Near the square (squircle_parameter = Infinity) we get weird holes (the parameterization
@@ -578,8 +567,8 @@ fn superellipse_at_coords( // TODO: make superellipse at coords
         .map(|i| {
             let t = ((i as f64) * (2.0 * PI)) / 1000.0;
             let notilt = [
-                radius_a * t.cos().abs().powf(2.0/squircle_parameter) * t.cos().signum(),
-                radius_b * t.sin().abs().powf(2.0/squircle_parameter) * t.sin().signum()
+                radius_a * t.cos().abs().powf(2.0 / squircle_parameter) * t.cos().signum(),
+                radius_b * t.sin().abs().powf(2.0 / squircle_parameter) * t.sin().signum(),
             ]; // the power is for squircles
             [
                 center_x + notilt[0] * tilt.cos() + notilt[1] * tilt.sin(),
@@ -590,4 +579,3 @@ fn superellipse_at_coords( // TODO: make superellipse at coords
 
     Line::new(circlepts)
 }
-
