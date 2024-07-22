@@ -90,7 +90,7 @@ impl Default for App {
             radius_major: Default::default(),
             radius_minor: Default::default(),
 
-            tilt: 0.5, // default: 0.0
+            tilt: 0.0, // default: 0.0
 
             sqrt_quad_form: Mat2::from([1.0, 0.0, 0.0, 1.0]),
 
@@ -145,7 +145,6 @@ impl eframe::App for App {
         // Options panel
         egui::SidePanel::right("options-panel").show(ctx, |ui| {
             ui.heading("Generation");
-            ui.label("Options for generation of circle");
             ui.separator();
 
             // Select algorithm
@@ -174,7 +173,7 @@ impl eframe::App for App {
                     );
                 });
 
-            // additional algorithm options + description
+            // additional algorithm-specific options + description
             match self.algorithm {
                 Algorithm::CenterPoint => {
                     ui.label("Include a particular block iff its centerpoint is in the ellipse");
@@ -310,6 +309,7 @@ impl eframe::App for App {
                    }).ok()
                })
             );
+
             // Default values
             ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(egui::Align::Min), |ui|
             {
@@ -323,6 +323,7 @@ impl eframe::App for App {
                     self.squircle_ui_parameter = 1.0;
                 }
             });
+
             // Aim: Make choice of squircle parameter easy. there are distinct values at 2/3 and 1/3 we want to be exact
             self.squircle_parameter = 1.0/(1.0 - self.squircle_ui_parameter) - 1.0;
 
@@ -331,18 +332,22 @@ impl eframe::App for App {
             ui.add(egui::Slider::new(&mut self.center_offset_x, -1.0..=1.0).text("x offset"));
             ui.add(egui::Slider::new(&mut self.center_offset_y, -1.0..=1.0).text("y offset"));
             // Add odd and even buttons (also good so people understand what the abstraction "offset center" actually means)
-            if ui.button("Even circle").clicked() {
-                self.center_offset_x = 0.0;
-                self.center_offset_y = 0.0;
-            }
-            if ui.button("Odd circle").clicked() {
-                self.center_offset_x = 0.5;
-                self.center_offset_y = 0.5;
-            }
+            ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(egui::Align::Min), |ui|
+            {
+                if ui.button("Even center").clicked() {
+                    self.center_offset_x = 0.0;
+                    self.center_offset_y = 0.0;
+                }
+                if ui.button("Odd center").clicked() {
+                    self.center_offset_x = 0.5;
+                    self.center_offset_y = 0.5;
+                }
+            });
 
             // Viewport options
             ui.separator();
-            ui.label("View options");
+            ui.separator();
+            ui.heading("View options");
 
             ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(egui::Align::Min), |ui|
             {
@@ -358,12 +363,8 @@ impl eframe::App for App {
             });
             ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(egui::Align::Min), |ui|
             {
-                ui.checkbox(&mut self.view_intersect_area, "Intersect area");
+                ui.checkbox(&mut self.view_intersect_area, "Intersect area (Circles only)");
             });
-            // if ui.button("Reset view").clicked() {
-            //     self.reset_zoom_once = true
-            // }
-            // ui.checkbox(&mut self.reset_zoom, "Auto zoom");
 
             // Generate action
             ui.separator();
@@ -450,10 +451,8 @@ impl eframe::App for App {
                 // Grid lines of increasing thickness at distance 1.0, 5.0, 10.0 for counting
                 .x_grid_spacer(uniform_grid_spacer(|_gridinput| [1.0, 5.0, 10.0]))
                 .y_grid_spacer(uniform_grid_spacer(|_gridinput| [1.0, 5.0, 10.0]))
-                // .clamp_grid(true) // Clamp grid to the figure (so we don't have lines outside it) I don't think we want that
-                .allow_boxed_zoom(false) // we shouldn't need this, there's a maximal reasonable zoom in level and the reasonable zoom out level is only as big as the circle we're generating
-                // .coordinates_formatter(egui_plot::Corner::RightBottom //  this is showing the coords in a fixed place on the screen... we wanted to edit the formatting of the coords floating around the cursor
-                //     CoordinatesFormatter::with_decimals(5))
+                .allow_boxed_zoom(false)
+                // We don't need this, there's a maximal reasonable zoom in level and the reasonable zoom out level is only as big as the circle we're generating
                 .auto_bounds(Vec2b::from([false, false]))
                 .allow_double_click_reset(false) // we have to implement this ourselves
                 .label_formatter(move |_name, mouse_coord| {
@@ -461,12 +460,12 @@ impl eframe::App for App {
                     //     format!("{}: {:.*}%", name, 1, value.y)
                     // } else {
                     //     "".to_owned()
-                    // } // FIXME: think about integer coords for odd & even circles (no +/- zero for even circles)... ideally have it dep. only on...
+                    // } // TODO: think about integer coords for odd & even circles (no +/- zero for even circles)... ideally have it dep. only on...
                     format!(
                         "{0:.0}, {1:.0}",
                         mouse_coord.x.trunc(),
                         mouse_coord.y.trunc()
-                    ) // Use trunc instead of floor for symmtery preservation around the axis! Nasty but works
+                    ) // Use trunc instead of floor for symmetry preservation around the axis! Nasty but works
                 })
                 .include_x(self.radius_major + 1.0)
                 .include_x(-self.radius_major - 1.0)
@@ -539,13 +538,14 @@ impl eframe::App for App {
                         }
                     }
 
-                    // Plot true center, true circle, and horizontal + vertical lines through true center
+                    // Plot center
                     plot_ui.points(
                         Points::new(vec![[self.center_offset_x, self.center_offset_y]])
                             .radius(5.0)
                             .color(COLOR_LIME),
                     );
 
+                    // Plot target shape
                     plot_ui.line(
                         superellipse_at_coords(
                             self.center_offset_x,
@@ -558,7 +558,7 @@ impl eframe::App for App {
                         .color(COLOR_LIME),
                     );
 
-                    // x and y axes through the center of the ellipse
+                    // Plot x and y axes through the center of the shape
                     plot_ui.hline(
                         HLine::new(self.center_offset_y)
                             .color(COLOR_X_AXIS)
@@ -572,10 +572,10 @@ impl eframe::App for App {
 
                     // Plot rotated x and y axes for nonzero tilt (dark orange and purple)
                     if self.tilt != 0.0 {
-                        let bnds = plot_ui.plot_bounds();
+                        let bounds = plot_ui.plot_bounds();
                         plot_ui.line(
                             tilted_line_in_bounds(
-                                bnds,
+                                bounds,
                                 self.tilt,
                                 self.center_offset_x,
                                 self.center_offset_y,
@@ -584,7 +584,7 @@ impl eframe::App for App {
                         );
                         plot_ui.line(
                             tilted_line_in_bounds(
-                                bnds,
+                                bounds,
                                 self.tilt + PI / 2.0,
                                 self.center_offset_x,
                                 self.center_offset_y,
@@ -636,7 +636,7 @@ impl eframe::App for App {
                         }
                     }
 
-                    // Prehaps better to use the plot_ui.shape
+                    // Perhaps better to use the plot_ui.shape
                     if self.view_convex_hull {
                         for i in line_segments_from_conv_hull(self.convex_hull.clone()) {
                             let pts: PlotPoints = (0..=1).map(|t| i[t]).collect();
@@ -644,6 +644,7 @@ impl eframe::App for App {
                         }
                     }
 
+                    // Plot outer corners of block
                     if self.view_outer_corners {
                         for [i, j] in &self.outer_corners {
                             plot_ui.points(
@@ -653,8 +654,6 @@ impl eframe::App for App {
                             );
                         }
                     }
-
-                    // plot_ui.points(Points::new(PlotPoints::from(value)).radius(3.0).color(Color32::BLUE))
                 });
         });
     }
