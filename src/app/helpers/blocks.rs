@@ -1,14 +1,17 @@
-use crate::app::helpers::lin_alg::Vec2;
+use crate::app::helpers::linear_algebra::Vec2;
+use std::ops::Not;
 
-// Captures a bit matrix. The length of the vector should always be edge_length**2
-// Order is x first left to right, then y down to up (to match coord space)
+/// Captures a bit matrix. The length of the vector should always be edge_length**2
+
 #[derive(Default, Clone)]
 pub struct Blocks {
     pub blocks: Vec<bool>,
     pub edge_length: usize, // of type usize because we index with it a bunch of times
-    pub origin: Vec2,       // At which bitmatrix coords is the center of the circle?
-                            // For a block-diameter 4 circle it would be [2.0,2.0], for a block-diameter 5 circle it would be [2.5,2.5]
-                            // but how does this work paradigmatically
+    // the total number of cells where there can be blocks is edge_length**2
+    // Order is x first left to right, then y down to up (to match coord space)
+    pub origin: Vec2, // At which bitmatrix coords is the center of the circle?
+                      // For a block-diameter 4 circle it would be [2.0,2.0], for a block-diameter 5 circle it would be [2.5,2.5]
+                      // but how does this work paradigmatically
 }
 
 impl Blocks {
@@ -30,51 +33,42 @@ impl Blocks {
         output_vec
     }
 
+    /// Get number of blocks
     pub fn get_nr_blocks(&self) -> u64 {
-        let mut running_total = 0;
-        for b in &self.blocks {
-            if *b {
-                running_total += 1;
-            }
-        }
-
-        running_total
+        (*self.blocks).into_iter().filter(|b| **b).count() as u64
     }
 
+    /// Get (thin-walled) interior, i.e., blocks in self which have no neighbors which share a side
+    /// with an air block
     pub fn get_interior(&self) -> Blocks {
-        let mut i = 0usize;
-        let mut output_vec = Vec::new();
+        // let mut output_vec = Vec::new();
 
-        for b in &self.blocks {
-            if *b == false {
-                // if not a point in the set of blocks, then certainly not a point in the interior
-                output_vec.push(false);
-            } else if i % self.edge_length == 0
-                || i % self.edge_length == self.edge_length - 1
-                || i / self.edge_length == 0
-                || i / self.edge_length == self.edge_length - 1
-            {
-                // If on the boundary, output not-interior (valid via judicious padding of the interesting structure)
-                output_vec.push(false);
-            } else if self.blocks[i + 1] == false
-                || self.blocks[i - 1] == false
-                || self.blocks[i + self.edge_length] == false
-                || self.blocks[i - self.edge_length] == false
-            {
-                // actually check the neighbors
-                output_vec.push(false);
-            } else {
-                output_vec.push(true);
-            }
+        let blocks = (0..self.edge_length.pow(2))
+            .map(|i| {
+                self.blocks[i] == true
+                    // has to be a block in self
+                    && i % self.edge_length != 0
+                    && i % self.edge_length != self.edge_length - 1
+                    && i / self.edge_length != 0
+                    && i / self.edge_length != self.edge_length - 1
+                    // cannot lie on the boundary of the grid
+                    && self.blocks[i + 1] == true
+                    && self.blocks[i - 1] == true
+                    && self.blocks[i + self.edge_length] == true
+                    && self.blocks[i - self.edge_length] == true
+                // all direct neighbors should also be blocks
+            })
+            .collect();
 
-            i += 1;
-        }
+        Blocks { blocks, ..*self }
+    }
 
-        Blocks {
-            blocks: output_vec,
-            edge_length: self.edge_length,
-            origin: self.origin,
-        }
+    /// Complement of blocks (for interiors)
+    pub fn get_complement(&self) -> Blocks {
+        let blocks = (0..self.edge_length.pow(2))
+            .map(|i| self.blocks[i].not())
+            .collect();
+        Blocks { blocks, ..*self }
     }
 
     // From a shape (which is assumed to be non-pathological, TODO: make checks for this)

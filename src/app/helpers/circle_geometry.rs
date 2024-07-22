@@ -1,8 +1,8 @@
-use crate::app::helpers::lin_alg::Vec2;
+use crate::app::helpers::linear_algebra::Vec2;
 use std::f64::consts::PI;
 
-// With -radius <= x0 <= x1 <= radius, what is the area of the semicircle y=sqrt(R^2-x^2) from x0 to x1?
-// Have an exact primitive for non-edge cases
+/// With -radius <= x0 <= x1 <= radius, what is the area of the semicircle y=sqrt(R^2-x^2) from x0 to x1?
+/// Have an exact primitive for non-edge cases
 pub fn area_of_semicircle_section(x0: f64, x1: f64, radius: f64) -> f64 {
     if !(-radius <= x0 && x0 <= x1 && x1 <= radius) {
         // -radius <= x0 <= x1 <= radius
@@ -43,11 +43,11 @@ pub fn intersection_hline_circle(y: f64, radius: f64) -> [f64; 2] {
     [-positive_intersection, positive_intersection]
 }
 
-// Get the point on the unit squircle where the curve is tangent to the input. There are in general
-//  two such points. View the squircle as a parameterized curve counterclockwise. Then output the
-//  point where the direction of the derivative matches the direction vector.
-// Equivalently, the direction rotated 90° clockwise is the steepest ascent vector at the output
-//  (of the p-norm ||(x,y)||_p).
+/// Get the point on the unit squircle where the curve is tangent to the input. There are in general
+///  two such points. View the squircle as a parameterized curve counterclockwise. Then output the
+///  point where the direction of the derivative matches the direction vector.
+/// Equivalently, the direction rotated 90° clockwise is the steepest ascent vector at the output
+///  (of the p-norm ||(x,y)||_p).
 pub fn get_squircle_tangent_point(squircle_parameter: f64, direction: Vec2) -> Vec2 {
     let p = squircle_parameter;
     let abs_y = {

@@ -1,6 +1,6 @@
 use crate::app::helpers::blocks::Blocks;
 use crate::app::helpers::circle_geometry::{area_of_semicircle_section, intersection_hline_circle};
-use crate::app::helpers::lin_alg::Vec2;
+use crate::app::helpers::linear_algebra::Vec2;
 use std::f64::consts::PI;
 
 // logic + geometry + integration

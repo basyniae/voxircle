@@ -4,7 +4,7 @@ mod metrics;
 
 use self::generation::{generate_all_blocks, Algorithm};
 use self::helpers::convex_hull::{get_convex_hull, line_segments_from_conv_hull};
-use crate::app::helpers::lin_alg::{Mat2, Vec2};
+use crate::app::helpers::linear_algebra::{Mat2, Vec2};
 use crate::formatting;
 use eframe::egui::{self};
 use eframe::egui::{Direction, Layout};
@@ -41,6 +41,7 @@ pub struct App {
     blocks_all: Blocks,
     blocks_boundary: Blocks,
     blocks_interior: Blocks,
+    blocks_complement: Blocks,
 
     nr_blocks_total: u64,
     nr_blocks_interior: u64,
@@ -52,6 +53,7 @@ pub struct App {
     view_blocks_boundary: bool,
     view_blocks_interior: bool,
 
+    view_complement: bool,
     view_intersect_area: bool,
 
     view_convex_hull: bool,
@@ -64,28 +66,29 @@ pub struct App {
 impl Default for App {
     fn default() -> Self {
         Self {
-            algorithm: Algorithm::Contained,
+            algorithm: Algorithm::Conservative, // default: Centerpoint
 
-            radius_a: 2.0, // TODO: change to 5, 5 radius by default
-            radius_b: 2.35,
+            radius_a: 1.0, // default: 5.0
+            radius_b: 1.0, // default: 5.0
             radius_major: Default::default(),
             radius_minor: Default::default(),
 
-            tilt: 0.75,
+            tilt: 0.0, // default: 0.0
 
             sqrt_quad_form: Mat2::from([1.0, 0.0, 0.0, 1.0]),
 
             center_offset_x: Default::default(),
-            center_offset_y: 0.5,
+            center_offset_y: Default::default(),
 
-            circle_mode: false, // TODO: Change default to true (this is for debugging)
+            circle_mode: true, // default: true
 
-            squircle_parameter: 0.61, // TODO: Default should be 2 (circle / ellipse mode)
-            squircle_ui_parameter: 0.378882, // TODO: Default should be 0.666666666666666
+            squircle_parameter: 1.38, // default: 2.0 (circle / ellipse)
+            squircle_ui_parameter: 0.579832, // default: 0.666666666666666
 
             blocks_all: Default::default(),
             blocks_boundary: Default::default(),
             blocks_interior: Default::default(),
+            blocks_complement: Default::default(),
 
             nr_blocks_total: Default::default(),
             nr_blocks_interior: Default::default(),
@@ -97,6 +100,7 @@ impl Default for App {
             view_blocks_boundary: false,
             view_blocks_interior: false,
             view_intersect_area: false,
+            view_complement: false,
 
             view_convex_hull: false,
             convex_hull: Default::default(),
@@ -154,18 +158,18 @@ impl eframe::App for App {
                 Algorithm::CenterPoint => {
                     ui.label("Include a particular block iff its centerpoint is in the ellipse");
                 }
-                Algorithm::Conservative => { //TODO: implement superellipse (squircle)
+                Algorithm::Conservative => {
                     ui.label(
                         "Include a particular block in the voxelization iff it has nonempty intersection with the ellipse"
                     );
                 }
-                Algorithm::Contained => { //TODO: implement superellipse
+                Algorithm::Contained => {
                     ui.label("Include a particular block iff it is fully contained in the ellipse");
                 }
                 Algorithm::Percentage(percentage) => { //TODO: implement ellipse, superellipse
                     ui.label(
                         format!(
-                            "Include a particular block in the voxelization iff more than {:.0}% of it is contained in the cirlce. Ellipses and squircles not implemented.",
+                            "Include a particular block in the voxelization iff more than {:.0}% of it is contained in the circle. Ellipses and squircles not implemented.",
                             100.0 * percentage
                         )
                     );
@@ -196,8 +200,6 @@ impl eframe::App for App {
                             format!("{:.02}", param)
                         })
                 );
-                // TODO: Do we want to change all the b variables and radius to defaults?
-                // Yes, take a screenshot if you want to save the settings
 
                 self.radius_b = self.radius_a;
 
@@ -269,14 +271,10 @@ impl eframe::App for App {
             }
 
 
-            // Compute inv sqrt of quadratic for of ellipse
+            // Compute sqrt of quadratic form of ellipse
             let c = self.tilt.cos();
             let s = self.tilt.sin();
             self.sqrt_quad_form = Mat2::from_rows(1.0 /self.radius_a * Vec2::from([c,s]), 1.0 / self.radius_b * Vec2::from([s, -c]));
-
-            // ui.label(format!("Sqrt of quadratic form: {:?}", self.sqrt_quad_form));
-            // ui.label(format!("Transpose of sqrt quadratic form: {:?}", self.sqrt_quad_form.transpose()));
-            // ui.label(format!("Quadratic form: {:?}", self.sqrt_quad_form.transpose() * self.sqrt_quad_form));
 
             // Squircle parameter
             ui.separator();
@@ -328,6 +326,7 @@ impl eframe::App for App {
             ui.checkbox(&mut self.view_blocks_interior, "View interior blocks");
             ui.checkbox(&mut self.view_intersect_area, "View intersect area");
             ui.checkbox(&mut self.view_convex_hull, "View convex hull");
+            ui.checkbox(&mut self.view_complement, "View complement");
 
             // Generate action
             ui.separator();
@@ -360,6 +359,7 @@ impl eframe::App for App {
                         edge_length: self.blocks_all.edge_length,
                         origin: self.blocks_all.origin,
                     };
+                    self.blocks_complement = self.blocks_all.get_complement();
 
                     // update metrics
                     self.nr_blocks_total = self.blocks_all.get_nr_blocks();
@@ -455,6 +455,19 @@ impl eframe::App for App {
                                         color: Color32::BLACK,
                                     })
                                     .fill_color(Color32::LIGHT_RED),
+                            );
+                        }
+                    }
+
+                    if self.view_complement {
+                        for coord in self.blocks_complement.get_block_coords() {
+                            plot_ui.polygon(
+                                square_at_coords(coord)
+                                    .stroke(Stroke {
+                                        width: 1.0,
+                                        color: Color32::BLACK,
+                                    })
+                                    .fill_color(Color32::GOLD),
                             );
                         }
                     }

@@ -1,6 +1,6 @@
 use crate::app::helpers::blocks::Blocks;
 use crate::app::helpers::circle_geometry::get_squircle_tangent_point;
-use crate::app::helpers::lin_alg::{Mat2, Vec2};
+use crate::app::helpers::linear_algebra::{Mat2, Vec2};
 use crate::app::helpers::linear_geometry::ray_line_segment_intersect;
 use crate::app::helpers::square::Square;
 
