@@ -42,9 +42,9 @@ pub fn intersect_lines(line_one: [Vec2; 2], line_two: [Vec2; 2]) -> Option<[f64;
 
     // Consider the matrix with row vectors d_1, d_2, we want to invert this matrix
     // Compute the determinant
-    let X = Mat2::from_columns(d_1, -1.0 * d_2);
+    let xx = Mat2::from_columns(d_1, -1.0 * d_2);
 
-    let det = X.det();
+    let det = xx.det();
 
     if det == 0.0 {
         // i.e., the lines are parallel
@@ -78,8 +78,8 @@ pub fn intersect_lines(line_one: [Vec2; 2], line_two: [Vec2; 2]) -> Option<[f64;
         }
     } else {
         // Invert the matrix (by 2x2 matrix inverse formula)
-        let Y = X.inverse().unwrap();
-        let v = Y * (p_2 - p_1);
+        let yy = xx.inverse().unwrap();
+        let v = yy * (p_2 - p_1);
 
         Some([v.x, v.y])
     }

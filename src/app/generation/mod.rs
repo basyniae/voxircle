@@ -15,11 +15,11 @@ use self::{
 
 #[derive(Debug, PartialEq, Default)]
 pub enum Algorithm {
-    Conservative,
-    Percentage(f64),
-    Contained,
     #[default]
-    CenterPoint, // Easiest algorithm so take as default
+    CenterPoint,
+    Conservative,
+    Contained,
+    Percentage(f64),
 }
 
 // Switch between algorithms
@@ -27,36 +27,44 @@ pub fn generate_all_blocks(
     algorithm: &Algorithm,
     center_offset: Vec2,
     sqrt_quad_form: Mat2,
-    radius_major: f64,
     squircle_parameter: f64,
     tilt: f64,
     radius_a: f64,
     radius_b: f64,
+    grid_size: usize,
+    origin: Vec2,
 ) -> Blocks {
     match algorithm {
+        Algorithm::CenterPoint => generate_alg_centerpoint(
+            center_offset,
+            sqrt_quad_form,
+            squircle_parameter,
+            grid_size,
+            origin,
+        ),
         Algorithm::Conservative => generate_alg_conservative(
-            radius_major,
             center_offset,
             sqrt_quad_form,
             squircle_parameter,
             tilt,
             radius_a,
             radius_b,
+            grid_size,
+            origin,
         ),
-        Algorithm::Percentage(percentage) => {
-            generate_alg_percentage(radius_major, center_offset, *percentage)
-        }
         Algorithm::Contained => generate_alg_contained(
             center_offset,
             sqrt_quad_form,
-            radius_major,
             squircle_parameter,
+            grid_size,
+            origin,
         ),
-        Algorithm::CenterPoint => generate_alg_centerpoint(
+        Algorithm::Percentage(percentage) => generate_alg_percentage(
+            f64::max(radius_a, radius_b),
             center_offset,
-            sqrt_quad_form,
-            radius_major,
-            squircle_parameter,
-        ),
+            *percentage,
+            grid_size,
+            origin,
+        ), // TODO update w/ origin
     }
 }
