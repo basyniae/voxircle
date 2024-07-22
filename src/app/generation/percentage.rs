@@ -12,35 +12,35 @@ pub fn generate_alg_percentage(
     grid_size: usize,
     origin: Vec2,
 ) -> Blocks {
-    let mut output_vec = Vec::new();
+    let blocks = (0..grid_size.pow(2))
+        .map(|i| {
+            // loop over all coords
 
-    for i in 0..grid_size.pow(2) {
-        // loop over all coords
+            // Bottom right coordinate of the box in bitmatrix coordinates is [i % edge_length, i / edge_length], so to get the center we add 0.5.
+            let mut x_center = ((i % grid_size) as f64) + 0.5 - (origin.x + center_offset.x); // Relative to the circle center, what is the x-position of the center of the box?
+            let mut y_center = ((i / grid_size) as f64) + 0.5 - (origin.y + center_offset.y); // "" "" what is the y-position of the center of the box
 
-        // Bottom right coordinate of the box in bitmatrix coordinates is [i % edge_length, i / edge_length], so to get the center we add 0.5.
-        let mut x_center = ((i % grid_size) as f64) + 0.5 - (origin.x + center_offset.x); // Relative to the circle center, what is the x-position of the center of the box?
-        let mut y_center = ((i / grid_size) as f64) + 0.5 - (origin.y + center_offset.y); // "" "" what is the y-position of the center of the box
+            // Symmetrize. We may assume that the origin is to the bottom left of the box center, and under the bottom-left to top-right diagonal
+            //  by dihedral symmetry of the square.
+            // Formulaically: x_center >= 0, y_center >= 0, y_center >= x_center
+            // Compute this via an if tree casing on signs
+            if x_center < 0.0 {
+                x_center = -x_center;
+            }
+            if y_center < 0.0 {
+                y_center = -y_center;
+            }
+            if x_center > y_center {
+                (y_center, x_center) = (x_center, y_center);
+            }
 
-        // Symmetrize. We may assume that the origin is to the bottom left of the box center, and under the bottom-left to top-right diagonal
-        //  by dihedral symmetry of the square.
-        // Formulaically: x_center >= 0, y_center >= 0, y_center >= x_center
-        // Compute this via an if tree casing on signs
-        if x_center < 0.0 {
-            x_center = -x_center;
-        }
-        if y_center < 0.0 {
-            y_center = -y_center;
-        }
-        if x_center > y_center {
-            (y_center, x_center) = (x_center, y_center);
-        }
-
-        // Then compute the area under the assumptions on the location above and compare to the desired percentage
-        output_vec.push(cell_disk_intersection_area(radius, x_center, y_center) >= percentage);
-    }
+            // Then compute the area under the assumptions on the location above and compare to the desired percentage
+            cell_disk_intersection_area(radius, x_center, y_center) >= percentage
+        })
+        .collect();
 
     Blocks {
-        blocks: output_vec,
+        blocks,
         grid_size,
         origin,
     }

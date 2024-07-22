@@ -50,29 +50,81 @@ pub fn intersect_lines(line_one: [Vec2; 2], line_two: [Vec2; 2]) -> Option<[f64;
         // i.e., the lines are parallel
         // Check if the lines coincide
         if d_1.y * (p_2.x - p_1.x) == d_1.x * (p_2.y - p_1.y) {
-            // the lines coincide
-            // Compute the values of s,t that define the other segment
-            //TODO: what if d_2.x is zero?
-            let s_start = (p_1.x - p_2.x) / d_2.x; // solves p_1 = p_2 + sd_2
-            let s_end = (p_1.x + d_1.x - p_2.x) / d_2.x; // solves p_1 + d_1 = p_2 + sd_2
-            let b = s_start;
-            let a = s_end - s_start;
-            // Now s = a*t + b
+            if d_2.x != 0.0 || d_2.y != 0.0 {
+                // If d_2 is zero then the computation makes no sense
+                // the lines coincide
+                // Compute the values of s,t that define the other segment
+                let s_start = {
+                    if d_2.x != 0.0 {
+                        (p_1.x - p_2.x) / d_2.x
+                    } else {
+                        (p_1.y - p_2.y) / d_2.y
+                    }
+                }; // solves p_1 = p_2 + sd_2
+                let s_end = {
+                    if d_2.x != 0.0 {
+                        (p_1.x + d_1.x - p_2.x) / d_2.x
+                    } else {
+                        (p_1.y + d_1.x - p_2.y) / d_2.y
+                    }
+                }; // solves p_1 + d_1 = p_2 + sd_2
+                let b = s_start;
+                let a = s_end - s_start;
+                // Now s = a*t + b
 
-            // Pick the s,t if possible in the square [0,1]^2
-            // I.e., minimize max {|t-1/2|, |s-1/2|} (maximum norm centered at 1/2)
-            //  subject to s = a*t + b
-            // Unfold:
-            // minimize max {t-1/2, -t+1/2, at+b-1/2, -at-b+1/2} (t real)
-            let [t, _] = minimize_maximum_straight_lines(vec![
-                [1.0, -0.5],
-                [-1.0, 0.5],
-                [a, b - 0.5],
-                [-a, -b + 0.5],
-            ]);
-            let s = a * t + b;
+                // Pick the s,t if possible in the square [0,1]^2
+                // I.e., minimize max {|t-1/2|, |s-1/2|} (maximum norm centered at 1/2)
+                //  subject to s = a*t + b
+                // Unfold:
+                // minimize max {t-1/2, -t+1/2, at+b-1/2, -at-b+1/2} (t real)
+                let [t, _] = minimize_maximum_straight_lines(vec![
+                    [1.0, -0.5],
+                    [-1.0, 0.5],
+                    [a, b - 0.5],
+                    [-a, -b + 0.5],
+                ]);
+                let s = a * t + b;
 
-            Some([s, t])
+                Some([s, t])
+            } else if d_1.x != 0.0 || d_1.y != 0.0 {
+                // Same algorithm as above but with 1 and 2 swapped
+                let t_start = {
+                    if d_1.x != 0.0 {
+                        (p_2.x - p_1.x) / d_1.x
+                    } else {
+                        (p_2.y - p_1.y) / d_1.y
+                    }
+                }; // solves p_2 = p_1 + td_1
+                let t_end = {
+                    if d_2.x != 0.0 {
+                        (p_2.x + d_2.x - p_1.x) / d_1.x
+                    } else {
+                        (p_2.y + d_2.x - p_1.y) / d_1.y
+                    }
+                }; // solves p_2 + d_2 = p_1 + sd_1
+                let b = t_start;
+                let a = t_end - t_start;
+                // Now t = a*s + b
+
+                // Pick the s,t if possible in the square [0,1]^2
+                // I.e., minimize max {|t-1/2|, |s-1/2|} (maximum norm centered at 1/2)
+                //  subject to s = a*t + b
+                // Unfold:
+                // minimize max {t-1/2, -t+1/2, at+b-1/2, -at-b+1/2} (t real)
+                let [s, _] = minimize_maximum_straight_lines(vec![
+                    [1.0, -0.5],
+                    [-1.0, 0.5],
+                    [a, b - 0.5],
+                    [-a, -b + 0.5],
+                ]);
+                let t = a * s + b;
+
+                Some([s, t])
+            } else if p_1 == p_2 {
+                Some([0.5, 0.5]) // The directions d_1 and d_2 are both zero and the points coincide
+            } else {
+                None
+            }
         } else {
             None
         }
