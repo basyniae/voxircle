@@ -6,16 +6,30 @@ use self::generation::{generate_all_blocks, Algorithm};
 use self::helpers::convex_hull::{get_convex_hull, line_segments_from_conv_hull};
 use crate::app::helpers::linear_algebra::{Mat2, Vec2};
 use crate::formatting;
-use eframe::egui::{self};
+use eframe::egui::{self, Vec2b};
 use eframe::egui::{Direction, Layout};
 use eframe::epaint::{Color32, Stroke};
 use egui_plot::{
-    uniform_grid_spacer, HLine, Line, Plot, PlotPoint, PlotPoints, Points, Polygon, Text, VLine,
+    uniform_grid_spacer, HLine, Line, Plot, PlotBounds, PlotPoint, PlotPoints, Points, Polygon,
+    Text, VLine,
 };
 use helpers::blocks::Blocks;
 use std::default::Default;
 use std::f64::consts::PI;
 use std::ops::Not;
+
+// Colors based on Blender Minimal Dark scheme, 3D Viewport
+const COLOR_BACKGROUND: Color32 = Color32::from_rgb(28, 28, 28); // middle background color (dark gray)
+const COLOR_WIRE: Color32 = Color32::from_rgb(33, 33, 33); // "Wire" color (gray)
+const COLOR_FACE: Color32 = Color32::from_rgb(161, 163, 164); // Face color (light gray)
+const COLOR_LIME: Color32 = Color32::from_rgb(0, 255, 47); // "Active object" color (lime)
+const COLOR_LIGHT_BLUE: Color32 = Color32::from_rgb(0, 217, 255); // "Object selected" color (light blue)
+const COLOR_ORANGE: Color32 = Color32::from_rgb(255, 133, 0); // "Grease Pencil Vertex Select" color (orange)
+const COLOR_DARK_ORANGE: Color32 = Color32::from_rgb(204, 106, 0); // Darker shade of orange
+const COLOR_PURPLE: Color32 = Color32::from_rgb(179, 104, 186); // Darker shade of orange
+const COLOR_YELLOW: Color32 = Color32::from_rgb(255, 242, 0); // "Edge Angle Text" color (yellow)
+const COLOR_X_AXIS: Color32 = Color32::from_rgb(123, 34, 34); // x-axis color (red)
+const COLOR_Y_AXIS: Color32 = Color32::from_rgb(44, 107, 44); // y-axis color (green)
 
 pub struct App {
     algorithm: Algorithm,
@@ -57,8 +71,11 @@ pub struct App {
     view_intersect_area: bool,
 
     view_convex_hull: bool,
+    view_outer_corners: bool,
     convex_hull: Vec<[f64; 2]>,
     outer_corners: Vec<[f64; 2]>,
+    reset_zoom_once: bool,
+    reset_zoom: bool,
 }
 
 // Defaults should be such that we get useful output on startup
@@ -66,14 +83,14 @@ pub struct App {
 impl Default for App {
     fn default() -> Self {
         Self {
-            algorithm: Algorithm::Conservative, // default: Centerpoint
+            algorithm: Algorithm::CenterPoint, // default: Centerpoint
 
-            radius_a: 1.0, // default: 5.0
-            radius_b: 1.0, // default: 5.0
+            radius_a: 5.0, // default: 5.0
+            radius_b: 5.0, // default: 5.0
             radius_major: Default::default(),
             radius_minor: Default::default(),
 
-            tilt: 0.0, // default: 0.0
+            tilt: 0.5, // default: 0.0
 
             sqrt_quad_form: Mat2::from([1.0, 0.0, 0.0, 1.0]),
 
@@ -82,8 +99,8 @@ impl Default for App {
 
             circle_mode: true, // default: true
 
-            squircle_parameter: 1.38, // default: 2.0 (circle / ellipse)
-            squircle_ui_parameter: 0.579832, // default: 0.666666666666666
+            squircle_parameter: 2.0, // default: 2.0 (circle / ellipse)
+            squircle_ui_parameter: 0.666666666666666, // default: 0.666666666666666
 
             blocks_all: Default::default(),
             blocks_boundary: Default::default(),
@@ -103,8 +120,12 @@ impl Default for App {
             view_complement: false,
 
             view_convex_hull: false,
+            view_outer_corners: false,
             convex_hull: Default::default(),
             outer_corners: Default::default(),
+
+            reset_zoom_once: false,
+            reset_zoom: true,
         }
     }
 }
@@ -319,14 +340,30 @@ impl eframe::App for App {
                 self.center_offset_y = 0.5;
             }
 
-            // Viewport options TODO: Arrange nicely (two column layout will do the job)
+            // Viewport options
             ui.separator();
-            ui.checkbox(&mut self.view_blocks_all, "View all blocks");
-            ui.checkbox(&mut self.view_blocks_boundary, "View boundary blocks");
-            ui.checkbox(&mut self.view_blocks_interior, "View interior blocks");
-            ui.checkbox(&mut self.view_intersect_area, "View intersect area");
-            ui.checkbox(&mut self.view_convex_hull, "View convex hull");
-            ui.checkbox(&mut self.view_complement, "View complement");
+            ui.label("View options");
+
+            ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(egui::Align::Min), |ui|
+            {
+                ui.checkbox(&mut self.view_blocks_all, "All");
+                ui.checkbox(&mut self.view_blocks_boundary, "Boundary");
+                ui.checkbox(&mut self.view_blocks_interior, "Interior");
+                ui.checkbox(&mut self.view_complement, "Complement");
+            });
+            ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(egui::Align::Min), |ui|
+            {
+                ui.checkbox(&mut self.view_convex_hull, "Convex hull");
+                ui.checkbox(&mut self.view_outer_corners, "Outer corners");
+            });
+            ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(egui::Align::Min), |ui|
+            {
+                ui.checkbox(&mut self.view_intersect_area, "Intersect area");
+            });
+            // if ui.button("Reset view").clicked() {
+            //     self.reset_zoom_once = true
+            // }
+            // ui.checkbox(&mut self.reset_zoom, "Auto zoom");
 
             // Generate action
             ui.separator();
@@ -335,7 +372,7 @@ impl eframe::App for App {
             ui.with_layout(Layout::centered_and_justified(Direction::LeftToRight), |ui| {
                 if ui.button("Generate").clicked() || self.auto_generate {
                     // on generation
-                    
+
                     // Determine grid size
                     // The major radius should be included, for some metrics we need at least one layer of padding
                     //  around the generated figure. Assuming a square figure (squircle parameter infinity), we
@@ -405,7 +442,8 @@ impl eframe::App for App {
         // Viewport
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            // ui.heading("Viewport");
+            ui.visuals_mut().extreme_bg_color = COLOR_BACKGROUND;
+            ui.visuals_mut().faint_bg_color = Color32::RED;
 
             Plot::new("my_plot")
                 .data_aspect(1.0) // so that squares in the rasterization always look square in the viewport
@@ -416,6 +454,8 @@ impl eframe::App for App {
                 .allow_boxed_zoom(false) // we shouldn't need this, there's a maximal reasonable zoom in level and the reasonable zoom out level is only as big as the circle we're generating
                 // .coordinates_formatter(egui_plot::Corner::RightBottom //  this is showing the coords in a fixed place on the screen... we wanted to edit the formatting of the coords floating around the cursor
                 //     CoordinatesFormatter::with_decimals(5))
+                .auto_bounds(Vec2b::from([false, false]))
+                .allow_double_click_reset(false) // we have to implement this ourselves
                 .label_formatter(move |_name, mouse_coord| {
                     // if !name.is_empty() {  // Can condition formatting only on name of object! So if we want to have different tooltips for different objects this is what we must do
                     //     format!("{}: {:.*}%", name, 1, value.y)
@@ -431,6 +471,21 @@ impl eframe::App for App {
                 .include_x(self.radius_major + 1.0)
                 .include_x(-self.radius_major - 1.0)
                 .show(ui, |plot_ui| {
+                    // Reset zoom (approximates default behaviour, but we get to specify the action of automatic zooming
+                    if self.reset_zoom_once || self.reset_zoom {
+                        let [min, max] = self.blocks_all.get_padded_bounds(0.0);
+                        plot_ui.set_plot_bounds(PlotBounds::from_min_max(min, max));
+                        self.reset_zoom_once = false
+                    }
+
+                    if plot_ui.response().clicked() || plot_ui.response().drag_started() {
+                        self.reset_zoom = false
+                    }
+
+                    if plot_ui.response().double_clicked() {
+                        self.reset_zoom = true // not sure if best to reset zoom once or reset zoom continuously
+                    }
+
                     // * Viewport plotting * //
                     if self.view_blocks_all {
                         for coord in self.blocks_all.get_block_coords() {
@@ -438,9 +493,9 @@ impl eframe::App for App {
                                 square_at_coords(coord)
                                     .stroke(Stroke {
                                         width: 1.0,
-                                        color: Color32::BLACK,
+                                        color: COLOR_WIRE,
                                     })
-                                    .fill_color(Color32::WHITE), //TODO: Make nice colors
+                                    .fill_color(COLOR_FACE),
                             );
                         }
                     }
@@ -451,9 +506,9 @@ impl eframe::App for App {
                                 square_at_coords(coord)
                                     .stroke(Stroke {
                                         width: 1.0,
-                                        color: Color32::BLACK,
+                                        color: COLOR_WIRE,
                                     })
-                                    .fill_color(Color32::RED),
+                                    .fill_color(COLOR_LIGHT_BLUE),
                             );
                         }
                     }
@@ -464,9 +519,9 @@ impl eframe::App for App {
                                 square_at_coords(coord)
                                     .stroke(Stroke {
                                         width: 1.0,
-                                        color: Color32::BLACK,
+                                        color: COLOR_WIRE,
                                     })
-                                    .fill_color(Color32::LIGHT_RED),
+                                    .fill_color(COLOR_YELLOW),
                             );
                         }
                     }
@@ -477,31 +532,72 @@ impl eframe::App for App {
                                 square_at_coords(coord)
                                     .stroke(Stroke {
                                         width: 1.0,
-                                        color: Color32::BLACK,
+                                        color: COLOR_WIRE,
                                     })
-                                    .fill_color(Color32::GOLD),
+                                    .fill_color(COLOR_ORANGE),
                             );
                         }
                     }
 
                     // Plot true center, true circle, and horizontal + vertical lines through true center
                     plot_ui.points(
-                        Points::new(vec![[self.center_offset_x, self.center_offset_y]]).radius(5.0),
+                        Points::new(vec![[self.center_offset_x, self.center_offset_y]])
+                            .radius(5.0)
+                            .color(COLOR_LIME),
                     );
-                    plot_ui.line(superellipse_at_coords(
-                        self.center_offset_x,
-                        self.center_offset_y,
-                        self.radius_a,
-                        self.radius_b,
-                        self.tilt,
-                        self.squircle_parameter,
-                    ));
-                    plot_ui.hline(HLine::new(self.center_offset_y));
-                    plot_ui.vline(VLine::new(self.center_offset_x));
+
+                    plot_ui.line(
+                        superellipse_at_coords(
+                            self.center_offset_x,
+                            self.center_offset_y,
+                            self.radius_a,
+                            self.radius_b,
+                            self.tilt,
+                            self.squircle_parameter,
+                        )
+                        .color(COLOR_LIME),
+                    );
+
+                    // x and y axes through the center of the ellipse
+                    plot_ui.hline(
+                        HLine::new(self.center_offset_y)
+                            .color(COLOR_X_AXIS)
+                            .width(2.0),
+                    );
+                    plot_ui.vline(
+                        VLine::new(self.center_offset_x)
+                            .color(COLOR_Y_AXIS)
+                            .width(2.0),
+                    );
+
+                    // Plot rotated x and y axes for nonzero tilt (dark orange and purple)
+                    if self.tilt != 0.0 {
+                        let bnds = plot_ui.plot_bounds();
+                        plot_ui.line(
+                            tilted_line_in_bounds(
+                                bnds,
+                                self.tilt,
+                                self.center_offset_x,
+                                self.center_offset_y,
+                            )
+                            .color(COLOR_DARK_ORANGE),
+                        );
+                        plot_ui.line(
+                            tilted_line_in_bounds(
+                                bnds,
+                                self.tilt + PI / 2.0,
+                                self.center_offset_x,
+                                self.center_offset_y,
+                            )
+                            .color(COLOR_PURPLE),
+                        );
+                    }
 
                     if self.view_intersect_area {
-                        let grid_size = (2.0 * 1.42 * f64::max(self.radius_a, self.radius_b)).ceil() as usize + 4;
-                        
+                        let grid_size = (2.0 * 1.42 * f64::max(self.radius_a, self.radius_b)).ceil()
+                            as usize
+                            + 4;
+
                         let square = Blocks {
                             blocks: (0..grid_size.pow(2)).map(|_| true).collect(),
                             grid_size,
@@ -544,13 +640,18 @@ impl eframe::App for App {
                     if self.view_convex_hull {
                         for i in line_segments_from_conv_hull(self.convex_hull.clone()) {
                             let pts: PlotPoints = (0..=1).map(|t| i[t]).collect();
-                            plot_ui.line(Line::new(pts).color(Color32::RED));
+                            plot_ui.line(Line::new(pts).color(COLOR_ORANGE));
                         }
                     }
 
-                    for [i, j] in &self.outer_corners {
-                        plot_ui
-                            .points(Points::new(vec![[*i, *j]]).radius(3.0).color(Color32::BLUE));
+                    if self.view_outer_corners {
+                        for [i, j] in &self.outer_corners {
+                            plot_ui.points(
+                                Points::new(vec![[*i, *j]])
+                                    .radius(3.0)
+                                    .color(COLOR_DARK_ORANGE),
+                            );
+                        }
                     }
 
                     // plot_ui.points(Points::new(PlotPoints::from(value)).radius(3.0).color(Color32::BLUE))
@@ -600,4 +701,26 @@ fn superellipse_at_coords(
         .collect();
 
     Line::new(circlepts)
+}
+
+/// Draw a tilted line through the origin in the given bounds
+fn tilted_line_in_bounds(bnds: PlotBounds, tilt: f64, offset_x: f64, offset_y: f64) -> Line {
+    let [min_x, min_y] = bnds.min();
+    let [max_x, max_y] = bnds.max();
+
+    let intersection_pts = vec![
+        [min_x, (min_x - offset_x) * tilt.tan() + offset_y],
+        [max_x, (max_x - offset_x) * tilt.tan() + offset_y],
+        [(min_y - offset_y) / tilt.tan() + offset_x, min_y],
+        [(max_y - offset_y) / tilt.tan() + offset_x, max_y],
+    ];
+
+    let intersection_pts_in_box = intersection_pts
+        .into_iter()
+        .filter(|point| {
+            point[0] >= min_x && point[0] <= max_x && point[1] >= min_y && point[1] <= max_y
+        })
+        .collect();
+
+    Line::new(PlotPoints::new(intersection_pts_in_box))
 }
