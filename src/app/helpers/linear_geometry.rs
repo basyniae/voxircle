@@ -1,7 +1,8 @@
-use crate::app::helpers::lin_alg::{Mat2, Vec2};
+use crate::app::helpers::linear_algebra::{Mat2, Vec2};
 use crate::app::helpers::optimization::minimize_maximum_straight_lines;
 
-// Return true if the closed line segments intersect, false otherwise
+/// Return true if the closed line segments intersect, false otherwise.
+/// (Is just a parameter wrapping of the intersect_lines function)
 pub fn line_segments_intersect(line_one: [Vec2; 2], line_two: [Vec2; 2]) -> bool {
     let pure_intersect = intersect_lines(line_one, line_two);
     match pure_intersect {
@@ -14,7 +15,8 @@ pub fn line_segments_intersect(line_one: [Vec2; 2], line_two: [Vec2; 2]) -> bool
     }
 }
 
-// Return true if the open ray from ray[0] through ray[1] intersects the closed line segment
+/// Return true if the open ray from ray[0] through ray[1] intersects the closed line segment.
+/// (Is just a parameter wrapping of the intersect_lines function)
 pub fn ray_line_segment_intersect(ray: [Vec2; 2], line: [Vec2; 2]) -> bool {
     let pure_intersection = intersect_lines(ray, line);
     match pure_intersection {
@@ -27,10 +29,11 @@ pub fn ray_line_segment_intersect(ray: [Vec2; 2], line: [Vec2; 2]) -> bool {
     }
 }
 
-// Return the pair of parameters for which the lines intersect if the lines are not parallel,
-// (as distance from the first to the second point)
-// None if the lines are parallel and have no intersection,
-// Any pair of parameters if the lines are parallel and have intersection...
+/// Return the pair of parameters for which the lines intersect if the lines are not parallel,
+/// (as distance from the first to the second point)
+/// None if the lines are parallel and have no intersection,
+/// Any pair of parameters if the lines are parallel and have intersection, subject to the condition
+/// that max {|t-1/2|, |s-1/2|} is minimal.
 pub fn intersect_lines(line_one: [Vec2; 2], line_two: [Vec2; 2]) -> Option<[f64; 2]> {
     let p_1 = line_one[0];
     let d_1 = line_one[1] - line_one[0]; // End minus start for direction vector
@@ -49,10 +52,11 @@ pub fn intersect_lines(line_one: [Vec2; 2], line_two: [Vec2; 2]) -> Option<[f64;
         if d_1.y * (p_2.x - p_1.x) == d_1.x * (p_2.y - p_1.y) {
             // the lines coincide
             // Compute the values of s,t that define the other segment
-            let s_start = (p_1.x - p_2.x) / d_2.x; // solves x_1 = x_2 + sd_2
-            let s_end = (p_1.x + d_1.x - p_2.x) / d_2.x; // solves x_1 + d_1 = x_2 + sd_2
+            //TODO: what if d_2.x is zero?
+            let s_start = (p_1.x - p_2.x) / d_2.x; // solves p_1 = p_2 + sd_2
+            let s_end = (p_1.x + d_1.x - p_2.x) / d_2.x; // solves p_1 + d_1 = p_2 + sd_2
             let b = s_start;
-            let a = s_start - s_end;
+            let a = s_end - s_start;
             // Now s = a*t + b
 
             // Pick the s,t if possible in the square [0,1]^2

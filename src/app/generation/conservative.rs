@@ -1,6 +1,6 @@
 use crate::app::helpers::blocks::Blocks;
 use crate::app::helpers::circle_geometry::get_squircle_tangent_point;
-use crate::app::helpers::lin_alg::{Mat2, Vec2};
+use crate::app::helpers::linear_algebra::{Mat2, Vec2};
 use crate::app::helpers::linear_geometry::line_segments_intersect;
 use crate::app::helpers::square::Square;
 
@@ -13,7 +13,8 @@ pub fn generate_alg_conservative(
     radius_a: f64,
     radius_b: f64,
 ) -> Blocks {
-    let edge_length = ((2.0 * radius).ceil() as usize) + 4; // the 4 is needed as a buffer..
+    // TODO: Clean up edge length determination
+    let edge_length = ((2.0 * radius).ceil() as usize) + 6; // the 4 is needed as a buffer..
                                                             // i think we're able to get away with less but it doesn't matter. Buffer is required to make the interior work as expected
     let origin = Vec2::from([(edge_length / 2) as f64, (edge_length / 2) as f64]);
     // in bitmatrix coordinates, where is the center of the grid?
@@ -44,6 +45,7 @@ pub fn generate_alg_conservative(
         .map(|i| {
             // loop over all coords
             let square = Square::new(i, edge_length, origin, center_offset, sqrt_quad_form);
+
             // Any extreme point of the box is in the ellipse (so their intersection is nonempty)
             square.for_any_m_corner(|corner| corner.pnorm(squircle_parameter) <= 1.0)
                 // check if the origin (center of the ellipse) is in the box

@@ -1,8 +1,7 @@
-// TODO: Implement 2D matrices and vectors w/ appropriate operations and constructions
-//  then refactor algorithm with these structs
-
 use std::ops;
 
+/// Vector of length two, with a bunch of methods like inner products, matrix-vector multiplication,
+///  p-norms
 #[derive(Default, Debug, Clone, Copy, PartialEq)]
 pub struct Vec2 {
     pub x: f64,
@@ -18,6 +17,7 @@ impl From<[f64; 2]> for Vec2 {
     }
 }
 
+#[allow(dead_code)]
 impl Vec2 {
     /// Norm squared
     pub fn normsq(&self) -> f64 {
@@ -98,7 +98,8 @@ impl ops::Neg for Vec2 {
     }
 }
 
-/// Order: [[a,b], [c,d]] (row column as usual)
+/// 2x2 matrix with a bunch of methods (but nothing that doesn't have an immediate algebraic
+///  solution, i.e., no eigenvalues etc.). Order: [[a,b], [c,d]] (row column as usual)
 #[derive(Default, Debug, Clone, Copy, PartialEq)]
 pub struct Mat2 {
     pub a: f64,

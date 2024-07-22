@@ -1,10 +1,10 @@
-// For a set of lines (affine y = ax + b), minimize_{x\in RR} max{ax+b} (i.e., the minimize the maximum of the lines)
-// The objective x |-> max{ax+b} is convex, so the subgradient test works: x is optimal iff 0 is a subgradient
-//  of the objective, i.e., the slope of the left or right function is zero, or changes sign.
-// Output is [x where optimum is achieved, optimal value y]. For zero slope, prefer the left point
-//  (i.e., treat zero slope as "positive" in terms of sign change)
-// Input is vector of pairs [a,b], for the line y=ax+b
-// Make sure all lines have different slope!
+/// For a set of lines (affine y = ax + b), minimize_{x\in RR} max{ax+b} (i.e., the minimize the maximum of the lines)
+/// The objective x |-> max{ax+b} is convex, so the subgradient test works: x is optimal iff 0 is a subgradient
+///  of the objective, i.e., the slope of the left or right function is zero, or changes sign.
+/// Output is [x where optimum is achieved, optimal value y]. For zero slope, prefer the left point
+///  (i.e., treat zero slope as "positive" in terms of sign change)
+/// Input is vector of pairs [a,b], for the line y=ax+b
+/// Make sure all lines have different slope!
 pub fn minimize_maximum_straight_lines(lines: Vec<[f64; 2]>) -> [f64; 2] {
     let lines_nonnegative_slope: Vec<_> = lines.iter().filter(|line| line[0] >= 0.0).collect();
     let lines_negative_slope: Vec<_> = lines.iter().filter(|line| line[0] < 0.0).collect();

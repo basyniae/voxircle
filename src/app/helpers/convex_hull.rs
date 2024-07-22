@@ -1,9 +1,8 @@
-// Input: point cloud (unordered collection of points)
-// Output: sequence of extreme points of the convex hull that goes around counterclockwise
-// note that the starting point of the output is not well-defined, cyclic permutations are also
-//  valid outputs.
-
 // from https://www.geeksforgeeks.org/convex-hull-monotone-chain-algorithm/
+/// Input: point cloud (unordered collection of points)
+/// Output: sequence of extreme points of the convex hull that goes around counterclockwise
+/// note that the starting point of the output is not well-defined, cyclic permutations are also
+///  valid outputs.
 pub fn get_convex_hull(points: &Vec<[f64; 2]>) -> Vec<[f64; 2]> {
     if points.len() <= 2 {
         let mut conv_hull = vec![];
@@ -53,7 +52,7 @@ pub fn get_convex_hull(points: &Vec<[f64; 2]>) -> Vec<[f64; 2]> {
     conv_hull
 }
 
-// Convert the sequence of points forming a convex hull to easier to draw pairs of line segments
+/// Convert the sequence of points forming a convex hull to easier to draw pairs of line segments
 pub fn line_segments_from_conv_hull(conv_hull: Vec<[f64; 2]>) -> Vec<[[f64; 2]; 2]> {
     let mut line_segments = vec![];
     for i in 0..conv_hull.len() - 1 {

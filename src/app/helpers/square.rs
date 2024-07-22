@@ -1,8 +1,13 @@
-use crate::app::helpers::lin_alg::{Mat2, Vec2};
+use crate::app::helpers::linear_algebra::{Mat2, Vec2};
 
-// Captures a bit matrix. The length of the vector should always be edge_length**2
-// Order is x first left to right, then y down to up (to match coord space)
-#[derive(Default, Clone)]
+/// Abstraction of a square on the grid and its image under the sqrt_quad_form.
+/// Contains easy ::new method and some checks that run over all points or edges (to prevent
+///  excessive repetition in the algorithms themselves and make them easier to read)
+/// The points on the grid (shifted to get the superellipse center as the point (0,0)) are called
+///  lb, rb, lt, rt, (left/right bottom/top), the corresponding points in the coords where the
+///  superellipse is aligned to the grid and normalized are prefixed by m_ (modified) (i.e., these
+///  points are multiplied by the sqrt_quad_form).
+#[derive(Default, Clone, Debug)]
 pub struct Square {
     pub lb: Vec2,
     pub rb: Vec2,
@@ -14,7 +19,9 @@ pub struct Square {
     pub m_rt: Vec2,
 }
 
+#[allow(dead_code)] // the unused methods make sense for completeness
 impl Square {
+    /// Create new square from the usual parameters
     pub(crate) fn new(
         index: usize,
         edge_length: usize,
@@ -46,6 +53,7 @@ impl Square {
         }
     }
 
+    /// Does the supplied check hold for all corners?
     pub fn for_all_corners<F>(&self, check: F) -> bool
     where
         F: Fn(Vec2) -> bool,
@@ -53,6 +61,7 @@ impl Square {
         check(self.lb) && check(self.rb) && check(self.lt) && check(self.rt)
     }
 
+    /// Does the supplied check hold for any corner?
     pub fn for_any_corner<F>(&self, check: F) -> bool
     where
         F: Fn(Vec2) -> bool,
@@ -60,6 +69,7 @@ impl Square {
         check(self.lb) || check(self.rb) || check(self.lt) || check(self.rt)
     }
 
+    /// Does the supplied check hold for all edges?
     pub fn for_all_edges<F>(&self, check: F) -> bool
     where
         F: Fn([Vec2; 2]) -> bool,
@@ -70,6 +80,7 @@ impl Square {
             && check([self.lt, self.lb])
     }
 
+    /// Does the supplied check hold for any edge?
     pub fn for_any_edge<F>(&self, check: F) -> bool
     where
         F: Fn([Vec2; 2]) -> bool,
@@ -80,6 +91,7 @@ impl Square {
             || check([self.lt, self.lb])
     }
 
+    /// Does the supplied check hold for all modified corners?
     pub fn for_all_m_corners<F>(&self, check: F) -> bool
     where
         F: Fn(Vec2) -> bool,
@@ -87,6 +99,7 @@ impl Square {
         check(self.m_lb) && check(self.m_rb) && check(self.m_lt) && check(self.m_rt)
     }
 
+    /// Does the supplied check hold for any modified corner?
     pub fn for_any_m_corner<F>(&self, check: F) -> bool
     where
         F: Fn(Vec2) -> bool,
@@ -94,6 +107,7 @@ impl Square {
         check(self.m_lb) || check(self.m_rb) || check(self.m_lt) || check(self.m_rt)
     }
 
+    /// Does the supplied check hold for all modified edges?
     pub fn for_all_m_edges<F>(&self, check: F) -> bool
     where
         F: Fn([Vec2; 2]) -> bool,
@@ -104,6 +118,7 @@ impl Square {
             && check([self.m_lt, self.m_lb])
     }
 
+    /// Does the supplied check hold for any modified edge?
     pub fn for_any_m_edge<F>(&self, check: F) -> bool
     where
         F: Fn([Vec2; 2]) -> bool,
