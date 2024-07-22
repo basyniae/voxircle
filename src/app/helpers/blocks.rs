@@ -213,17 +213,19 @@ impl Blocks {
                 Mat2::from([0.0, 0.0, 0.0, 0.0]),
             );
 
-            if square.lb.x <= min_x {
-                min_x = square.lb.x
-            }
-            if square.lb.y <= min_y {
-                min_y = square.lb.y
-            }
-            if square.rt.x >= max_x {
-                max_x = square.rt.x
-            }
-            if square.lb.y <= max_y {
-                max_y = square.rt.y
+            if self.blocks[i] {
+                if square.lb.x <= min_x {
+                    min_x = square.lb.x
+                }
+                if square.lb.y <= min_y {
+                    min_y = square.lb.y
+                }
+                if square.rt.x >= max_x {
+                    max_x = square.rt.x
+                }
+                if square.lb.y <= max_y {
+                    max_y = square.rt.y
+                }
             }
         }
 

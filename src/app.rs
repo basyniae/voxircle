@@ -473,7 +473,7 @@ impl eframe::App for App {
                 .show(ui, |plot_ui| {
                     // Reset zoom (approximates default behaviour, but we get to specify the action of automatic zooming
                     if self.reset_zoom_once || self.reset_zoom {
-                        let [min, max] = self.blocks_all.get_padded_bounds(0.0);
+                        let [min, max] = self.blocks_all.get_padded_bounds(1.0);
                         plot_ui.set_plot_bounds(PlotBounds::from_min_max(min, max));
                         self.reset_zoom_once = false
                     }
