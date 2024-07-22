@@ -65,6 +65,6 @@ pub fn generate_all_blocks(
             *percentage,
             grid_size,
             origin,
-        ), // TODO update w/ origin
+        ),
     }
 }
