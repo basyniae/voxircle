@@ -6,7 +6,7 @@ use std::ops::Not;
 #[derive(Default, Clone)]
 pub struct Blocks {
     pub blocks: Vec<bool>,
-    pub edge_length: usize, // of type usize because we index with it a bunch of times
+    pub grid_size: usize, // of type usize because we index with it a bunch of times
     // the total number of cells where there can be blocks is edge_length**2
     // Order is x first left to right, then y down to up (to match coord space)
     pub origin: Vec2, // At which bitmatrix coords is the center of the circle?
@@ -23,8 +23,8 @@ impl Blocks {
         for b in &self.blocks {
             if *b {
                 output_vec.push([
-                    ((i % self.edge_length) as f64) - self.origin.x, // Get integer x position (which is bot. left), then make origin center
-                    ((i / self.edge_length) as f64) - self.origin.y,
+                    ((i % self.grid_size) as f64) - self.origin.x, // Get integer x position (which is bot. left), then make origin center
+                    ((i / self.grid_size) as f64) - self.origin.y,
                 ]);
             }
             i += 1;
@@ -43,19 +43,19 @@ impl Blocks {
     pub fn get_interior(&self) -> Blocks {
         // let mut output_vec = Vec::new();
 
-        let blocks = (0..self.edge_length.pow(2))
+        let blocks = (0..self.grid_size.pow(2))
             .map(|i| {
                 self.blocks[i] == true
                     // has to be a block in self
-                    && i % self.edge_length != 0
-                    && i % self.edge_length != self.edge_length - 1
-                    && i / self.edge_length != 0
-                    && i / self.edge_length != self.edge_length - 1
+                    && i % self.grid_size != 0
+                    && i % self.grid_size != self.grid_size - 1
+                    && i / self.grid_size != 0
+                    && i / self.grid_size != self.grid_size - 1
                     // cannot lie on the boundary of the grid
                     && self.blocks[i + 1] == true
                     && self.blocks[i - 1] == true
-                    && self.blocks[i + self.edge_length] == true
-                    && self.blocks[i - self.edge_length] == true
+                    && self.blocks[i + self.grid_size] == true
+                    && self.blocks[i - self.grid_size] == true
                 // all direct neighbors should also be blocks
             })
             .collect();
@@ -65,7 +65,7 @@ impl Blocks {
 
     /// Complement of blocks (for interiors)
     pub fn get_complement(&self) -> Blocks {
-        let blocks = (0..self.edge_length.pow(2))
+        let blocks = (0..self.grid_size.pow(2))
             .map(|i| self.blocks[i].not())
             .collect();
         Blocks { blocks, ..*self }
@@ -81,19 +81,19 @@ impl Blocks {
         let mut nr_blocks_per_layer = vec![];
 
         // loop over rows
-        'row: for i in 0..self.edge_length {
+        'row: for i in 0..self.grid_size {
             let mut nr_blocks_in_ith_layer: usize = 0;
             let mut prev_block_had_block_below = false; // detect if we're accross the symmetry axis
             let mut prev_location_had_block = false; // detect if all blocks on a row have been scanned
             let mut last_row = false; // detect if this is the last row we need to include in the build list
 
             // loop over elements of rows
-            for j in 0..self.edge_length {
+            for j in 0..self.grid_size {
                 // If there is a block at the current position
-                if self.blocks[i * self.edge_length + j] {
+                if self.blocks[i * self.grid_size + j] {
                     prev_location_had_block = true;
                     // And there is no block directly below it (note that padding takes care of positivity)
-                    if !self.blocks[(i - 1) * self.edge_length + j] {
+                    if !self.blocks[(i - 1) * self.grid_size + j] {
                         if prev_block_had_block_below {
                             // If the previous block had a block below it and this one doesn't,
                             //  we must be past the symmetry axis. So no contribution and stop
@@ -112,7 +112,7 @@ impl Blocks {
 
                     // If there is no block left-diagonally above the current block
                     //  we must be past the 45° point. (this assumes "niceness" of the input)
-                    if !self.blocks[(i + 1) * self.edge_length + j - 1] {
+                    if !self.blocks[(i + 1) * self.grid_size + j - 1] {
                         // so break the outer loop as soon as we've scanned the full row
                         // (this to avoid error in case of the final in build sequence being >1 in length)
                         last_row = true;
@@ -138,9 +138,9 @@ impl Blocks {
     pub fn get_diameters(&self) -> [u64; 2] {
         // x diameter: loop over all columns, count how many have at least one block
         let mut x_diameter = 0;
-        for i in 0..self.edge_length {
-            for j in 0..self.edge_length {
-                if self.blocks[i + j * self.edge_length] {
+        for i in 0..self.grid_size {
+            for j in 0..self.grid_size {
+                if self.blocks[i + j * self.grid_size] {
                     x_diameter += 1;
                     break;
                 }
@@ -149,9 +149,9 @@ impl Blocks {
 
         // y diameter: loop over all rows, count how many have at least one block
         let mut y_diameter = 0;
-        for i in 0..self.edge_length {
-            for j in 0..self.edge_length {
-                if self.blocks[i * self.edge_length + j] {
+        for i in 0..self.grid_size {
+            for j in 0..self.grid_size {
+                if self.blocks[i * self.grid_size + j] {
                     y_diameter += 1;
                     break;
                 }
@@ -172,24 +172,24 @@ impl Blocks {
         let mut output = vec![];
 
         // For an n×n grid there are (n-1)×(n-1) points inbetween 4 points... (vaguely speaking)
-        for corner_point in 0..self.edge_length.pow(2) {
+        for corner_point in 0..self.grid_size.pow(2) {
             // Filter out those corner points which don't have a 2×2 around them
             // (using bottom right index to match corners to their block)
-            if corner_point / self.edge_length == self.edge_length - 1 || // if on left edge
-                corner_point % self.edge_length == self.edge_length - 1
+            if corner_point / self.grid_size == self.grid_size - 1 || // if on left edge
+                corner_point % self.grid_size == self.grid_size - 1
             // if on top edge
             {
                 // do nothing
             } else if (self.blocks[corner_point] as u8)
                 + (self.blocks[corner_point + 1] as u8)
-                + (self.blocks[corner_point + self.edge_length] as u8)
-                + (self.blocks[corner_point + self.edge_length + 1] as u8)
+                + (self.blocks[corner_point + self.grid_size] as u8)
+                + (self.blocks[corner_point + self.grid_size + 1] as u8)
                 == 1
             {
                 // add to output
                 output.push([
-                    ((corner_point % self.edge_length) as f64) - self.origin.x + 1.0,
-                    ((corner_point / self.edge_length) as f64) - self.origin.y + 1.0,
+                    ((corner_point % self.grid_size) as f64) - self.origin.x + 1.0,
+                    ((corner_point / self.grid_size) as f64) - self.origin.y + 1.0,
                 ]);
             }
         }

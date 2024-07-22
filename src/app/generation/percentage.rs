@@ -5,19 +5,21 @@ use std::f64::consts::PI;
 
 // logic + geometry + integration
 // Percentage is to be supplied as float between 0 and 1 (note that unexpected behaviour may occur if it 0.0 or 1.0 exactly due to numerical errors)
-pub fn generate_alg_percentage(radius: f64, center_offset: Vec2, percentage: f64) -> Blocks {
-    let edge_length = ((2.0 * radius).ceil() as usize) + 4; // the 4 is needed as a buffer..
-                                                            // i think we're able to get away with less but it doesn't matter. Buffer is required to make the interior work as expected
-    let origin = Vec2::from([(edge_length / 2) as f64, (edge_length / 2) as f64]);
-    // in bitmatrix coordinates, where is the center of the grid?
+pub fn generate_alg_percentage(
+    radius: f64,
+    center_offset: Vec2,
+    percentage: f64,
+    grid_size: usize,
+    origin: Vec2,
+) -> Blocks {
     let mut output_vec = Vec::new();
 
-    for i in 0..edge_length.pow(2) {
+    for i in 0..grid_size.pow(2) {
         // loop over all coords
 
         // Bottom right coordinate of the box in bitmatrix coordinates is [i % edge_length, i / edge_length], so to get the center we add 0.5.
-        let mut x_center = ((i % edge_length) as f64) + 0.5 - (origin.x + center_offset.x); // Relative to the circle center, what is the x-position of the center of the box?
-        let mut y_center = ((i / edge_length) as f64) + 0.5 - (origin.y + center_offset.y); // "" "" what is the y-position of the center of the box
+        let mut x_center = ((i % grid_size) as f64) + 0.5 - (origin.x + center_offset.x); // Relative to the circle center, what is the x-position of the center of the box?
+        let mut y_center = ((i / grid_size) as f64) + 0.5 - (origin.y + center_offset.y); // "" "" what is the y-position of the center of the box
 
         // Symmetrize. We may assume that the origin is to the bottom left of the box center, and under the bottom-left to top-right diagonal
         //  by dihedral symmetry of the square.
@@ -39,7 +41,7 @@ pub fn generate_alg_percentage(radius: f64, center_offset: Vec2, percentage: f64
 
     Blocks {
         blocks: output_vec,
-        edge_length,
+        grid_size,
         origin,
     }
 }

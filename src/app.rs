@@ -335,16 +335,28 @@ impl eframe::App for App {
             ui.with_layout(Layout::centered_and_justified(Direction::LeftToRight), |ui| {
                 if ui.button("Generate").clicked() || self.auto_generate {
                     // on generation
+                    
+                    // Determine grid size
+                    // The major radius should be included, for some metrics we need at least one layer of padding
+                    //  around the generated figure. Assuming a square figure (squircle parameter infinity), we
+                    //  need an x side length of 2.0 * sqrt(2) * radius_major. Add 4 for a padding of at least 2
+                    //  on each side.
+                    let grid_size = (2.0 * 1.42 * f64::max(self.radius_a, self.radius_b)).ceil() as usize + 4;
+
+                    // In bitmatrix coordinates, where is the point (0,0)? (Note that it has integer coordinates)
+                    let origin = Vec2::from([(grid_size / 2) as f64, (grid_size / 2) as f64]);
+
                     // Generate from circle with selected algorithm
                     self.blocks_all = generate_all_blocks(
                         &self.algorithm,
                         Vec2::from([self.center_offset_x, self.center_offset_y]),
                         self.sqrt_quad_form,
-                        self.radius_major,
                         self.squircle_parameter,
                         self.tilt,
                         self.radius_a,
                         self.radius_b,
+                        grid_size,
+                        origin,
                     );
 
                     // run preprocessing
@@ -356,7 +368,7 @@ impl eframe::App for App {
                             .zip(self.blocks_interior.blocks.iter())
                             .map(|(all, interior)| *all && interior.not())
                             .collect(),
-                        edge_length: self.blocks_all.edge_length,
+                        grid_size: self.blocks_all.grid_size,
                         origin: self.blocks_all.origin,
                     };
                     self.blocks_complement = self.blocks_all.get_complement();
@@ -428,7 +440,7 @@ impl eframe::App for App {
                                         width: 1.0,
                                         color: Color32::BLACK,
                                     })
-                                    .fill_color(Color32::WHITE),
+                                    .fill_color(Color32::WHITE), //TODO: Make nice colors
                             );
                         }
                     }
@@ -488,16 +500,13 @@ impl eframe::App for App {
                     plot_ui.vline(VLine::new(self.center_offset_x));
 
                     if self.view_intersect_area {
-                        let square = generate_all_blocks(
-                            &Algorithm::CenterPoint,
-                            Vec2::from([self.center_offset_x, self.center_offset_y]),
-                            self.sqrt_quad_form,
-                            self.radius_minor + 2.0,
-                            f64::INFINITY,
-                            self.tilt,
-                            self.radius_a,
-                            self.radius_b,
-                        );
+                        let grid_size = (2.0 * 1.42 * f64::max(self.radius_a, self.radius_b)).ceil() as usize + 4;
+                        
+                        let square = Blocks {
+                            blocks: (0..grid_size.pow(2)).map(|_| true).collect(),
+                            grid_size,
+                            origin: Vec2::from([(grid_size / 2) as f64, (grid_size / 2) as f64]),
+                        };
                         for coord in square.get_block_coords() {
                             let cell_center = [coord[0] + 0.5, coord[1] + 0.5];
                             let mut x_center = cell_center[0] - self.center_offset_x;
