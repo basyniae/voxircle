@@ -294,7 +294,7 @@ impl eframe::App for App {
             // Compute sqrt of quadratic form of ellipse
             let c = self.tilt.cos();
             let s = self.tilt.sin();
-            self.sqrt_quad_form = Mat2::from_rows(1.0 /self.radius_a * Vec2::from([c,s]), 1.0 / self.radius_b * Vec2::from([s, -c]));
+            self.sqrt_quad_form = Mat2::from_rows(1.0 /self.radius_a * Vec2::from([c,s]), 1.0 / self.radius_b * Vec2::from([-s, c]));
 
             // Squircle parameter
             ui.separator();
