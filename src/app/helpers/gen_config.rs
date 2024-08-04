@@ -1,9 +1,10 @@
 use crate::app::generation::{generate_all_blocks, Algorithm};
 use crate::app::helpers::blocks::Blocks;
+use crate::app::helpers::gen_output::GenOutput;
 use crate::app::helpers::linear_algebra::{Mat2, Vec2};
 use std::ops::Not;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub struct GenConfig {
     pub algorithm: Algorithm,
 
@@ -52,7 +53,7 @@ impl Default for GenConfig {
 }
 
 impl GenConfig {
-    pub fn generate(&self) -> [Blocks; 4] {
+    pub fn generate(&self) -> GenOutput {
         // Determine grid size
         // The major radius should be included, for some metrics we need at least one layer of padding
         //  around the generated figure. Assuming a square figure (squircle parameter infinity), we
@@ -91,12 +92,12 @@ impl GenConfig {
         };
         let blocks_complement = blocks_all.get_complement();
 
-        [
+        GenOutput {
             blocks_all,
             blocks_interior,
             blocks_boundary,
             blocks_complement,
-        ]
+        }
         // update metrics
         // let nr_blocks_total = self.blocks_all.get_nr_blocks();
         // let nr_blocks_interior = self.blocks_interior.get_nr_blocks();

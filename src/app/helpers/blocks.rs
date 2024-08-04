@@ -4,7 +4,7 @@ use std::ops::Not;
 
 /// Captures a bit matrix. The length of the vector should always be edge_length**2
 
-#[derive(Default, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct Blocks {
     pub blocks: Vec<bool>,
     pub grid_size: usize, // of type usize because we index with it a bunch of times
