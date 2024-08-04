@@ -2,6 +2,7 @@ pub mod blocks;
 pub mod circle_geometry;
 pub mod convex_hull;
 pub mod gen_config;
+pub mod gen_output;
 pub mod linear_algebra;
 pub mod linear_geometry;
 pub mod optimization;
