@@ -8,30 +8,24 @@ pub fn generate_alg_conservative(
     center_offset: Vec2,
     sqrt_quad_form: Mat2,
     squircle_parameter: f64,
-    tilt: f64,
-    radius_a: f64,
-    radius_b: f64,
     grid_size: usize,
     origin: Vec2,
 ) -> Blocks {
     // For tilt 0, there is no real need to do this sort of computation: the max x is radius_a,
     // the min x is -radius_a, the max y is radius_b, the min y is radius_a
     // Note point symmetry of the ellipse around 0 gives min_x = -max_x.
-    let max_x = {
+
+    // FIXME: treat p = infty case separately.... though we've had no issues so far
+    let extremize = |v| {
         if squircle_parameter > 1.0 {
-            get_squircle_tangent_point(squircle_parameter, sqrt_quad_form * Vec2::from([1.0, 0.0]))
+            get_squircle_tangent_point(squircle_parameter, sqrt_quad_form * v)
         } else {
-            // don't care about which values are minimized / maximized since it's easy to compute
-            Vec2::from([radius_a * tilt.cos(), radius_a * tilt.sin()])
+            v
         }
     };
-    let max_y = {
-        if squircle_parameter > 1.0 {
-            get_squircle_tangent_point(squircle_parameter, sqrt_quad_form * Vec2::from([0.0, 1.0]))
-        } else {
-            Vec2::from([-radius_b * tilt.sin(), radius_b * tilt.cos()])
-        }
-    };
+
+    let max_x = extremize(Vec2::UNIT_X);
+    let max_y = extremize(Vec2::UNIT_Y);
 
     let blocks = (0..grid_size.pow(2))
         .map(|i| {
@@ -48,13 +42,8 @@ pub fn generate_alg_conservative(
                     // check by extreme points
                     // (these are the combinations of points on the ellipse where extreme values of x and y are achieved
                     //  and edges of the box)
-                    if squircle_parameter>1.0 {
-                        square.for_any_m_edge(|edge| line_segments_intersect([-max_x, max_x], edge))
-                            || square.for_any_m_edge(|edge| line_segments_intersect([-max_y, max_y], edge))
-                    } else {
-                        square.for_any_edge(|edge| line_segments_intersect([-max_x, max_x], edge))
-                            || square.for_any_edge(|edge| line_segments_intersect([-max_y, max_y], edge))
-                    }
+                    square.for_any_m_edge(|edge| line_segments_intersect([-max_x, max_x], edge))
+                        || square.for_any_m_edge(|edge| line_segments_intersect([-max_y, max_y], edge))
                 }
     }).collect();
     Blocks {

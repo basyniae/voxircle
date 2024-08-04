@@ -4,9 +4,11 @@ mod metrics;
 
 use self::generation::Algorithm;
 use self::helpers::convex_hull::{get_convex_hull, line_segments_from_conv_hull};
+use crate::app::helpers::exact_squircle_bounds::exact_squircle_bounds;
 use crate::app::helpers::gen_config::GenConfig;
 use crate::app::helpers::gen_output::GenOutput;
 use crate::app::helpers::linear_algebra::{Mat2, Vec2};
+use crate::app::helpers::square_max::square_max;
 use crate::formatting;
 use eframe::egui::{self, Vec2b};
 use eframe::egui::{Direction, Layout};
@@ -534,8 +536,27 @@ impl eframe::App for App {
                 .show(ui, |plot_ui| {
                     // Reset zoom (approximates default behaviour, but we get to specify the action of automatic zooming
                     if self.reset_zoom_once || self.reset_zoom {
-                        let [min, max] = self.current_gen_output.blocks_all.get_padded_bounds(1.0); // FIXME: Make work with layers & radius-based instead
-                        plot_ui.set_plot_bounds(PlotBounds::from_min_max(min, max));
+                        let mut global_bounding_box = self
+                            .stack_gen_config
+                            .iter()
+                            .map(|g_c| exact_squircle_bounds(g_c, 1.1))
+                            .fold(
+                                [
+                                    [f64::INFINITY, f64::INFINITY],
+                                    [f64::NEG_INFINITY, f64::NEG_INFINITY],
+                                ],
+                                |a, b| square_max(a, b),
+                            );
+
+                        global_bounding_box = square_max(
+                            global_bounding_box,
+                            exact_squircle_bounds(&self.current_gen_config, 1.1),
+                        );
+
+                        plot_ui.set_plot_bounds(PlotBounds::from_min_max(
+                            global_bounding_box[0],
+                            global_bounding_box[1],
+                        ));
                         self.reset_zoom_once = false
                     }
 
