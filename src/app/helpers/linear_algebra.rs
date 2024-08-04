@@ -19,6 +19,9 @@ impl From<[f64; 2]> for Vec2 {
 
 #[allow(dead_code)]
 impl Vec2 {
+    pub const UNIT_X: Vec2 = Vec2 { x: 1.0, y: 0.0 };
+    pub const UNIT_Y: Vec2 = Vec2 { x: 0.0, y: 1.0 };
+
     /// Norm squared
     pub fn normsq(&self) -> f64 {
         self.x.powi(2) + self.y.powi(2)
