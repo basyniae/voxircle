@@ -8,12 +8,13 @@ use crate::app::helpers::linear_algebra::{Mat2, Vec2};
 use crate::formatting;
 use eframe::egui::{self, Vec2b};
 use eframe::egui::{Direction, Layout};
+use eframe::emath::Align;
 use eframe::epaint::{Color32, Stroke};
 use egui_plot::{
-    uniform_grid_spacer, HLine, Line, Plot, PlotBounds, PlotPoint, PlotPoints, Points, Polygon,
-    Text, VLine,
+    uniform_grid_spacer, HLine, Line, Plot, PlotBounds, PlotPoint, PlotPoints, Points, Text, VLine,
 };
 use helpers::blocks::Blocks;
+use helpers::plotting;
 use std::default::Default;
 use std::f64::consts::PI;
 use std::ops::Not;
@@ -76,6 +77,8 @@ pub struct App {
     outer_corners: Vec<[f64; 2]>,
     reset_zoom_once: bool,
     reset_zoom: bool,
+
+    current_layer: isize,
 }
 
 // Defaults should be such that we get useful output on startup
@@ -126,6 +129,8 @@ impl Default for App {
 
             reset_zoom_once: false,
             reset_zoom: true,
+
+            current_layer: 0,
         }
     }
 }
@@ -424,24 +429,102 @@ impl eframe::App for App {
 
         // Status bar
         egui::TopBottomPanel::bottom("status-bar").show(ctx, |ui| {
-            ui.with_layout(Layout::centered_and_justified(Direction::LeftToRight), |ui| {
+            ui.with_layout(Layout {
+                main_dir: Direction::LeftToRight,
+                main_wrap: true,
+                main_align: Align::Center,
+                main_justify: true,
+                cross_align: Align::Center,
+                cross_justify: true,
+            }, |ui| {
                 // Easier to format as single string (want it centered)
                 ui.label(
                     format!(
-                        "nr. blocks: {}, nr. boundary blocks: {}, nr. interior blocks: {}, {}, build sequence: {:?}, program by Basyniae",
+                        // "nr. blocks: {}, nr. boundary blocks: {}, nr. interior blocks: {}, {}, build sequence: {:?}, program by Basyniae",
+                        "nr. blocks: {}, nr. boundary blocks: {}, nr. interior blocks: {}, {}, program by Basyniae",
                         formatting::format_block_count(self.nr_blocks_total),
                         formatting::format_block_count(self.nr_blocks_boundary),
                         formatting::format_block_count(self.nr_blocks_interior),
                         // TODO: Better to run these once every time a new shape is generated. But it's not like we're running into performance issues
                         formatting::format_block_diameter(self.blocks_all.get_diameters()),
-                        [0] //self.blocks_all.get_build_sequence() //FIXME: Redo (also doesn't make sense for ellipses I suppose
+                        //self.blocks_all.get_build_sequence() //FIXME: Redo (also doesn't make sense for ellipses I suppose
                     )
                 )
             })
         });
 
-        // Viewport
+        // Layer navigation bar
+        egui::TopBottomPanel::top("layer-navigation").show(ctx, |ui| {
+            // ui.columns(3, |columns| {
+            //     columns[0].vertical_centered(|ui| {
+            //         // add buttons left and right of layer navigation here
+            //     });
+            //     columns[1].vertical_centered(|ui| {
+            //     });
+            //     columns[2].vertical_centered(|ui| {});
+            // })
+            ui.centered_and_justified(|ui| {
+                // Finicky due to not being able to know the size of the widget in advance
+                // so do a pretty good prediction
+                let height = ui.style().spacing.interact_size.y;
+                let controls_width = height + 10.0;
+                let main_width = ui.style().spacing.interact_size.x; // Incorrect for >4 digits (which is unlikely to occur)
+                let padding = ui.style().spacing.button_padding.x; //Button size is text size plus this on each side
 
+                let (rect, response) = ui.allocate_exact_size(
+                    [4.0 * controls_width + main_width + padding * 8.0, height].into(),
+                    egui::Sense::click(),
+                );
+                ui.put(rect, |ui: &mut egui::Ui| {
+                    ui.horizontal(|ui| {
+                        if ui
+                            .add(
+                                egui::Button::new("|<")
+                                    .min_size(egui::Vec2::from([controls_width, height])),
+                            )
+                            .clicked()
+                        {
+                            self.current_layer = -10;
+                        }
+                        if ui
+                            .add(
+                                egui::Button::new("<")
+                                    .min_size(egui::Vec2::from([controls_width, height])),
+                            )
+                            .clicked()
+                        {
+                            self.current_layer = self.current_layer.saturating_sub(1);
+                        }
+                        ui.add(
+                            egui::DragValue::new(&mut self.current_layer).speed(0.05), // .min_size(egui::Vec2::from([main_width, 30.0])),
+                        );
+                        if ui
+                            .add(
+                                egui::Button::new(">")
+                                    .min_size(egui::Vec2::from([controls_width, height])),
+                            )
+                            .clicked()
+                        {
+                            self.current_layer = self.current_layer.saturating_add(1);
+                        }
+                        if ui
+                            .add(
+                                egui::Button::new(">|")
+                                    .min_size(egui::Vec2::from([controls_width, height])),
+                            )
+                            .clicked()
+                        {
+                            self.current_layer = 10;
+                        }
+                    });
+                    response
+                });
+
+                // ui.label("|"); // for finding the center
+            })
+        });
+
+        // Viewport
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.visuals_mut().extreme_bg_color = COLOR_BACKGROUND;
             ui.visuals_mut().faint_bg_color = Color32::RED;
@@ -467,8 +550,7 @@ impl eframe::App for App {
                         mouse_coord.y.trunc()
                     ) // Use trunc instead of floor for symmetry preservation around the axis! Nasty but works
                 })
-                .include_x(self.radius_major + 1.0)
-                .include_x(-self.radius_major - 1.0)
+                .show_axes([false, false]) // Don't show number axes
                 .show(ui, |plot_ui| {
                     // Reset zoom (approximates default behaviour, but we get to specify the action of automatic zooming
                     if self.reset_zoom_once || self.reset_zoom {
@@ -489,7 +571,7 @@ impl eframe::App for App {
                     if self.view_blocks_all {
                         for coord in self.blocks_all.get_block_coords() {
                             plot_ui.polygon(
-                                square_at_coords(coord)
+                                plotting::square_at_coords(coord)
                                     .stroke(Stroke {
                                         width: 1.0,
                                         color: COLOR_WIRE,
@@ -502,7 +584,7 @@ impl eframe::App for App {
                     if self.view_blocks_boundary {
                         for coord in self.blocks_boundary.get_block_coords() {
                             plot_ui.polygon(
-                                square_at_coords(coord)
+                                plotting::square_at_coords(coord)
                                     .stroke(Stroke {
                                         width: 1.0,
                                         color: COLOR_WIRE,
@@ -515,7 +597,7 @@ impl eframe::App for App {
                     if self.view_blocks_interior {
                         for coord in self.blocks_interior.get_block_coords() {
                             plot_ui.polygon(
-                                square_at_coords(coord)
+                                plotting::square_at_coords(coord)
                                     .stroke(Stroke {
                                         width: 1.0,
                                         color: COLOR_WIRE,
@@ -528,7 +610,7 @@ impl eframe::App for App {
                     if self.view_complement {
                         for coord in self.blocks_complement.get_block_coords() {
                             plot_ui.polygon(
-                                square_at_coords(coord)
+                                plotting::square_at_coords(coord)
                                     .stroke(Stroke {
                                         width: 1.0,
                                         color: COLOR_WIRE,
@@ -547,7 +629,7 @@ impl eframe::App for App {
 
                     // Plot target shape
                     plot_ui.line(
-                        superellipse_at_coords(
+                        plotting::superellipse_at_coords(
                             self.center_offset_x,
                             self.center_offset_y,
                             self.radius_a,
@@ -574,7 +656,7 @@ impl eframe::App for App {
                     if self.tilt != 0.0 {
                         let bounds = plot_ui.plot_bounds();
                         plot_ui.line(
-                            tilted_line_in_bounds(
+                            plotting::tilted_line_in_bounds(
                                 bounds,
                                 self.tilt,
                                 self.center_offset_x,
@@ -583,7 +665,7 @@ impl eframe::App for App {
                             .color(COLOR_DARK_ORANGE),
                         );
                         plot_ui.line(
-                            tilted_line_in_bounds(
+                            plotting::tilted_line_in_bounds(
                                 bounds,
                                 self.tilt + PI / 2.0,
                                 self.center_offset_x,
@@ -657,69 +739,4 @@ impl eframe::App for App {
                 });
         });
     }
-}
-
-fn square_at_coords(coord: [f64; 2]) -> Polygon {
-    // Specifiying the bottom left coordinates of the square.
-    let x = coord[0];
-    let y = coord[1];
-
-    let square_pts = PlotPoints::new(vec![
-        [x + 0.0, y + 0.0],
-        [x + 0.0, y + 1.0],
-        [x + 1.0, y + 1.0],
-        [x + 1.0, y + 0.0],
-    ]);
-
-    Polygon::new(square_pts).name("square".to_owned())
-}
-
-fn superellipse_at_coords(
-    // TODO: make superellipse at coords
-    center_x: f64,
-    center_y: f64,
-    radius_a: f64,
-    radius_b: f64,
-    tilt: f64,
-    squircle_parameter: f64,
-) -> Line {
-    let circlepts: PlotPoints = (0..=1005)
-        // Near the square (squircle_parameter = Infinity) we get weird holes (the parameterization
-        //  is not equally spaced), so need a few more points for it to make sense
-        .map(|i| {
-            let t = ((i as f64) * (2.0 * PI)) / 1000.0;
-            let notilt = [
-                radius_a * t.cos().abs().powf(2.0 / squircle_parameter) * t.cos().signum(),
-                radius_b * t.sin().abs().powf(2.0 / squircle_parameter) * t.sin().signum(),
-            ]; // the power is for squircles
-            [
-                center_x + notilt[0] * tilt.cos() + notilt[1] * tilt.sin(),
-                center_y + notilt[0] * tilt.sin() - notilt[1] * tilt.cos(),
-            ]
-        })
-        .collect();
-
-    Line::new(circlepts)
-}
-
-/// Draw a tilted line through the origin in the given bounds
-fn tilted_line_in_bounds(bnds: PlotBounds, tilt: f64, offset_x: f64, offset_y: f64) -> Line {
-    let [min_x, min_y] = bnds.min();
-    let [max_x, max_y] = bnds.max();
-
-    let intersection_pts = vec![
-        [min_x, (min_x - offset_x) * tilt.tan() + offset_y],
-        [max_x, (max_x - offset_x) * tilt.tan() + offset_y],
-        [(min_y - offset_y) / tilt.tan() + offset_x, min_y],
-        [(max_y - offset_y) / tilt.tan() + offset_x, max_y],
-    ];
-
-    let intersection_pts_in_box = intersection_pts
-        .into_iter()
-        .filter(|point| {
-            point[0] >= min_x && point[0] <= max_x && point[1] >= min_y && point[1] <= max_y
-        })
-        .collect();
-
-    Line::new(PlotPoints::new(intersection_pts_in_box))
 }

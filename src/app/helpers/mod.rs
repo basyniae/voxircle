@@ -4,4 +4,5 @@ pub mod convex_hull;
 pub mod linear_algebra;
 pub mod linear_geometry;
 pub mod optimization;
+pub mod plotting;
 pub mod square;
