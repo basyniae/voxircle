@@ -4,6 +4,7 @@ use crate::app::helpers::linear_algebra::{Mat2, Vec2};
 use crate::app::helpers::linear_geometry::ray_line_segment_intersect;
 use crate::app::helpers::square::Square;
 
+// FIXME: Bugs, take radius 12.00, squircle parameter 0.75, tilt 0
 pub fn generate_alg_contained(
     center_offset: Vec2,
     sqrt_quad_form: Mat2,

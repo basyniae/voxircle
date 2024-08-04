@@ -1,6 +1,7 @@
 pub mod blocks;
-pub(crate) mod circle_geometry;
+pub mod circle_geometry;
 pub mod convex_hull;
+pub mod gen_config;
 pub mod linear_algebra;
 pub mod linear_geometry;
 pub mod optimization;
