@@ -2,8 +2,9 @@ mod generation;
 pub mod helpers;
 mod metrics;
 
-use self::generation::{generate_all_blocks, Algorithm};
+use self::generation::Algorithm;
 use self::helpers::convex_hull::{get_convex_hull, line_segments_from_conv_hull};
+use crate::app::helpers::gen_config::GenConfig;
 use crate::app::helpers::linear_algebra::{Mat2, Vec2};
 use crate::formatting;
 use eframe::egui::{self, Vec2b};
@@ -33,25 +34,14 @@ const COLOR_X_AXIS: Color32 = Color32::from_rgb(123, 34, 34); // x-axis color (r
 const COLOR_Y_AXIS: Color32 = Color32::from_rgb(44, 107, 44); // y-axis color (green)
 
 pub struct App {
-    algorithm: Algorithm,
-
-    radius_a: f64, // These two are specified (a is the x-axis if tilt = 0)
-    radius_b: f64,
-    radius_major: f64, // The algorithms which do not (yet) support ellipses use larger radius
-    radius_minor: f64,
-    tilt: f64,
-
-    sqrt_quad_form: Mat2,
-    // The square root of the PSD symmetric quadratic form X defining the ellipse:
-    //  (x,y)^TX(x,y)=1
-    // store [a,b,c,d] for [[a,b],[c,d]] (obviously)
-    circle_mode: bool,
-
-    squircle_parameter: f64,
-    squircle_ui_parameter: f64,
-
-    center_offset_x: f64,
-    center_offset_y: f64,
+    current_layer_gen_config: GenConfig,
+    stack_gen_config: Vec<GenConfig>, // In the order 0, 1, -1, 2, -2, 3, -3, ...
+    current_layer: isize,
+    current_stack_index: usize,
+    // Go from stack number (nonnegative) to layer number (integer) by (-1)^(n+1) floor((n+1)/2)
+    // Go from layer number to stack number by 2|l| - 1/2 (sgn(l) + 1)
+    stack_lower_bound: isize,
+    stack_upper_bound: isize,
 
     blocks_all: Blocks,
     blocks_boundary: Blocks,
@@ -77,8 +67,6 @@ pub struct App {
     outer_corners: Vec<[f64; 2]>,
     reset_zoom_once: bool,
     reset_zoom: bool,
-
-    current_layer: isize,
 }
 
 // Defaults should be such that we get useful output on startup
@@ -86,24 +74,13 @@ pub struct App {
 impl Default for App {
     fn default() -> Self {
         Self {
-            algorithm: Algorithm::CenterPoint, // default: Centerpoint
+            current_layer_gen_config: Default::default(),
+            stack_gen_config: vec![Default::default()],
+            current_layer: 0,
+            current_stack_index: 0,
 
-            radius_a: 5.0, // default: 5.0
-            radius_b: 5.0, // default: 5.0
-            radius_major: Default::default(),
-            radius_minor: Default::default(),
-
-            tilt: 0.0, // default: 0.0
-
-            sqrt_quad_form: Mat2::from([1.0, 0.0, 0.0, 1.0]),
-
-            center_offset_x: Default::default(),
-            center_offset_y: Default::default(),
-
-            circle_mode: true, // default: true
-
-            squircle_parameter: 2.0, // default: 2.0 (circle / ellipse)
-            squircle_ui_parameter: 0.666666666666666, // default: 0.666666666666666
+            stack_lower_bound: 0,
+            stack_upper_bound: 0,
 
             blocks_all: Default::default(),
             blocks_boundary: Default::default(),
@@ -129,8 +106,6 @@ impl Default for App {
 
             reset_zoom_once: false,
             reset_zoom: true,
-
-            current_layer: 0,
         }
     }
 }
@@ -155,31 +130,35 @@ impl eframe::App for App {
             // Select algorithm
             egui::ComboBox
                 ::from_label("Algorithm")
-                .selected_text(format!("{:?}", self.algorithm))
+                .selected_text(format!("{:?}", self.current_layer_gen_config.algorithm))
                 .show_ui(ui, |ui| {
                     ui.selectable_value(
-                        &mut self.algorithm,
+                        &mut self.current_layer_gen_config.algorithm,
                         Algorithm::CenterPoint,
                         "Center point"
                     );
                     ui.selectable_value(
-                        &mut self.algorithm,
+                        &mut self.current_layer_gen_config.algorithm,
                         Algorithm::Conservative,
                         "Conservative"
                     );
                     ui.selectable_value(
-                        &mut self.algorithm,
+                        &mut self.current_layer_gen_config.algorithm,
                         Algorithm::Contained,
                         "Contained");
                     ui.selectable_value(
-                        &mut self.algorithm,
+                        &mut self.current_layer_gen_config.algorithm,
                         Algorithm::Percentage(0.5),
                         "Percentage"
                     );
+                    ui.selectable_value( // TODO: Remove, this is for debugging
+                        &mut self.current_layer_gen_config.algorithm,
+                                         Algorithm::Empty,
+                                         "Empty");
                 });
 
             // additional algorithm-specific options + description
-            match self.algorithm {
+            match self.current_layer_gen_config.algorithm {
                 Algorithm::CenterPoint => {
                     ui.label("Include a particular block iff its centerpoint is in the ellipse");
                 }
@@ -208,17 +187,20 @@ impl eframe::App for App {
                                 format!("{:.0}%", n * 100.0) //  formatting of percentage slider
                             })
                     );
-                    self.algorithm = Algorithm::Percentage(perc_slider);
+                    self.current_layer_gen_config.algorithm = Algorithm::Percentage(perc_slider);
+                }
+                Algorithm::Empty => {
+                    ui.label("Include no blocks in the voxelization");
                 }
             }
 
             // Radius
             ui.separator();
-            ui.checkbox(&mut self.circle_mode, "Circle mode");
-            if self.circle_mode {
+            ui.checkbox(&mut self.current_layer_gen_config.circle_mode, "Circle mode");
+            if self.current_layer_gen_config.circle_mode {
                 ui.add(
                     egui::Slider
-                    ::new(&mut self.radius_a, 0.0..=30.0)
+                    ::new(&mut self.current_layer_gen_config.radius_a, 0.0..=30.0)
                         .text("Radius")
                         .clamp_to_range(false)
                         .custom_formatter(|param, _| {
@@ -226,18 +208,18 @@ impl eframe::App for App {
                         })
                 );
 
-                self.radius_b = self.radius_a;
+                self.current_layer_gen_config.radius_b = self.current_layer_gen_config.radius_a;
 
-                self.radius_minor = self.radius_a;
-                self.radius_major = self.radius_a;
+                self.current_layer_gen_config.radius_minor = self.current_layer_gen_config.radius_a;
+                self.current_layer_gen_config.radius_major = self.current_layer_gen_config.radius_a;
 
-                self.tilt = 0.0;
+                self.current_layer_gen_config.tilt = 0.0;
             }
             else {
                 // radius a
                 ui.add(
                     egui::Slider
-                    ::new(&mut self.radius_a, 0.0..=30.0)
+                    ::new(&mut self.current_layer_gen_config.radius_a, 0.0..=30.0)
                         .text("Radius A")
                         .clamp_to_range(false)
                         .custom_formatter(|param, _| {
@@ -248,7 +230,7 @@ impl eframe::App for App {
                 // radius b
                 ui.add(
                     egui::Slider
-                    ::new(&mut self.radius_b, 0.0..=30.0)
+                    ::new(&mut self.current_layer_gen_config.radius_b, 0.0..=30.0)
                         .text("Radius B")
                         .clamp_to_range(false)
                         .custom_formatter(|param, _| {
@@ -256,12 +238,12 @@ impl eframe::App for App {
                         })
                 );
 
-                self.radius_major = f64::max(self.radius_a,self.radius_b);
-                self.radius_minor = f64::min(self.radius_a,self.radius_b);
+                self.current_layer_gen_config.radius_major = f64::max(self.current_layer_gen_config.radius_a, self.current_layer_gen_config.radius_b);
+                self.current_layer_gen_config.radius_minor = f64::min(self.current_layer_gen_config.radius_a, self.current_layer_gen_config.radius_b);
 
                 ui.add(
                     egui::Slider
-                    ::new(&mut self.tilt, -6.28..=6.28)
+                    ::new(&mut self.current_layer_gen_config.tilt, -6.28..=6.28)
                         .text("Tilt (radians)")
                         .fixed_decimals(2)
                 );
@@ -270,25 +252,25 @@ impl eframe::App for App {
                 ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(egui::Align::Min), |ui|
                 {
                     if ui.button("0°").clicked() {
-                        self.tilt = 0.0;
+                        self.current_layer_gen_config.tilt = 0.0;
                     }
                     if ui.button("30°").clicked() {
-                        self.tilt = PI/6.0;
+                        self.current_layer_gen_config.tilt = PI/6.0;
                     }
                     if ui.button("45°").clicked() {
-                        self.tilt = PI/4.0;
+                        self.current_layer_gen_config.tilt = PI/4.0;
                     }
                     if ui.button("1:2").clicked() {
-                        self.tilt = 0.5_f64.atan();
+                        self.current_layer_gen_config.tilt = 0.5_f64.atan();
                     }
                     if ui.button("1:3").clicked() {
-                        self.tilt = 0.333333333333_f64.atan();
+                        self.current_layer_gen_config.tilt = 0.333333333333_f64.atan();
                     }
                     if ui.button("2:3").clicked() {
-                        self.tilt = 0.666666666666_f64.atan();
+                        self.current_layer_gen_config.tilt = 0.666666666666_f64.atan();
                     }
                     if ui.button("1:4").clicked() {
-                        self.tilt = 0.25_f64.atan();
+                        self.current_layer_gen_config.tilt = 0.25_f64.atan();
                     }
                 });
 
@@ -297,13 +279,13 @@ impl eframe::App for App {
 
 
             // Compute sqrt of quadratic form of ellipse
-            let c = self.tilt.cos();
-            let s = self.tilt.sin();
-            self.sqrt_quad_form = Mat2::from_rows(1.0 /self.radius_a * Vec2::from([c,s]), 1.0 / self.radius_b * Vec2::from([-s, c]));
+            let c = self.current_layer_gen_config.tilt.cos();
+            let s = self.current_layer_gen_config.tilt.sin();
+            self.current_layer_gen_config.sqrt_quad_form = Mat2::from_rows(1.0 /self.current_layer_gen_config.radius_a * Vec2::from([c,s]), 1.0 / self.current_layer_gen_config.radius_b * Vec2::from([-s, c]));
 
             // Squircle parameter
             ui.separator();
-            ui.add(egui::Slider::new(&mut self.squircle_ui_parameter, 0.0..=1.0)
+            ui.add(egui::Slider::new(&mut self.current_layer_gen_config.squircle_ui_parameter, 0.0..=1.0)
                 .text("Squircle parameter")
                 .custom_formatter(|param, _| {
                     format!("{:.02}", 1.0/(1.0 - param) - 1.0)
@@ -319,33 +301,33 @@ impl eframe::App for App {
             ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(egui::Align::Min), |ui|
             {
                 if ui.button("Circle").clicked() {
-                    self.squircle_ui_parameter = 0.666666666666666;
+                    self.current_layer_gen_config.squircle_ui_parameter = 0.666666666666666;
                 }
                 if ui.button("Diamond").clicked() {
-                    self.squircle_ui_parameter = 0.5;
+                    self.current_layer_gen_config.squircle_ui_parameter = 0.5;
                 }
                 if ui.button("Square").clicked() {
-                    self.squircle_ui_parameter = 1.0;
+                    self.current_layer_gen_config.squircle_ui_parameter = 1.0;
                 }
             });
 
             // Aim: Make choice of squircle parameter easy. there are distinct values at 2/3 and 1/3 we want to be exact
-            self.squircle_parameter = 1.0/(1.0 - self.squircle_ui_parameter) - 1.0;
+            self.current_layer_gen_config.squircle_parameter = 1.0/(1.0 - self.current_layer_gen_config.squircle_ui_parameter) - 1.0;
 
             // Centerpoint
             ui.separator();
-            ui.add(egui::Slider::new(&mut self.center_offset_x, -1.0..=1.0).text("x offset"));
-            ui.add(egui::Slider::new(&mut self.center_offset_y, -1.0..=1.0).text("y offset"));
+            ui.add(egui::Slider::new(&mut self.current_layer_gen_config.center_offset_x, -1.0..=1.0).text("x offset"));
+            ui.add(egui::Slider::new(&mut self.current_layer_gen_config.center_offset_y, -1.0..=1.0).text("y offset"));
             // Add odd and even buttons (also good so people understand what the abstraction "offset center" actually means)
             ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(egui::Align::Min), |ui|
             {
                 if ui.button("Even center").clicked() {
-                    self.center_offset_x = 0.0;
-                    self.center_offset_y = 0.0;
+                    self.current_layer_gen_config.center_offset_x = 0.0;
+                    self.current_layer_gen_config.center_offset_y = 0.0;
                 }
                 if ui.button("Odd center").clicked() {
-                    self.center_offset_x = 0.5;
-                    self.center_offset_y = 0.5;
+                    self.current_layer_gen_config.center_offset_x = 0.5;
+                    self.current_layer_gen_config.center_offset_y = 0.5;
                 }
             });
 
@@ -379,42 +361,8 @@ impl eframe::App for App {
                 if ui.button("Generate").clicked() || self.auto_generate {
                     // on generation
 
-                    // Determine grid size
-                    // The major radius should be included, for some metrics we need at least one layer of padding
-                    //  around the generated figure. Assuming a square figure (squircle parameter infinity), we
-                    //  need an x side length of 2.0 * sqrt(2) * radius_major. Add 4 for a padding of at least 2
-                    //  on each side.
-                    let grid_size = (2.0 * 1.42 * f64::max(self.radius_a, self.radius_b)).ceil() as usize + 4;
-
-                    // In bitmatrix coordinates, where is the point (0,0)? (Note that it has integer coordinates)
-                    let origin = Vec2::from([(grid_size / 2) as f64, (grid_size / 2) as f64]);
-
                     // Generate from circle with selected algorithm
-                    self.blocks_all = generate_all_blocks(
-                        &self.algorithm,
-                        Vec2::from([self.center_offset_x, self.center_offset_y]),
-                        self.sqrt_quad_form,
-                        self.squircle_parameter,
-                        self.tilt,
-                        self.radius_a,
-                        self.radius_b,
-                        grid_size,
-                        origin,
-                    );
-
-                    // run preprocessing
-                    self.blocks_interior = self.blocks_all.get_interior();
-                    self.blocks_boundary = Blocks {
-                        // boundary is in all but not in interior (so all && interior.not())
-                        blocks: self.blocks_all.blocks
-                            .iter()
-                            .zip(self.blocks_interior.blocks.iter())
-                            .map(|(all, interior)| *all && interior.not())
-                            .collect(),
-                        grid_size: self.blocks_all.grid_size,
-                        origin: self.blocks_all.origin,
-                    };
-                    self.blocks_complement = self.blocks_all.get_complement();
+                    [self.blocks_all, self.blocks_interior, self.blocks_boundary, self.blocks_complement] = self.current_layer_gen_config.generate();
 
                     // update metrics
                     self.nr_blocks_total = self.blocks_all.get_nr_blocks();
@@ -447,7 +395,7 @@ impl eframe::App for App {
                         formatting::format_block_count(self.nr_blocks_interior),
                         // TODO: Better to run these once every time a new shape is generated. But it's not like we're running into performance issues
                         formatting::format_block_diameter(self.blocks_all.get_diameters()),
-                        //self.blocks_all.get_build_sequence() //FIXME: Redo (also doesn't make sense for ellipses I suppose
+                        //self.blocks_all.get_build_sequence() //FIXME: Redo, note it doesn't make sense for *tilted* superellipses (or non-centered ones?)
                     )
                 )
             })
@@ -455,15 +403,9 @@ impl eframe::App for App {
 
         // Layer navigation bar
         egui::TopBottomPanel::top("layer-navigation").show(ctx, |ui| {
-            // ui.columns(3, |columns| {
-            //     columns[0].vertical_centered(|ui| {
-            //         // add buttons left and right of layer navigation here
-            //     });
-            //     columns[1].vertical_centered(|ui| {
-            //     });
-            //     columns[2].vertical_centered(|ui| {});
-            // })
             ui.centered_and_justified(|ui| {
+                let mut has_changed = false;
+                let old_stack_index = self.current_stack_index;
                 // Finicky due to not being able to know the size of the widget in advance
                 // so do a pretty good prediction
                 let height = ui.style().spacing.interact_size.y;
@@ -472,11 +414,16 @@ impl eframe::App for App {
                 let padding = ui.style().spacing.button_padding.x; //Button size is text size plus this on each side
 
                 let (rect, response) = ui.allocate_exact_size(
-                    [4.0 * controls_width + main_width + padding * 8.0, height].into(),
+                    [
+                        4.0 * controls_width + 3.0 * main_width + padding * 12.0,
+                        height,
+                    ]
+                    .into(),
                     egui::Sense::click(),
                 );
                 ui.put(rect, |ui: &mut egui::Ui| {
                     ui.horizontal(|ui| {
+                        ui.add(egui::DragValue::new(&mut self.stack_lower_bound).speed(0.05));
                         if ui
                             .add(
                                 egui::Button::new("|<")
@@ -484,7 +431,8 @@ impl eframe::App for App {
                             )
                             .clicked()
                         {
-                            self.current_layer = -10;
+                            self.current_layer = self.stack_lower_bound;
+                            has_changed = true;
                         }
                         if ui
                             .add(
@@ -494,10 +442,14 @@ impl eframe::App for App {
                             .clicked()
                         {
                             self.current_layer = self.current_layer.saturating_sub(1);
+                            has_changed = true;
                         }
-                        ui.add(
-                            egui::DragValue::new(&mut self.current_layer).speed(0.05), // .min_size(egui::Vec2::from([main_width, 30.0])),
-                        );
+                        let central_field =
+                            ui.add(egui::DragValue::new(&mut self.current_layer).speed(0.05));
+                        if central_field.clicked() || central_field.drag_released() {
+                            has_changed = true
+                        }
+
                         if ui
                             .add(
                                 egui::Button::new(">")
@@ -506,6 +458,7 @@ impl eframe::App for App {
                             .clicked()
                         {
                             self.current_layer = self.current_layer.saturating_add(1);
+                            has_changed = true
                         }
                         if ui
                             .add(
@@ -514,13 +467,38 @@ impl eframe::App for App {
                             )
                             .clicked()
                         {
-                            self.current_layer = 10;
+                            self.current_layer = self.stack_upper_bound;
+                            has_changed = true
                         }
+                        ui.add(egui::DragValue::new(&mut self.stack_upper_bound).speed(0.05));
                     });
                     response
                 });
 
-                // ui.label("|"); // for finding the center
+                // Check if enough (empty) layers are initialized, else initialize more
+                if has_changed {
+                    self.current_stack_index = layer_number_to_stack_number(self.current_layer);
+
+                    if self.current_stack_index >= self.stack_gen_config.len() {
+                        self.stack_gen_config.extend(
+                            (0..=(self.current_stack_index - self.stack_gen_config.len())).map(
+                                |_| GenConfig {
+                                    ..self.current_layer_gen_config
+                                },
+                            ),
+                        )
+                    }
+
+                    // Save configuration to stack
+                    self.stack_gen_config[old_stack_index] = self.current_layer_gen_config;
+
+                    // Set Gen Config to whatever was stored at that location
+                    self.current_layer_gen_config = self.stack_gen_config[self.current_stack_index];
+
+                    // Update lower and upper bounds
+                    self.stack_lower_bound = self.stack_lower_bound.min(self.current_layer);
+                    self.stack_upper_bound = self.stack_upper_bound.max(self.current_layer);
+                }
             })
         });
 
@@ -622,62 +600,70 @@ impl eframe::App for App {
 
                     // Plot center
                     plot_ui.points(
-                        Points::new(vec![[self.center_offset_x, self.center_offset_y]])
-                            .radius(5.0)
-                            .color(COLOR_LIME),
+                        Points::new(vec![[
+                            self.current_layer_gen_config.center_offset_x,
+                            self.current_layer_gen_config.center_offset_y,
+                        ]])
+                        .radius(5.0)
+                        .color(COLOR_LIME),
                     );
 
                     // Plot target shape
                     plot_ui.line(
                         plotting::superellipse_at_coords(
-                            self.center_offset_x,
-                            self.center_offset_y,
-                            self.radius_a,
-                            self.radius_b,
-                            self.tilt,
-                            self.squircle_parameter,
+                            self.current_layer_gen_config.center_offset_x,
+                            self.current_layer_gen_config.center_offset_y,
+                            self.current_layer_gen_config.radius_a,
+                            self.current_layer_gen_config.radius_b,
+                            self.current_layer_gen_config.tilt,
+                            self.current_layer_gen_config.squircle_parameter,
                         )
                         .color(COLOR_LIME),
                     );
 
                     // Plot x and y axes through the center of the shape
                     plot_ui.hline(
-                        HLine::new(self.center_offset_y)
+                        HLine::new(self.current_layer_gen_config.center_offset_y)
                             .color(COLOR_X_AXIS)
                             .width(2.0),
                     );
                     plot_ui.vline(
-                        VLine::new(self.center_offset_x)
+                        VLine::new(self.current_layer_gen_config.center_offset_x)
                             .color(COLOR_Y_AXIS)
                             .width(2.0),
                     );
 
                     // Plot rotated x and y axes for nonzero tilt (dark orange and purple)
-                    if self.tilt != 0.0 {
+                    if self.current_layer_gen_config.tilt != 0.0 {
                         let bounds = plot_ui.plot_bounds();
                         plot_ui.line(
                             plotting::tilted_line_in_bounds(
                                 bounds,
-                                self.tilt,
-                                self.center_offset_x,
-                                self.center_offset_y,
+                                self.current_layer_gen_config.tilt,
+                                self.current_layer_gen_config.center_offset_x,
+                                self.current_layer_gen_config.center_offset_y,
                             )
                             .color(COLOR_DARK_ORANGE),
                         );
                         plot_ui.line(
                             plotting::tilted_line_in_bounds(
                                 bounds,
-                                self.tilt + PI / 2.0,
-                                self.center_offset_x,
-                                self.center_offset_y,
+                                self.current_layer_gen_config.tilt + PI / 2.0,
+                                self.current_layer_gen_config.center_offset_x,
+                                self.current_layer_gen_config.center_offset_y,
                             )
                             .color(COLOR_PURPLE),
                         );
                     }
 
                     if self.view_intersect_area {
-                        let grid_size = (2.0 * 1.42 * f64::max(self.radius_a, self.radius_b)).ceil()
-                            as usize
+                        let grid_size = (2.0
+                            * 1.42
+                            * f64::max(
+                                self.current_layer_gen_config.radius_a,
+                                self.current_layer_gen_config.radius_b,
+                            ))
+                        .ceil() as usize
                             + 4;
 
                         let square = Blocks {
@@ -687,8 +673,10 @@ impl eframe::App for App {
                         };
                         for coord in square.get_block_coords() {
                             let cell_center = [coord[0] + 0.5, coord[1] + 0.5];
-                            let mut x_center = cell_center[0] - self.center_offset_x;
-                            let mut y_center = cell_center[1] - self.center_offset_y;
+                            let mut x_center =
+                                cell_center[0] - self.current_layer_gen_config.center_offset_x;
+                            let mut y_center =
+                                cell_center[1] - self.current_layer_gen_config.center_offset_y;
 
                             // Dihedral symmetry swaps (see percentage.rs for explanation)
                             if x_center < 0.0 {
@@ -703,7 +691,7 @@ impl eframe::App for App {
 
                             plot_ui.text(Text::new(PlotPoint::from(cell_center), {
                                 let value = generation::percentage::cell_disk_intersection_area(
-                                    self.radius_major,
+                                    self.current_layer_gen_config.radius_major,
                                     x_center,
                                     y_center,
                                 );
@@ -738,5 +726,24 @@ impl eframe::App for App {
                     }
                 });
         });
+    }
+}
+
+fn layer_number_to_stack_number(layer_number: isize) -> usize {
+    if layer_number == 0 {
+        0
+    } else {
+        (2 * layer_number.abs() - (layer_number.signum() + 1) / 2) as usize
+    }
+}
+
+fn stack_number_to_layer_number(stack_number: usize) -> isize {
+    let stack_number = stack_number as isize;
+    if stack_number == 0 {
+        0
+    } else if stack_number % 2 == 1 {
+        1 + stack_number / 2
+    } else {
+        -stack_number / 2
     }
 }

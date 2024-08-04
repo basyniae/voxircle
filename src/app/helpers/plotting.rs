@@ -17,7 +17,6 @@ pub fn square_at_coords(coord: [f64; 2]) -> Polygon {
 }
 
 pub fn superellipse_at_coords(
-    // TODO: make superellipse at coords
     center_x: f64,
     center_y: f64,
     radius_a: f64,
