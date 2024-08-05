@@ -4,6 +4,7 @@ use crate::app::helpers::gen_output::GenOutput;
 use crate::app::helpers::linear_algebra::{Mat2, Vec2};
 use std::ops::Not;
 
+/// Document
 #[derive(Debug, Clone)]
 pub struct GenConfig {
     pub algorithm: Algorithm,
@@ -31,9 +32,8 @@ impl Default for GenConfig {
     fn default() -> Self {
         Self {
             algorithm: Algorithm::CenterPoint, // default: Centerpoint
-
-            radius_a: 5.0, // default: 5.0
-            radius_b: 5.0, // default: 5.0
+            radius_a: 5.0,                     // default: 5.0
+            radius_b: 5.0,                     // default: 5.0
             radius_major: Default::default(),
             radius_minor: Default::default(),
 
@@ -41,8 +41,8 @@ impl Default for GenConfig {
 
             sqrt_quad_form: Mat2::from([1.0, 0.0, 0.0, 1.0]),
 
-            center_offset_x: Default::default(),
-            center_offset_y: Default::default(),
+            center_offset_x: 0.0, // default: 0.0, 0.0 (even circle)
+            center_offset_y: 0.0,
 
             circle_mode: true, // default: true
 
@@ -52,6 +52,7 @@ impl Default for GenConfig {
     }
 }
 
+/// Document
 impl GenConfig {
     pub fn generate(&self) -> GenOutput {
         // Determine grid size
@@ -70,7 +71,6 @@ impl GenConfig {
             Vec2::from([self.center_offset_x, self.center_offset_y]),
             self.sqrt_quad_form,
             self.squircle_parameter,
-            self.tilt,
             self.radius_a,
             self.radius_b,
             grid_size,
@@ -98,12 +98,5 @@ impl GenConfig {
             blocks_boundary,
             blocks_complement,
         }
-        // update metrics
-        // let nr_blocks_total = self.blocks_all.get_nr_blocks();
-        // let nr_blocks_interior = self.blocks_interior.get_nr_blocks();
-        // let nr_blocks_boundary = self.blocks_boundary.get_nr_blocks();
-        //
-        // self.outer_corners = self.blocks_all.get_outer_corners();
-        // self.convex_hull = get_convex_hull(&self.outer_corners);
     }
 }

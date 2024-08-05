@@ -1,10 +1,10 @@
 use crate::app::helpers::blocks::Blocks;
 use crate::app::helpers::circle_geometry::get_squircle_tangent_point;
 use crate::app::helpers::linear_algebra::{Mat2, Vec2};
-use crate::app::helpers::linear_geometry::ray_line_segment_intersect;
+use crate::app::helpers::linear_geometry::intersect_complemented_ray_segment;
 use crate::app::helpers::square::Square;
 
-// FIXME: Bugs, take radius 12.00, squircle parameter 0.75, tilt 0
+// Document
 pub fn generate_alg_contained(
     center_offset: Vec2,
     sqrt_quad_form: Mat2,
@@ -12,8 +12,8 @@ pub fn generate_alg_contained(
     grid_size: usize,
     origin: Vec2,
 ) -> Blocks {
-    let x_grid_step = sqrt_quad_form * Vec2::from([1.0, 0.0]);
-    let y_grid_step = sqrt_quad_form * Vec2::from([0.0, 1.0]);
+    let x_grid_step = sqrt_quad_form * Vec2::UNIT_X;
+    let y_grid_step = sqrt_quad_form * Vec2::UNIT_Y;
 
     let squircle_tangent_x = get_squircle_tangent_point(squircle_parameter, x_grid_step);
     let squircle_tangent_y = get_squircle_tangent_point(squircle_parameter, y_grid_step);
@@ -30,6 +30,7 @@ pub fn generate_alg_contained(
                 // Convexity of the squircle with parameter p>=0 gives an easy characterization, just have to check the extreme points
                 square.for_all_m_corners(|corner| corner.pnorm(squircle_parameter) <= 1.0)
             } else {
+                // Document
                 // Case 0 <= p < 1.0
                 // The curve of the squircle can poke through the side of the parallelogram
                 // So we need that all corners of the parallelogram and the squircle pokes through
@@ -40,27 +41,12 @@ pub fn generate_alg_contained(
                 // (The only if direction is the hard one, argue via Rolle's theorem(ish) and direction)
 
                 square.for_all_m_corners(|corner| corner.pnorm(squircle_parameter) <= 1.0)
-                    && !square.for_any_m_edge(|edge| {
-                        ray_line_segment_intersect(
-                            [squircle_tangent_x, 2.0 * squircle_tangent_x],
+                    && square.for_all_m_edges(|edge| {
+                        !intersect_complemented_ray_segment(
+                            [-squircle_tangent_x, squircle_tangent_x],
                             edge,
-                        )
-                    })
-                    && !square.for_any_m_edge(|edge| {
-                        ray_line_segment_intersect(
-                            [-squircle_tangent_x, -2.0 * squircle_tangent_x],
-                            edge,
-                        )
-                    })
-                    && !square.for_any_m_edge(|edge| {
-                        ray_line_segment_intersect(
-                            [squircle_tangent_y, 2.0 * squircle_tangent_y],
-                            edge,
-                        )
-                    })
-                    && !square.for_any_m_edge(|edge| {
-                        ray_line_segment_intersect(
-                            [-squircle_tangent_y, -2.0 * squircle_tangent_y],
+                        ) && !intersect_complemented_ray_segment(
+                            [-squircle_tangent_y, squircle_tangent_y],
                             edge,
                         )
                     })
