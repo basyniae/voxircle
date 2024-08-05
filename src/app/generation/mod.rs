@@ -32,7 +32,6 @@ pub fn generate_all_blocks(
     center_offset: Vec2,
     sqrt_quad_form: Mat2,
     squircle_parameter: f64,
-    tilt: f64,
     radius_a: f64,
     radius_b: f64,
     grid_size: usize,

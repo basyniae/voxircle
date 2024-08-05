@@ -1,138 +1,99 @@
-use crate::app::helpers::linear_algebra::{Mat2, Vec2};
-use crate::app::helpers::optimization::minimize_maximum_straight_lines;
+use crate::app::helpers::linear_algebra::Vec2;
+use std::cmp::Ordering;
 
 /// Return true if the closed line segments intersect, false otherwise.
-/// (Is just a parameter wrapping of the intersect_lines function)
+/// From http://www.dcs.gla.ac.uk/~pat/52233/slides/Geometry1x1.pdf p.6
 pub fn line_segments_intersect(line_one: [Vec2; 2], line_two: [Vec2; 2]) -> bool {
-    let pure_intersect = intersect_lines(line_one, line_two);
-    match pure_intersect {
-        None => false,
-        Some(params) => {
-            let s = params[0];
-            let t = params[1];
-            (0.0 <= s) && (s <= 1.0) && (0.0 <= t) && (t <= 1.0)
-        }
-    }
-}
-
-/// Return true if the open ray from ray[0] through ray[1] intersects the closed line segment.
-/// (Is just a parameter wrapping of the intersect_lines function)
-pub fn ray_line_segment_intersect(ray: [Vec2; 2], line: [Vec2; 2]) -> bool {
-    let pure_intersection = intersect_lines(ray, line);
-    match pure_intersection {
-        None => false,
-        Some(params) => {
-            let s = params[0];
-            let t = params[1];
-            (0.0 < s) && (0.0 <= t) && (t <= 1.0)
-        }
-    }
-}
-
-/// Return the pair of parameters for which the lines intersect if the lines are not parallel,
-/// (as distance from the first to the second point)
-/// None if the lines are parallel and have no intersection,
-/// Any pair of parameters if the lines are parallel and have intersection, subject to the condition
-/// that max {|t-1/2|, |s-1/2|} is minimal.
-pub fn intersect_lines(line_one: [Vec2; 2], line_two: [Vec2; 2]) -> Option<[f64; 2]> {
     let p_1 = line_one[0];
-    let d_1 = line_one[1] - line_one[0]; // End minus start for direction vector
+    let q_1 = line_one[1];
     let p_2 = line_two[0];
-    let d_2 = line_two[1] - line_two[0];
+    let q_2 = line_two[1];
 
-    // Consider the matrix with row vectors d_1, d_2, we want to invert this matrix
-    // Compute the determinant
-    let xx = Mat2::from_columns(d_1, -1.0 * d_2);
+    ((orient_triple(p_1, q_1, p_2) != orient_triple(p_1, q_1, q_2)) // General case
+        && (orient_triple(p_2, q_2, p_1) != orient_triple(p_2, q_2, q_1)))
+        || ((orient_triple(p_1, q_1, p_2) == Orientation::Collinear) // Special case
+            && (orient_triple(p_1, q_1, q_2) == Orientation::Collinear)
+            && (orient_triple(p_2, q_2, p_1) == Orientation::Collinear)
+            && (orient_triple(p_2, q_2, q_1) == Orientation::Collinear)
+            && intervals_intersect([p_1.x, q_1.x], [p_2.x, q_2.x])
+            && intervals_intersect([p_1.y, q_1.y], [p_2.y, q_2.y]))
+}
 
-    let det = xx.det();
+/// Return true if the closed line segment has nonempty intersection with the part of the line defined by the line segment that is not in the line segment itself
+pub fn intersect_complemented_ray_segment(
+    complemented_segment: [Vec2; 2],
+    segment: [Vec2; 2],
+) -> bool {
+    let p_1 = complemented_segment[0];
+    let q_1 = complemented_segment[1];
+    let p_2 = segment[0];
+    let q_2 = segment[1];
 
-    if det == 0.0 {
-        // i.e., the lines are parallel
-        // Check if the lines coincide
-        if d_1.y * (p_2.x - p_1.x) == d_1.x * (p_2.y - p_1.y) {
-            if d_2.x != 0.0 || d_2.y != 0.0 {
-                // If d_2 is zero then the computation makes no sense
-                // the lines coincide
-                // Compute the values of s,t that define the other segment
-                let s_start = {
-                    if d_2.x != 0.0 {
-                        (p_1.x - p_2.x) / d_2.x
-                    } else {
-                        (p_1.y - p_2.y) / d_2.y
-                    }
-                }; // solves p_1 = p_2 + sd_2
-                let s_end = {
-                    if d_2.x != 0.0 {
-                        (p_1.x + d_1.x - p_2.x) / d_2.x
-                    } else {
-                        (p_1.y + d_1.x - p_2.y) / d_2.y
-                    }
-                }; // solves p_1 + d_1 = p_2 + sd_2
-                let b = s_start;
-                let a = s_end - s_start;
-                // Now s = a*t + b
+    ((orient_triple(p_1, q_1, p_2) != orient_triple(p_1, q_1, q_2)) // General case
+        && (orient_triple(p_2, q_2, p_1) == orient_triple(p_2, q_2, q_1)))
+        || ((orient_triple(p_1, q_1, p_2) == Orientation::Collinear) // Special case (all points collinear)
+    && (orient_triple(p_1, q_1, q_2) == Orientation::Collinear)
+    && (orient_triple(p_2, q_2, p_1) == Orientation::Collinear)
+    && (orient_triple(p_2, q_2, q_1) == Orientation::Collinear)
+    && !(intervals_contains([p_1.x, q_1.x], [p_2.x, q_2.x])
+        || intervals_contains([p_1.y, q_1.y], [p_2.y, q_2.y])))
+}
 
-                // Pick the s,t if possible in the square [0,1]^2
-                // I.e., minimize max {|t-1/2|, |s-1/2|} (maximum norm centered at 1/2)
-                //  subject to s = a*t + b
-                // Unfold:
-                // minimize max {t-1/2, -t+1/2, at+b-1/2, -at-b+1/2} (t real)
-                let [t, _] = minimize_maximum_straight_lines(vec![
-                    [1.0, -0.5],
-                    [-1.0, 0.5],
-                    [a, b - 0.5],
-                    [-a, -b + 0.5],
-                ]);
-                let s = a * t + b;
+/// Return true if the line intersects the segment
+pub fn intersect_line_segment(line: [Vec2; 2], segment: [Vec2; 2]) -> bool {
+    let p_1 = line[0];
+    let q_1 = line[1];
+    let p_2 = segment[0];
+    let q_2 = segment[1];
 
-                Some([s, t])
-            } else if d_1.x != 0.0 || d_1.y != 0.0 {
-                // Same algorithm as above but with 1 and 2 swapped
-                let t_start = {
-                    if d_1.x != 0.0 {
-                        (p_2.x - p_1.x) / d_1.x
-                    } else {
-                        (p_2.y - p_1.y) / d_1.y
-                    }
-                }; // solves p_2 = p_1 + td_1
-                let t_end = {
-                    if d_2.x != 0.0 {
-                        (p_2.x + d_2.x - p_1.x) / d_1.x
-                    } else {
-                        (p_2.y + d_2.x - p_1.y) / d_1.y
-                    }
-                }; // solves p_2 + d_2 = p_1 + sd_1
-                let b = t_start;
-                let a = t_end - t_start;
-                // Now t = a*s + b
+    ((orient_triple(p_1, q_1, p_2) != orient_triple(p_1, q_1, q_2)) // General case
+        && (orient_triple(p_2, q_2, p_1) != orient_triple(p_2, q_2, q_1)))
+        || ((orient_triple(p_1, q_1, p_2) == Orientation::Collinear) // Special case
+        && (orient_triple(p_1, q_1, q_2) == Orientation::Collinear)
+        && (orient_triple(p_2, q_2, q_1) == Orientation::Collinear)
+        && (orient_triple(p_2, q_2, p_1) == Orientation::Collinear))
+}
 
-                // Pick the s,t if possible in the square [0,1]^2
-                // I.e., minimize max {|t-1/2|, |s-1/2|} (maximum norm centered at 1/2)
-                //  subject to s = a*t + b
-                // Unfold:
-                // minimize max {t-1/2, -t+1/2, at+b-1/2, -at-b+1/2} (t real)
-                let [s, _] = minimize_maximum_straight_lines(vec![
-                    [1.0, -0.5],
-                    [-1.0, 0.5],
-                    [a, b - 0.5],
-                    [-a, -b + 0.5],
-                ]);
-                let t = a * s + b;
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+pub enum Orientation {
+    Counterclockwise,
+    Clockwise,
+    Collinear,
+}
 
-                Some([s, t])
-            } else if p_1 == p_2 {
-                Some([0.5, 0.5]) // The directions d_1 and d_2 are both zero and the points coincide
-            } else {
-                None
-            }
-        } else {
-            None
+// http://www.dcs.gla.ac.uk/~pat/52233/slides/Geometry1x1.pdf p.10
+pub fn orient_triple(a: Vec2, b: Vec2, c: Vec2) -> Orientation {
+    // abs needed to preserve correct signs
+    match ((b.y - a.y) * (c.x - b.x) - (c.y - b.y) * (b.x - a.x)).partial_cmp(&0.0) {
+        None => {
+            panic!("uh oh! something is NaN")
         }
-    } else {
-        // Invert the matrix (by 2x2 matrix inverse formula)
-        let yy = xx.inverse().unwrap();
-        let v = yy * (p_2 - p_1);
-
-        Some([v.x, v.y])
+        Some(ordering) => match ordering {
+            Ordering::Less => Orientation::Counterclockwise,
+            Ordering::Equal => Orientation::Collinear,
+            Ordering::Greater => Orientation::Clockwise,
+        },
     }
+}
+
+/// Do the closed intervals have nonempty intersection?
+pub fn intervals_intersect(interval_one: [f64; 2], interval_two: [f64; 2]) -> bool {
+    let a_1 = interval_one[0].min(interval_one[1]);
+    let a_2 = interval_one[0].max(interval_one[1]);
+    let b_1 = interval_two[0].min(interval_two[1]);
+    let b_2 = interval_two[0].max(interval_two[1]);
+
+    // Case on if b_1 is in the interval or b_2 is in the interval
+    (a_1 <= b_1 && b_1 <= a_2) || (a_1 <= b_2 && b_2 <= a_2)
+}
+
+/// Does interval one contain interval two?
+pub fn intervals_contains(interval_one: [f64; 2], interval_two: [f64; 2]) -> bool {
+    let a_1 = interval_one[0].min(interval_one[1]);
+    let a_2 = interval_one[0].max(interval_one[1]);
+    let b_1 = interval_two[0].min(interval_two[1]);
+    let b_2 = interval_two[0].max(interval_two[1]);
+
+    // Case on if b_1 is in the interval or b_2 is in the interval
+    (a_1 <= b_1) && (b_2 <= a_2)
 }

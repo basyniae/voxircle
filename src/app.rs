@@ -150,10 +150,6 @@ impl eframe::App for App {
                         Algorithm::Percentage(0.5),
                         "Percentage"
                     );
-                    ui.selectable_value( // TODO: Remove, this is for debugging
-                        &mut self.current_gen_config.algorithm,
-                                         Algorithm::Empty,
-                                         "Empty");
                 });
 
             // additional algorithm-specific options + description
@@ -341,6 +337,7 @@ impl eframe::App for App {
                 ui.checkbox(&mut self.view_blocks_boundary, "Boundary");
                 ui.checkbox(&mut self.view_blocks_interior, "Interior");
                 ui.checkbox(&mut self.view_complement, "Complement");
+                // TODO: 3D boundary algorithm and viewport
             });
             ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(egui::Align::Min), |ui|
             {

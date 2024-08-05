@@ -53,6 +53,8 @@ pub fn get_squircle_tangent_point(squircle_parameter: f64, direction: Vec2) -> V
     let abs_y = {
         if direction.x == 0.0 {
             0.0
+        } else if direction.y == 0.0 {
+            1.0
         } else {
             (1.0 + (direction.y / direction.x).abs().powf(p / (p - 1.0))).powf(-1.0 / p)
             // algebraic expression, see notebook for derivation.
@@ -64,6 +66,8 @@ pub fn get_squircle_tangent_point(squircle_parameter: f64, direction: Vec2) -> V
     let abs_x = {
         if direction.x == 0.0 {
             1.0
+        } else if direction.y == 0.0 {
+            0.0
         } else {
             (1.0 - abs_y.powf(p)).powf(1.0 / p)
         }
