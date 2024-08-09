@@ -281,7 +281,7 @@ impl eframe::App for App {
             // Squircle parameter
             ui.separator();
             ui.add(egui::Slider::new(&mut self.current_gen_config.squircle_ui_parameter, 0.0..=1.0)
-                .text("Squircle parameter")
+                .text("Squircicity")
                 .custom_formatter(|param, _| {
                     format!("{:.02}", 1.0/(1.0 - param) - 1.0)
                 })
@@ -331,7 +331,7 @@ impl eframe::App for App {
             ui.separator();
             ui.heading("View options");
 
-            ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(egui::Align::Min), |ui|
+            ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
             {
                 ui.checkbox(&mut self.view_blocks_all, "All");
                 ui.checkbox(&mut self.view_blocks_boundary, "Boundary");
@@ -339,12 +339,12 @@ impl eframe::App for App {
                 ui.checkbox(&mut self.view_complement, "Complement");
                 // TODO: 3D boundary algorithm and viewport
             });
-            ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(egui::Align::Min), |ui|
+            ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
             {
                 ui.checkbox(&mut self.view_convex_hull, "Convex hull");
                 ui.checkbox(&mut self.view_outer_corners, "Outer corners");
             });
-            ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(egui::Align::Min), |ui|
+            ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
             {
                 ui.checkbox(&mut self.view_intersect_area, "Intersect area (Circles only)");
             });
@@ -353,22 +353,46 @@ impl eframe::App for App {
             ui.separator();
             ui.checkbox(&mut self.auto_generate, "Auto generate");
 
-            ui.with_layout(Layout::centered_and_justified(Direction::LeftToRight), |ui| {
-                if ui.button("Generate").clicked() || self.auto_generate {
-                    // on generation
+            ui.columns(2, |columns| {
+                columns[0].centered_and_justified(|ui| {
+                    if ui.button("Generate current layer").clicked() || self.auto_generate {
 
-                    // Generate from circle with selected algorithm
-                    self.current_gen_output = self.current_gen_config.generate();
+                        // Generate from circle with selected algorithm
+                        self.current_gen_output = self.current_gen_config.generate();
 
-                    // update metrics
-                    self.nr_blocks_total = self.current_gen_output.blocks_all.get_nr_blocks();
-                    self.nr_blocks_interior = self.current_gen_output.blocks_interior.get_nr_blocks();
-                    self.nr_blocks_boundary = self.current_gen_output.blocks_boundary.get_nr_blocks();
+                        // update metrics
+                        self.nr_blocks_total = self.current_gen_output.blocks_all.get_nr_blocks();
+                        self.nr_blocks_interior = self.current_gen_output.blocks_interior.get_nr_blocks();
+                        self.nr_blocks_boundary = self.current_gen_output.blocks_boundary.get_nr_blocks();
 
-                    self.outer_corners = self.current_gen_output.blocks_all.get_outer_corners();
-                    self.convex_hull = get_convex_hull(&self.outer_corners);
-                }
+                        self.outer_corners = self.current_gen_output.blocks_all.get_outer_corners();
+                        self.convex_hull = get_convex_hull(&self.outer_corners);
+                    }
+                });
+
+
+
+                columns[1].centered_and_justified(|ui| {
+                    if ui.button("Generate all layers").clicked() {
+
+                        // Generate all layers
+                        self.stack_gen_output = self.stack_gen_config.iter().map(|config| config.generate()).collect();
+                        
+                        // Update current layer
+                        self.current_gen_config = self.stack_gen_config[self.stack_index].clone();
+                        self.current_gen_output = self.stack_gen_output[self.stack_index].clone();
+
+                        // update metrics for this layer
+                        self.nr_blocks_total = self.current_gen_output.blocks_all.get_nr_blocks();
+                        self.nr_blocks_interior = self.current_gen_output.blocks_interior.get_nr_blocks();
+                        self.nr_blocks_boundary = self.current_gen_output.blocks_boundary.get_nr_blocks();
+
+                        self.outer_corners = self.current_gen_output.blocks_all.get_outer_corners();
+                        self.convex_hull = get_convex_hull(&self.outer_corners);
+                    }
+                });
             });
+
         });
 
         // Status bar (bottom)
