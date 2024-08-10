@@ -84,7 +84,9 @@ impl LuaField {
         }
     }
 
-    pub fn set_success(&mut self) {
-        self.field_state = FieldState::RunSuccess;
+    pub fn register_success(&mut self) {
+        if self.field_state != FieldState::Empty {
+            self.field_state = FieldState::RunSuccess;
+        }
     }
 }
