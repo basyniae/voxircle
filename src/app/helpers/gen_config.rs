@@ -4,6 +4,7 @@ use crate::app::helpers::gen_output::GenOutput;
 use crate::app::helpers::linear_algebra::{Mat2, Vec2};
 use std::ops::Not;
 
+// TODO: factor squircle ui parameter out of GenConfig. Idem for circle mode, radius major & minor.
 /// Document
 #[derive(Debug, Clone)]
 pub struct GenConfig {
@@ -11,18 +12,10 @@ pub struct GenConfig {
 
     pub radius_a: f64, // These two are specified (a is the x-axis if tilt = 0)
     pub radius_b: f64,
-    pub radius_major: f64, // The algorithms which do not (yet) support ellipses use larger radius
-    pub radius_minor: f64,
+
     pub tilt: f64,
 
-    pub sqrt_quad_form: Mat2,
-    // The square root of the PSD symmetric quadratic form X defining the ellipse:
-    //  (x,y)^TX(x,y)=1
-    // store [a,b,c,d] for [[a,b],[c,d]] (obviously)
-    pub circle_mode: bool,
-
     pub squircle_parameter: f64,
-    pub squircle_ui_parameter: f64,
 
     pub center_offset_x: f64,
     pub center_offset_y: f64,
@@ -34,20 +27,14 @@ impl Default for GenConfig {
             algorithm: Algorithm::CenterPoint, // default: Centerpoint
             radius_a: 5.0,                     // default: 5.0
             radius_b: 5.0,                     // default: 5.0
-            radius_major: Default::default(),
-            radius_minor: Default::default(),
 
             tilt: 0.0, // default: 0.0
 
-            sqrt_quad_form: Mat2::from([1.0, 0.0, 0.0, 1.0]),
-
+            // sqrt_quad_form: Mat2::from([1.0, 0.0, 0.0, 1.0]),
             center_offset_x: 0.0, // default: 0.0, 0.0 (even circle)
             center_offset_y: 0.0,
 
-            circle_mode: true, // default: true
-
             squircle_parameter: 2.0, // default: 2.0 (circle / ellipse)
-            squircle_ui_parameter: 0.666666666666666, // default: 0.666666666666666
         }
     }
 }
@@ -69,7 +56,7 @@ impl GenConfig {
         let blocks_all = generate_all_blocks(
             &self.algorithm,
             Vec2::from([self.center_offset_x, self.center_offset_y]),
-            self.sqrt_quad_form,
+            self.get_sqrt_quad_form(),
             self.squircle_parameter,
             self.radius_a,
             self.radius_b,
@@ -98,5 +85,20 @@ impl GenConfig {
             blocks_boundary,
             blocks_complement,
         }
+    }
+
+    pub fn get_sqrt_quad_form(&self) -> Mat2 {
+        // Compute a square root of the PSD symmetric quadratic form X defining the ellipse:
+        //  (x,y)^TX(x,y)=1.
+        let c = self.tilt.cos();
+        let s = self.tilt.sin();
+        Mat2::from_rows(
+            1.0 / self.radius_a * Vec2::from([c, s]),
+            1.0 / self.radius_b * Vec2::from([-s, c]),
+        )
+    }
+
+    pub fn get_squircle_ui_parameter(&self) -> f64 {
+        1.0 - 1.0 / (1.0 + self.squircle_parameter)
     }
 }

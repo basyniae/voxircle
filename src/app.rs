@@ -8,7 +8,7 @@ use self::helpers::convex_hull::{get_convex_hull, line_segments_from_conv_hull};
 use crate::app::helpers::exact_squircle_bounds::exact_squircle_bounds;
 use crate::app::helpers::gen_config::GenConfig;
 use crate::app::helpers::gen_output::GenOutput;
-use crate::app::helpers::linear_algebra::{Mat2, Vec2};
+use crate::app::helpers::linear_algebra::Vec2;
 use crate::app::helpers::square_max::square_max;
 use crate::app::lua_field::LuaField;
 use crate::formatting;
@@ -72,9 +72,15 @@ pub struct App {
     reset_zoom_once: bool,
     reset_zoom: bool,
 
+    circle_mode: bool,
+
     lua: Lua,
     lua_field_radius_a: LuaField,
     lua_field_radius_b: LuaField,
+    lua_field_tilt: LuaField,
+    lua_field_center_offset_x: LuaField,
+    lua_field_center_offset_y: LuaField,
+    lua_field_squircle_parameter: LuaField,
 }
 
 impl App {
@@ -123,9 +129,15 @@ impl App {
             reset_zoom_once: false,
             reset_zoom: true,
 
+            circle_mode: true,
+
             lua,
             lua_field_radius_a: LuaField::new(true, true),
             lua_field_radius_b: LuaField::new(true, true),
+            lua_field_tilt: LuaField::new(true, false),
+            lua_field_center_offset_x: LuaField::new(true, false),
+            lua_field_center_offset_y: LuaField::new(true, false),
+            lua_field_squircle_parameter: LuaField::new(false, true),
         }
     }
 }
@@ -202,8 +214,8 @@ impl eframe::App for App {
 
             // Radius
             ui.separator();
-            ui.checkbox(&mut self.current_gen_config.circle_mode, "Circle mode");
-            if self.current_gen_config.circle_mode {
+            ui.checkbox(&mut self.circle_mode, "Circle mode");
+            if self.circle_mode {
                 ui.add(
                     egui::Slider
                     ::new(&mut self.current_gen_config.radius_a, 0.0..=30.0)
@@ -216,11 +228,6 @@ impl eframe::App for App {
 
                 // lua
                 self.lua_field_radius_a.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
-
-                self.current_gen_config.radius_b = self.current_gen_config.radius_a;
-
-                self.current_gen_config.radius_minor = self.current_gen_config.radius_a;
-                self.current_gen_config.radius_major = self.current_gen_config.radius_a;
 
                 self.current_gen_config.tilt = 0.0;
             }
@@ -235,6 +242,7 @@ impl eframe::App for App {
                             format!("{:.02}", param)
                         })
                 );
+                // TODO: Changes here should affect the validity of the run of the Lua field!
                 self.lua_field_radius_a.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
 
                 // radius b
@@ -249,9 +257,6 @@ impl eframe::App for App {
                 );
                 self.lua_field_radius_b.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
 
-                self.current_gen_config.radius_major = f64::max(self.current_gen_config.radius_a, self.current_gen_config.radius_b);
-                self.current_gen_config.radius_minor = f64::min(self.current_gen_config.radius_a, self.current_gen_config.radius_b);
-
                 ui.add(
                     egui::Slider
                     ::new(&mut self.current_gen_config.tilt, -6.28..=6.28)
@@ -259,8 +264,9 @@ impl eframe::App for App {
                         .fixed_decimals(2)
                 );
 
+
                 // Particular values
-                ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(egui::Align::Min), |ui|
+                ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
                 {
                     if ui.button("0°").clicked() {
                         self.current_gen_config.tilt = 0.0;
@@ -284,53 +290,58 @@ impl eframe::App for App {
                         self.current_gen_config.tilt = 0.25_f64.atan();
                     }
                 });
+                self.lua_field_tilt.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
 
                 //TODO: Make circular slider for more intuitive controls (need to build this myself probably)
             }
 
-
-            // Compute sqrt of quadratic form of ellipse
-            let c = self.current_gen_config.tilt.cos();
-            let s = self.current_gen_config.tilt.sin();
-            self.current_gen_config.sqrt_quad_form = Mat2::from_rows(1.0 /self.current_gen_config.radius_a * Vec2::from([c,s]), 1.0 / self.current_gen_config.radius_b * Vec2::from([-s, c]));
-
             // Squircle parameter
-            ui.separator();
-            ui.add(egui::Slider::new(&mut self.current_gen_config.squircle_ui_parameter, 0.0..=1.0)
-                .text("Squircicity")
-                .custom_formatter(|param, _| {
-                    format!("{:.02}", 1.0/(1.0 - param) - 1.0)
-                })
-               .custom_parser(|s| {
-                   s.parse::<f64>().map(|t| {
-                       1.0 - 1.0 / (t + 1.0)
-                   }).ok()
-               })
-            );
-
-            // Default values
-            ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(egui::Align::Min), |ui|
+            // due to the scale of the parameter this is all a bit awkward... Introduce a temporary variable for controlling it
             {
-                if ui.button("Circle").clicked() {
-                    self.current_gen_config.squircle_ui_parameter = 0.666666666666666;
-                }
-                if ui.button("Diamond").clicked() {
-                    self.current_gen_config.squircle_ui_parameter = 0.5;
-                }
-                if ui.button("Square").clicked() {
-                    self.current_gen_config.squircle_ui_parameter = 1.0;
-                }
-            });
+                let mut squircle_ui_parameter = self.current_gen_config.get_squircle_ui_parameter();
+                ui.separator();
+                ui.add(egui::Slider::new(&mut squircle_ui_parameter, 0.0..=1.0)
+                    .text("Squircicity")
+                    .custom_formatter(|param, _| {
+                        format!("{:.02}", 1.0 / (1.0 - param) - 1.0)
+                    })
+                    .custom_parser(|s| {
+                        s.parse::<f64>().map(|t| {
+                            1.0 - 1.0 / (t + 1.0)
+                        }).ok()
+                    })
+                );
 
-            // Aim: Make choice of squircle parameter easy. there are distinct values at 2/3 and 1/3 we want to be exact
-            self.current_gen_config.squircle_parameter = 1.0/(1.0 - self.current_gen_config.squircle_ui_parameter) - 1.0;
+                // Default values
+
+                // Aim: Make choice of squircle parameter easy. there are distinct values at 2/3 and 1/3 we want to be exact
+                ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
+                {
+                    if ui.button("Circle").clicked() {
+                        squircle_ui_parameter = 0.666666666666666;
+                    }
+                    if ui.button("Diamond").clicked() {
+                        squircle_ui_parameter = 0.5;
+                    }
+                    if ui.button("Square").clicked() {
+                        squircle_ui_parameter = 1.0;
+                    }
+                });
+                self.current_gen_config.squircle_parameter = 1.0 / (1.0 - squircle_ui_parameter) - 1.0;
+            }
+            // now kill the termporary variable
+
+            self.lua_field_squircle_parameter.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
+
 
             // Centerpoint
             ui.separator();
             ui.add(egui::Slider::new(&mut self.current_gen_config.center_offset_x, -1.0..=1.0).text("x offset"));
+            self.lua_field_center_offset_x.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
             ui.add(egui::Slider::new(&mut self.current_gen_config.center_offset_y, -1.0..=1.0).text("y offset"));
+            self.lua_field_center_offset_y.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
             // Add odd and even buttons (also good so people understand what the abstraction "offset center" actually means)
-            ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(egui::Align::Min), |ui|
+            ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
             {
                 if ui.button("Even center").clicked() {
                     self.current_gen_config.center_offset_x = 0.0;
@@ -341,6 +352,8 @@ impl eframe::App for App {
                     self.current_gen_config.center_offset_y = 0.5;
                 }
             });
+
+
 
             // Viewport options
             ui.separator();
@@ -362,7 +375,7 @@ impl eframe::App for App {
             });
             ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
             {
-                ui.add_enabled(self.current_gen_config.circle_mode, egui::Checkbox::new(&mut self.view_intersect_area, "Intersect area"));
+                ui.add_enabled(self.circle_mode, egui::Checkbox::new(&mut self.view_intersect_area, "Intersect area"));
             });
 
             // Generate action
@@ -391,18 +404,46 @@ impl eframe::App for App {
 
                     for layer in self.layer_lowest..=self.layer_highest {
                         self.lua.globals().set("layer", layer).unwrap();
+
                         self.lua_field_radius_a.eval(
                             &mut self.lua,
                             &mut self.stack_gen_config[layer_number_to_stack_number(layer)].radius_a
                         );
-
-                        self.lua_field_radius_b.eval(
+                        if self.circle_mode {self.lua_field_radius_a.eval(
                             &mut self.lua,
-                            &mut self.stack_gen_config[layer_number_to_stack_number(layer)].radius_b
+                            &mut self.stack_gen_config[layer_number_to_stack_number(layer)].radius_b,
+                        );} else {
+                            self.lua_field_radius_b.eval(
+                                &mut self.lua,
+                                &mut self.stack_gen_config[layer_number_to_stack_number(layer)].radius_b,
+                            );
+                        }
+
+                        self.lua_field_tilt.eval(
+                            &mut self.lua,
+                            &mut self.stack_gen_config[layer_number_to_stack_number(layer)].tilt
+                        );
+
+                        self.lua_field_squircle_parameter.eval(
+                            &mut self.lua,
+                            &mut self.stack_gen_config[layer_number_to_stack_number(layer)].squircle_parameter
+                        );
+
+                        self.lua_field_center_offset_x.eval(
+                            &mut self.lua,
+                            &mut self.stack_gen_config[layer_number_to_stack_number(layer)].center_offset_x
+                        );
+                        self.lua_field_center_offset_y.eval(
+                            &mut self.lua,
+                            &mut self.stack_gen_config[layer_number_to_stack_number(layer)].center_offset_y
                         );
                     }
-                    self.lua_field_radius_a.set_success();
-                    self.lua_field_radius_b.set_success();
+                    self.lua_field_radius_a.register_success();
+                    self.lua_field_radius_b.register_success();
+                    self.lua_field_tilt.register_success();
+                    self.lua_field_squircle_parameter.register_success();
+                    self.lua_field_center_offset_x.register_success();
+                    self.lua_field_center_offset_y.register_success();
 
                     self.current_gen_config = self.stack_gen_config[self.stack_index].clone()
 
@@ -777,7 +818,9 @@ impl eframe::App for App {
 
                             plot_ui.text(Text::new(PlotPoint::from(cell_center), {
                                 let value = generation::percentage::cell_disk_intersection_area(
-                                    self.current_gen_config.radius_major,
+                                    self.current_gen_config
+                                        .radius_a
+                                        .max(self.current_gen_config.radius_b),
                                     x_center,
                                     y_center,
                                 );
