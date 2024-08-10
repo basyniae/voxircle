@@ -1,5 +1,6 @@
 mod generation;
 pub mod helpers;
+mod lua_field;
 mod metrics;
 
 use self::generation::Algorithm;
@@ -9,6 +10,7 @@ use crate::app::helpers::gen_config::GenConfig;
 use crate::app::helpers::gen_output::GenOutput;
 use crate::app::helpers::linear_algebra::{Mat2, Vec2};
 use crate::app::helpers::square_max::square_max;
+use crate::app::lua_field::LuaField;
 use crate::formatting;
 use eframe::egui::{self, Vec2b};
 use eframe::egui::{Direction, Layout};
@@ -19,6 +21,7 @@ use egui_plot::{
 };
 use helpers::blocks::Blocks;
 use helpers::plotting;
+use mlua::Lua;
 use std::default::Default;
 use std::f64::consts::PI;
 
@@ -40,8 +43,8 @@ pub struct App {
     stack_index: usize,
     // Go from stack number (nonnegative) to layer number (integer) by (-1)^(n+1) floor((n+1)/2)
     // Go from layer number to stack number by 2|l| - 1/2 (sgn(l) + 1)
-    stack_lower_bound: isize,
-    stack_upper_bound: isize,
+    layer_lowest: isize,
+    layer_highest: isize,
 
     stack_gen_config: Vec<GenConfig>, // In the order 0, 1, -1, 2, -2, 3, -3, ...
     current_gen_config: GenConfig,
@@ -68,17 +71,31 @@ pub struct App {
     outer_corners: Vec<[f64; 2]>,
     reset_zoom_once: bool,
     reset_zoom: bool,
+
+    lua: Lua,
+    lua_field_radius_a: LuaField,
+    lua_field_radius_b: LuaField,
 }
 
-// Defaults should be such that we get useful output on startup
-// esp. some positive integral radius, auto generate on, and view blocks on
-impl Default for App {
-    fn default() -> Self {
+impl App {
+    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        cc.egui_ctx.style_mut(|style| {
+            style.spacing.slider_width = 200.0;
+            style.spacing.combo_width = 200.0;
+        });
+
+        // persist lua between layer switching and frames and so on
+        let lua = Lua::new();
+        // give lua as little information as possible about the configurations... handle that all in rust
+        lua.globals().set("layer", 0).unwrap();
+
+        // Defaults should be such that we get useful output on startup
+        // esp. some positive integral radius, auto generate on, and view blocks on
         Self {
             layer_number: 0,
             stack_index: 0,
-            stack_lower_bound: 0,
-            stack_upper_bound: 0,
+            layer_lowest: 0,
+            layer_highest: 0,
 
             stack_gen_config: vec![Default::default()],
             current_gen_config: Default::default(),
@@ -105,17 +122,11 @@ impl Default for App {
 
             reset_zoom_once: false,
             reset_zoom: true,
-        }
-    }
-}
 
-impl App {
-    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        cc.egui_ctx.style_mut(|style| {
-            style.spacing.slider_width = 200.0;
-            style.spacing.combo_width = 200.0;
-        });
-        Self::default()
+            lua,
+            lua_field_radius_a: LuaField::new(true, true),
+            lua_field_radius_b: LuaField::new(true, true),
+        }
     }
 }
 
@@ -203,6 +214,9 @@ impl eframe::App for App {
                         })
                 );
 
+                // lua
+                self.lua_field_radius_a.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
+
                 self.current_gen_config.radius_b = self.current_gen_config.radius_a;
 
                 self.current_gen_config.radius_minor = self.current_gen_config.radius_a;
@@ -221,6 +235,7 @@ impl eframe::App for App {
                             format!("{:.02}", param)
                         })
                 );
+                self.lua_field_radius_a.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
 
                 // radius b
                 ui.add(
@@ -232,6 +247,7 @@ impl eframe::App for App {
                             format!("{:.02}", param)
                         })
                 );
+                self.lua_field_radius_b.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
 
                 self.current_gen_config.radius_major = f64::max(self.current_gen_config.radius_a, self.current_gen_config.radius_b);
                 self.current_gen_config.radius_minor = f64::min(self.current_gen_config.radius_a, self.current_gen_config.radius_b);
@@ -243,7 +259,7 @@ impl eframe::App for App {
                         .fixed_decimals(2)
                 );
 
-                // Default values
+                // Particular values
                 ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(egui::Align::Min), |ui|
                 {
                     if ui.button("0°").clicked() {
@@ -346,16 +362,17 @@ impl eframe::App for App {
             });
             ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
             {
-                ui.checkbox(&mut self.view_intersect_area, "Intersect area (Circles only)");
+                ui.add_enabled(self.current_gen_config.circle_mode, egui::Checkbox::new(&mut self.view_intersect_area, "Intersect area"));
             });
 
             // Generate action
             ui.separator();
-            ui.checkbox(&mut self.auto_generate, "Auto generate");
 
             ui.columns(2, |columns| {
+                columns[0].checkbox(&mut self.auto_generate, "Auto generate");
                 columns[0].centered_and_justified(|ui| {
                     if ui.button("Generate current layer").clicked() || self.auto_generate {
+                        // TODO: Only auto generate if the values have changed!
 
                         // Generate from circle with selected algorithm
                         self.current_gen_output = self.current_gen_config.generate();
@@ -370,14 +387,32 @@ impl eframe::App for App {
                     }
                 });
 
+                if columns[1].button("Set parameters by code").clicked() {
 
+                    for layer in self.layer_lowest..=self.layer_highest {
+                        self.lua.globals().set("layer", layer).unwrap();
+                        self.lua_field_radius_a.eval(
+                            &mut self.lua,
+                            &mut self.stack_gen_config[layer_number_to_stack_number(layer)].radius_a
+                        );
 
+                        self.lua_field_radius_b.eval(
+                            &mut self.lua,
+                            &mut self.stack_gen_config[layer_number_to_stack_number(layer)].radius_b
+                        );
+                    }
+                    self.lua_field_radius_a.set_success();
+                    self.lua_field_radius_b.set_success();
+
+                    self.current_gen_config = self.stack_gen_config[self.stack_index].clone()
+
+                }
                 columns[1].centered_and_justified(|ui| {
                     if ui.button("Generate all layers").clicked() {
 
                         // Generate all layers
                         self.stack_gen_output = self.stack_gen_config.iter().map(|config| config.generate()).collect();
-                        
+
                         // Update current layer
                         self.current_gen_config = self.stack_gen_config[self.stack_index].clone();
                         self.current_gen_output = self.stack_gen_output[self.stack_index].clone();
@@ -443,7 +478,7 @@ impl eframe::App for App {
                 );
                 ui.put(rect, |ui: &mut egui::Ui| {
                     ui.horizontal(|ui| {
-                        ui.add(egui::DragValue::new(&mut self.stack_lower_bound).speed(0.05));
+                        ui.add(egui::DragValue::new(&mut self.layer_lowest).speed(0.05));
                         if ui
                             .add(
                                 egui::Button::new("|<")
@@ -451,7 +486,7 @@ impl eframe::App for App {
                             )
                             .clicked()
                         {
-                            self.layer_number = self.stack_lower_bound;
+                            self.layer_number = self.layer_lowest;
                             has_changed = true;
                         }
                         if ui
@@ -487,10 +522,10 @@ impl eframe::App for App {
                             )
                             .clicked()
                         {
-                            self.layer_number = self.stack_upper_bound;
+                            self.layer_number = self.layer_highest;
                             has_changed = true
                         }
-                        ui.add(egui::DragValue::new(&mut self.stack_upper_bound).speed(0.05));
+                        ui.add(egui::DragValue::new(&mut self.layer_highest).speed(0.05));
                     });
                     response
                 });
@@ -500,8 +535,8 @@ impl eframe::App for App {
                     self.stack_index = layer_number_to_stack_number(self.layer_number);
 
                     // Update lower and upper bounds
-                    self.stack_lower_bound = self.stack_lower_bound.min(self.layer_number);
-                    self.stack_upper_bound = self.stack_upper_bound.max(self.layer_number);
+                    self.layer_lowest = self.layer_lowest.min(self.layer_number);
+                    self.layer_highest = self.layer_highest.max(self.layer_number);
 
                     // update stacks so they include the bounds
                     if self.stack_index >= self.stack_gen_config.len() {
@@ -513,6 +548,13 @@ impl eframe::App for App {
                         self.stack_gen_output.extend(
                             (0..=(self.stack_index - self.stack_gen_output.len()))
                                 .map(|_| self.current_gen_output.clone()),
+                        );
+
+                        // update field state when the bounds change TODO: Only if layer_highest increases or layer_lowest decreases!
+                        self.lua_field_radius_a.update_field_state(
+                            &mut self.lua,
+                            self.layer_lowest,
+                            self.layer_highest,
                         );
                     }
 
