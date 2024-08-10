@@ -1,5 +1,5 @@
+use crate::app::gen_config::GenConfig;
 use crate::app::helpers::circle_geometry::get_squircle_tangent_point;
-use crate::app::helpers::gen_config::GenConfig;
 use crate::app::helpers::linear_algebra::Vec2;
 
 pub fn exact_squircle_bounds(gen_config: &GenConfig, pad_factor: f64) -> [[f64; 2]; 2] {

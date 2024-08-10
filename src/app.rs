@@ -1,3 +1,5 @@
+pub mod gen_config;
+pub mod gen_output;
 mod generation;
 pub mod helpers;
 mod lua_field;
@@ -6,8 +8,6 @@ mod metrics;
 use self::generation::Algorithm;
 use self::helpers::convex_hull::{get_convex_hull, line_segments_from_conv_hull};
 use crate::app::helpers::exact_squircle_bounds::exact_squircle_bounds;
-use crate::app::helpers::gen_config::GenConfig;
-use crate::app::helpers::gen_output::GenOutput;
 use crate::app::helpers::linear_algebra::Vec2;
 use crate::app::helpers::square_max::square_max;
 use crate::app::lua_field::LuaField;
@@ -19,9 +19,12 @@ use eframe::epaint::{Color32, Stroke};
 use egui_plot::{
     uniform_grid_spacer, HLine, Line, Plot, PlotBounds, PlotPoint, PlotPoints, Points, Text, VLine,
 };
+use gen_config::GenConfig;
+use gen_output::GenOutput;
 use helpers::blocks::Blocks;
 use helpers::plotting;
 use mlua::Lua;
+use std::collections::VecDeque;
 use std::default::Default;
 use std::f64::consts::PI;
 
@@ -39,17 +42,16 @@ const COLOR_X_AXIS: Color32 = Color32::from_rgb(123, 34, 34); // x-axis color (r
 const COLOR_Y_AXIS: Color32 = Color32::from_rgb(44, 107, 44); // y-axis color (green)
 
 pub struct App {
-    layer_number: isize,
-    stack_index: usize,
+    layer: isize,
     // Go from stack number (nonnegative) to layer number (integer) by (-1)^(n+1) floor((n+1)/2)
     // Go from layer number to stack number by 2|l| - 1/2 (sgn(l) + 1)
     layer_lowest: isize,
     layer_highest: isize,
 
-    stack_gen_config: Vec<GenConfig>, // In the order 0, 1, -1, 2, -2, 3, -3, ...
+    stack_gen_config: VecDeque<GenConfig>, // In the order layer_lowest, layer_lowest + 1, ...
     current_gen_config: GenConfig,
 
-    stack_gen_output: Vec<GenOutput>,
+    stack_gen_output: VecDeque<GenOutput>,
     current_gen_output: GenOutput,
 
     nr_blocks_total: u64,
@@ -98,15 +100,14 @@ impl App {
         // Defaults should be such that we get useful output on startup
         // esp. some positive integral radius, auto generate on, and view blocks on
         Self {
-            layer_number: 0,
-            stack_index: 0,
+            layer: 0,
             layer_lowest: 0,
             layer_highest: 0,
 
-            stack_gen_config: vec![Default::default()],
+            stack_gen_config: VecDeque::from([Default::default()]),
             current_gen_config: Default::default(),
 
-            stack_gen_output: vec![Default::default()],
+            stack_gen_output: VecDeque::from([Default::default()]),
             current_gen_output: Default::default(),
 
             nr_blocks_total: Default::default(),
@@ -407,35 +408,35 @@ impl eframe::App for App {
 
                         self.lua_field_radius_a.eval(
                             &mut self.lua,
-                            &mut self.stack_gen_config[layer_number_to_stack_number(layer)].radius_a
+                            &mut self.stack_gen_config.get_mut((layer - self.layer_lowest) as usize).unwrap().radius_a
                         );
                         if self.circle_mode {self.lua_field_radius_a.eval(
                             &mut self.lua,
-                            &mut self.stack_gen_config[layer_number_to_stack_number(layer)].radius_b,
+                            &mut self.stack_gen_config.get_mut((layer - self.layer_lowest) as usize).unwrap().radius_b,
                         );} else {
                             self.lua_field_radius_b.eval(
                                 &mut self.lua,
-                                &mut self.stack_gen_config[layer_number_to_stack_number(layer)].radius_b,
+                                &mut self.stack_gen_config.get_mut((layer - self.layer_lowest) as usize).unwrap().radius_b,
                             );
                         }
 
                         self.lua_field_tilt.eval(
                             &mut self.lua,
-                            &mut self.stack_gen_config[layer_number_to_stack_number(layer)].tilt
+                            &mut self.stack_gen_config.get_mut((layer - self.layer_lowest) as usize).unwrap().tilt
                         );
 
                         self.lua_field_squircle_parameter.eval(
                             &mut self.lua,
-                            &mut self.stack_gen_config[layer_number_to_stack_number(layer)].squircle_parameter
+                            &mut self.stack_gen_config.get_mut((layer - self.layer_lowest) as usize).unwrap().squircle_parameter
                         );
 
                         self.lua_field_center_offset_x.eval(
                             &mut self.lua,
-                            &mut self.stack_gen_config[layer_number_to_stack_number(layer)].center_offset_x
+                            &mut self.stack_gen_config.get_mut((layer - self.layer_lowest) as usize).unwrap().center_offset_x
                         );
                         self.lua_field_center_offset_y.eval(
                             &mut self.lua,
-                            &mut self.stack_gen_config[layer_number_to_stack_number(layer)].center_offset_y
+                            &mut self.stack_gen_config.get_mut((layer - self.layer_lowest) as usize).unwrap().center_offset_y
                         );
                     }
                     self.lua_field_radius_a.register_success();
@@ -445,7 +446,7 @@ impl eframe::App for App {
                     self.lua_field_center_offset_x.register_success();
                     self.lua_field_center_offset_y.register_success();
 
-                    self.current_gen_config = self.stack_gen_config[self.stack_index].clone()
+                    self.current_gen_config = self.stack_gen_config[(self.layer - self.layer_lowest) as usize].clone()
 
                 }
                 columns[1].centered_and_justified(|ui| {
@@ -455,8 +456,8 @@ impl eframe::App for App {
                         self.stack_gen_output = self.stack_gen_config.iter().map(|config| config.generate()).collect();
 
                         // Update current layer
-                        self.current_gen_config = self.stack_gen_config[self.stack_index].clone();
-                        self.current_gen_output = self.stack_gen_output[self.stack_index].clone();
+                        self.current_gen_config = self.stack_gen_config[(self.layer - self.layer_lowest) as usize].clone();
+                        self.current_gen_output = self.stack_gen_output[(self.layer - self.layer_lowest) as usize].clone();
 
                         // update metrics for this layer
                         self.nr_blocks_total = self.current_gen_output.blocks_all.get_nr_blocks();
@@ -500,8 +501,12 @@ impl eframe::App for App {
         // Layer navigation bar (top)
         egui::TopBottomPanel::top("layer-navigation").show(ctx, |ui| {
             ui.centered_and_justified(|ui| {
-                let mut has_changed = false;
-                let old_stack_index = self.stack_index;
+                let mut has_layer_changed = false;
+                let mut has_stack_changed = false;
+                let prev_layer_lowest = self.layer_lowest;
+                let prev_layer_highest = self.layer_highest;
+
+                let prev_layer = self.layer;
                 // Finicky due to not being able to know the size of the widget in advance
                 // so do a pretty good prediction
                 let height = ui.style().spacing.interact_size.y;
@@ -519,7 +524,13 @@ impl eframe::App for App {
                 );
                 ui.put(rect, |ui: &mut egui::Ui| {
                     ui.horizontal(|ui| {
-                        ui.add(egui::DragValue::new(&mut self.layer_lowest).speed(0.05));
+                        if ui
+                            .add(egui::DragValue::new(&mut self.layer_lowest).speed(0.05))
+                            .changed()
+                        {
+                            has_stack_changed = true
+                        }
+
                         if ui
                             .add(
                                 egui::Button::new("|<")
@@ -527,9 +538,12 @@ impl eframe::App for App {
                             )
                             .clicked()
                         {
-                            self.layer_number = self.layer_lowest;
-                            has_changed = true;
+                            self.layer = self.layer_lowest;
+                            has_layer_changed = true;
+                            has_stack_changed |= (self.layer < self.layer_lowest)
+                                || (self.layer > self.layer_highest);
                         }
+
                         if ui
                             .add(
                                 egui::Button::new("<")
@@ -537,13 +551,18 @@ impl eframe::App for App {
                             )
                             .clicked()
                         {
-                            self.layer_number = self.layer_number.saturating_sub(1);
-                            has_changed = true;
+                            self.layer = self.layer.saturating_sub(1);
+                            has_layer_changed = true;
+                            has_stack_changed |= (self.layer < self.layer_lowest)
+                                || (self.layer > self.layer_highest);
                         }
+
                         let central_field =
-                            ui.add(egui::DragValue::new(&mut self.layer_number).speed(0.05));
+                            ui.add(egui::DragValue::new(&mut self.layer).speed(0.05));
                         if central_field.clicked() || central_field.drag_released() {
-                            has_changed = true
+                            has_layer_changed = true;
+                            has_stack_changed |= (self.layer < self.layer_lowest)
+                                || (self.layer > self.layer_highest);
                         }
 
                         if ui
@@ -553,9 +572,12 @@ impl eframe::App for App {
                             )
                             .clicked()
                         {
-                            self.layer_number = self.layer_number.saturating_add(1);
-                            has_changed = true
+                            self.layer = self.layer.saturating_add(1);
+                            has_layer_changed = true;
+                            has_stack_changed |= (self.layer < self.layer_lowest)
+                                || (self.layer > self.layer_highest);
                         }
+
                         if ui
                             .add(
                                 egui::Button::new(">|")
@@ -563,49 +585,118 @@ impl eframe::App for App {
                             )
                             .clicked()
                         {
-                            self.layer_number = self.layer_highest;
-                            has_changed = true
+                            self.layer = self.layer_highest;
+                            has_layer_changed = true;
+                            has_stack_changed |= (self.layer < self.layer_lowest)
+                                || (self.layer > self.layer_highest);
                         }
-                        ui.add(egui::DragValue::new(&mut self.layer_highest).speed(0.05));
+
+                        if ui
+                            .add(egui::DragValue::new(&mut self.layer_highest).speed(0.05))
+                            .changed()
+                        {
+                            has_stack_changed = true
+                        }
                     });
                     response
                 });
 
-                // Check if enough (empty) layers are initialized, else initialize more
-                if has_changed {
-                    self.stack_index = layer_number_to_stack_number(self.layer_number);
+                if has_layer_changed {
+                    // Save old configuration to stack
+                    self.stack_gen_config[(prev_layer - self.layer_lowest) as usize] =
+                        self.current_gen_config.clone();
+                    self.stack_gen_output[(prev_layer - self.layer_lowest) as usize] =
+                        self.current_gen_output.clone();
+                }
 
+                // Check if enough (empty) layers are initialized, else initialize more. Also delete old layers.
+                if has_stack_changed {
                     // Update lower and upper bounds
-                    self.layer_lowest = self.layer_lowest.min(self.layer_number);
-                    self.layer_highest = self.layer_highest.max(self.layer_number);
+                    self.layer_lowest = self.layer_lowest.min(self.layer);
+                    self.layer_highest = self.layer_highest.max(self.layer);
 
-                    // update stacks so they include the bounds
-                    if self.stack_index >= self.stack_gen_config.len() {
-                        self.stack_gen_config.extend(
-                            (0..=(self.stack_index - self.stack_gen_config.len()))
-                                .map(|_| self.current_gen_config.clone()),
-                        );
+                    // change on the upper bound
+                    if prev_layer_highest < self.layer_highest {
+                        // upper bound increases, extend
+                        self.stack_gen_config.append(&mut VecDeque::from(
+                            (prev_layer_highest..self.layer_highest) // array of length we want to add
+                                .map(|_| self.current_gen_config.clone())
+                                .collect::<Vec<GenConfig>>(),
+                        ));
+                        self.stack_gen_output.append(&mut VecDeque::from(
+                            (prev_layer_highest..self.layer_highest) // array of length we want to add
+                                .map(|_| self.current_gen_output.clone())
+                                .collect::<Vec<GenOutput>>(),
+                        ));
+                    } else if prev_layer_highest > self.layer_highest {
+                        // upper bound decreases, truncate
+                        self.stack_gen_config
+                            .truncate((self.layer_highest - prev_layer_lowest + 1) as usize);
+                        self.stack_gen_output
+                            .truncate((self.layer_highest - prev_layer_lowest + 1) as usize);
+                    }
 
-                        self.stack_gen_output.extend(
-                            (0..=(self.stack_index - self.stack_gen_output.len()))
-                                .map(|_| self.current_gen_output.clone()),
-                        );
+                    // change on the lower bound
+                    if prev_layer_lowest > self.layer_lowest {
+                        // lower bound decreases, extend
+                        for _ in self.layer_lowest..prev_layer_lowest {
+                            self.stack_gen_config
+                                .push_front(self.current_gen_config.clone());
+                            self.stack_gen_output
+                                .push_front(self.current_gen_output.clone());
+                        }
+                    } else if prev_layer_lowest < self.layer_lowest {
+                        // lower bound increases, truncate
+                        for _ in prev_layer_lowest..self.layer_lowest {
+                            self.stack_gen_config.pop_front();
+                            self.stack_gen_output.pop_front();
+                        }
+                    }
 
-                        // update field state when the bounds change TODO: Only if layer_highest increases or layer_lowest decreases!
+                    // update field state when the bounds increase
+                    if prev_layer_lowest > self.layer_lowest
+                        || prev_layer_highest < self.layer_highest
+                    {
                         self.lua_field_radius_a.update_field_state(
                             &mut self.lua,
                             self.layer_lowest,
                             self.layer_highest,
                         );
+                        self.lua_field_radius_b.update_field_state(
+                            &mut self.lua,
+                            self.layer_lowest,
+                            self.layer_highest,
+                        );
+                        self.lua_field_tilt.update_field_state(
+                            &mut self.lua,
+                            self.layer_lowest,
+                            self.layer_highest,
+                        );
+                        self.lua_field_center_offset_x.update_field_state(
+                            &mut self.lua,
+                            self.layer_lowest,
+                            self.layer_highest,
+                        );
+                        self.lua_field_center_offset_y.update_field_state(
+                            &mut self.lua,
+                            self.layer_lowest,
+                            self.layer_highest,
+                        );
+                        self.lua_field_squircle_parameter.update_field_state(
+                            &mut self.lua,
+                            self.layer_lowest,
+                            self.layer_highest,
+                        );
                     }
+                }
 
-                    // Save configuration to stack
-                    self.stack_gen_config[old_stack_index] = self.current_gen_config.clone();
-                    self.stack_gen_output[old_stack_index] = self.current_gen_output.clone();
-
+                // Load the new layer and save the layer we left
+                if has_layer_changed {
                     // Set Gen Config to whatever was stored at that location
-                    self.current_gen_config = self.stack_gen_config[self.stack_index].clone();
-                    self.current_gen_output = self.stack_gen_output[self.stack_index].clone();
+                    self.current_gen_config =
+                        self.stack_gen_config[(self.layer - self.layer_lowest) as usize].clone();
+                    self.current_gen_output =
+                        self.stack_gen_output[(self.layer - self.layer_lowest) as usize].clone();
                 }
             })
         });
@@ -855,24 +946,5 @@ impl eframe::App for App {
                     }
                 });
         });
-    }
-}
-
-fn layer_number_to_stack_number(layer_number: isize) -> usize {
-    if layer_number == 0 {
-        0
-    } else {
-        (2 * layer_number.abs() - (layer_number.signum() + 1) / 2) as usize
-    }
-}
-
-fn stack_number_to_layer_number(stack_number: usize) -> isize {
-    let stack_number = stack_number as isize;
-    if stack_number == 0 {
-        0
-    } else if stack_number % 2 == 1 {
-        1 + stack_number / 2
-    } else {
-        -stack_number / 2
     }
 }
