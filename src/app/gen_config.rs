@@ -1,10 +1,9 @@
+use crate::app::gen_output::GenOutput;
 use crate::app::generation::{generate_all_blocks, Algorithm};
 use crate::app::helpers::blocks::Blocks;
-use crate::app::helpers::gen_output::GenOutput;
 use crate::app::helpers::linear_algebra::{Mat2, Vec2};
 use std::ops::Not;
 
-// TODO: factor squircle ui parameter out of GenConfig. Idem for circle mode, radius major & minor.
 /// Document
 #[derive(Debug, Clone)]
 pub struct GenConfig {
