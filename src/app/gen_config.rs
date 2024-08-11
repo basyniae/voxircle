@@ -33,21 +33,14 @@ impl Default for GenConfig {
             center_offset_x: 0.0, // default: 0.0, 0.0 (even circle)
             center_offset_y: 0.0,
 
-            squircle_parameter: 2.0, // default: 2.0 (circle / ellipse)
+            squircle_parameter: 2.0, // default: 2.0 (circle / ellipse)\
         }
     }
 }
 
 /// Document
 impl GenConfig {
-    pub fn generate(&self) -> GenOutput {
-        // Determine grid size
-        // The major radius should be included, for some metrics we need at least one layer of padding
-        //  around the generated figure. Assuming a square figure (squircle parameter infinity), we
-        //  need an x side length of 2.0 * sqrt(2) * radius_major. Add 4 for a padding of at least 2
-        //  on each side.
-        let grid_size = (2.0 * 1.42 * f64::max(self.radius_a, self.radius_b)).ceil() as usize + 4;
-
+    pub fn generate(&self, grid_size: usize) -> GenOutput {
         // In bitmatrix coordinates, where is the point (0,0)? (Note that it has integer coordinates)
         let origin = Vec2::from([(grid_size / 2) as f64, (grid_size / 2) as f64]);
 
