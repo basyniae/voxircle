@@ -3,7 +3,6 @@
 mod centerpoint;
 mod conservative;
 mod contained;
-mod empty;
 pub mod percentage;
 // want it public because we use the circle intersection area as a widget
 
@@ -12,8 +11,7 @@ use crate::app::helpers::linear_algebra::{Mat2, Vec2};
 
 use self::{
     centerpoint::generate_alg_centerpoint, conservative::generate_alg_conservative,
-    contained::generate_alg_contained, empty::generate_alg_empty,
-    percentage::generate_alg_percentage,
+    contained::generate_alg_contained, percentage::generate_alg_percentage,
 };
 
 #[derive(Debug, PartialEq, Default, Clone, Copy)]
@@ -23,7 +21,6 @@ pub enum Algorithm {
     Conservative,
     Contained,
     Percentage(f64),
-    Empty,
 }
 
 // Switch between algorithms
@@ -66,6 +63,5 @@ pub fn generate_all_blocks(
             grid_size,
             origin,
         ),
-        Algorithm::Empty => generate_alg_empty(grid_size, origin),
     }
 }

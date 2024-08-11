@@ -1,4 +1,5 @@
 pub mod blocks;
+pub mod boundary_3d;
 pub mod circle_geometry;
 pub mod convex_hull;
 pub mod exact_squircle_bounds;

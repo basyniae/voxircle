@@ -7,6 +7,7 @@ mod metrics;
 
 use self::generation::Algorithm;
 use self::helpers::convex_hull::{get_convex_hull, line_segments_from_conv_hull};
+use crate::app::helpers::boundary_3d::boundary_3d;
 use crate::app::helpers::exact_squircle_bounds::exact_squircle_bounds;
 use crate::app::helpers::linear_algebra::Vec2;
 use crate::app::helpers::square_max::square_max;
@@ -48,6 +49,9 @@ pub struct App {
     layer_lowest: isize,
     layer_highest: isize,
 
+    grid_size: usize,
+    global_bounding_box: [[f64; 2]; 2],
+
     stack_gen_config: VecDeque<GenConfig>, // In the order layer_lowest, layer_lowest + 1, ...
     current_gen_config: GenConfig,
 
@@ -58,13 +62,20 @@ pub struct App {
     nr_blocks_interior: u64,
     nr_blocks_boundary: u64,
 
+    boundary_3d: Vec<Blocks>,
+
     auto_generate: bool,
+    layer_config_changed: bool,
+    layer_output_changed: bool,
 
-    view_blocks_all: bool,
-    view_blocks_boundary: bool,
-    view_blocks_interior: bool,
-
+    view_voxelization: bool,
     view_complement: bool,
+
+    view_boundary_2d: bool,
+    view_interior_2d: bool,
+    view_boundary_3d: bool,
+    view_interior_3d: bool,
+
     view_intersect_area: bool,
 
     view_convex_hull: bool,
@@ -104,6 +115,9 @@ impl App {
             layer_lowest: 0,
             layer_highest: 0,
 
+            grid_size: 10,
+            global_bounding_box: [[10.0; 2]; 2],
+
             stack_gen_config: VecDeque::from([Default::default()]),
             current_gen_config: Default::default(),
 
@@ -114,13 +128,21 @@ impl App {
             nr_blocks_interior: Default::default(),
             nr_blocks_boundary: Default::default(),
 
-            auto_generate: true,
+            boundary_3d: vec![Default::default()],
 
-            view_blocks_all: true,
-            view_blocks_boundary: false,
-            view_blocks_interior: false,
-            view_intersect_area: false,
+            auto_generate: true,
+            layer_config_changed: true,
+            layer_output_changed: true,
+
+            view_voxelization: true,
             view_complement: false,
+
+            view_boundary_2d: false,
+            view_interior_2d: false,
+            view_boundary_3d: false,
+            view_interior_3d: false,
+
+            view_intersect_area: false,
 
             view_convex_hull: false,
             view_outer_corners: false,
@@ -147,317 +169,410 @@ impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Options panel
         egui::SidePanel::right("options-panel").show(ctx, |ui| {
-            ui.heading("Generation");
-            ui.separator();
-
-            // Select algorithm
-            egui::ComboBox
-                ::from_label("Algorithm")
-                .selected_text(format!("{:?}", self.current_gen_config.algorithm))
-                .show_ui(ui, |ui| {
-                    ui.selectable_value(
-                        &mut self.current_gen_config.algorithm,
-                        Algorithm::CenterPoint,
-                        "Center point"
-                    );
-                    ui.selectable_value(
-                        &mut self.current_gen_config.algorithm,
-                        Algorithm::Conservative,
-                        "Conservative"
-                    );
-                    ui.selectable_value(
-                        &mut self.current_gen_config.algorithm,
-                        Algorithm::Contained,
-                        "Contained");
-                    ui.selectable_value(
-                        &mut self.current_gen_config.algorithm,
-                        Algorithm::Percentage(0.5),
-                        "Percentage"
-                    );
-                });
-
-            // additional algorithm-specific options + description
-            match self.current_gen_config.algorithm {
-                Algorithm::CenterPoint => {
-                    ui.label("Include a particular block iff its centerpoint is in the ellipse");
-                }
-                Algorithm::Conservative => {
-                    ui.label(
-                        "Include a particular block in the voxelization iff it has nonempty intersection with the ellipse"
-                    );
-                }
-                Algorithm::Contained => {
-                    ui.label("Include a particular block iff it is fully contained in the ellipse");
-                }
-                Algorithm::Percentage(percentage) => { //TODO: implement ellipse, superellipse
-                    ui.label(
-                        format!(
-                            "Include a particular block in the voxelization iff more than {:.0}% of it is contained in the circle. Ellipses and squircles not implemented.",
-                            100.0 * percentage
-                        )
-                    );
-                    let mut perc_slider = percentage.clone();
-                    ui.add(
-                        egui::Slider
-                        ::new(&mut perc_slider, 0.0..=1.0)
-                            .text("")
-                            .fixed_decimals(2)
-                            .custom_formatter(|n, _| {
-                                format!("{:.0}%", n * 100.0) //  formatting of percentage slider
-                            })
-                    );
-                    self.current_gen_config.algorithm = Algorithm::Percentage(perc_slider);
-                }
-                Algorithm::Empty => {
-                    ui.label("Include no blocks in the voxelization");
-                }
-            }
-
-            // Radius
-            ui.separator();
-            ui.checkbox(&mut self.circle_mode, "Circle mode");
-            if self.circle_mode {
-                ui.add(
-                    egui::Slider
-                    ::new(&mut self.current_gen_config.radius_a, 0.0..=30.0)
-                        .text("Radius")
-                        .clamp_to_range(false)
-                        .custom_formatter(|param, _| {
-                            format!("{:.02}", param)
-                        })
-                );
-
-                // lua
-                self.lua_field_radius_a.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
-
-                self.current_gen_config.tilt = 0.0;
-            }
-            else {
-                // radius a
-                ui.add(
-                    egui::Slider
-                    ::new(&mut self.current_gen_config.radius_a, 0.0..=30.0)
-                        .text("Radius A")
-                        .clamp_to_range(false)
-                        .custom_formatter(|param, _| {
-                            format!("{:.02}", param)
-                        })
-                );
-                // TODO: Changes here should affect the validity of the run of the Lua field!
-                self.lua_field_radius_a.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
-
-                // radius b
-                ui.add(
-                    egui::Slider
-                    ::new(&mut self.current_gen_config.radius_b, 0.0..=30.0)
-                        .text("Radius B")
-                        .clamp_to_range(false)
-                        .custom_formatter(|param, _| {
-                            format!("{:.02}", param)
-                        })
-                );
-                self.lua_field_radius_b.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
-
-                ui.add(
-                    egui::Slider
-                    ::new(&mut self.current_gen_config.tilt, -6.28..=6.28)
-                        .text("Tilt (radians)")
-                        .fixed_decimals(2)
-                );
-
-
-                // Particular values
-                ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
-                {
-                    if ui.button("0°").clicked() {
-                        self.current_gen_config.tilt = 0.0;
-                    }
-                    if ui.button("30°").clicked() {
-                        self.current_gen_config.tilt = PI/6.0;
-                    }
-                    if ui.button("45°").clicked() {
-                        self.current_gen_config.tilt = PI/4.0;
-                    }
-                    if ui.button("1:2").clicked() {
-                        self.current_gen_config.tilt = 0.5_f64.atan();
-                    }
-                    if ui.button("1:3").clicked() {
-                        self.current_gen_config.tilt = 0.333333333333_f64.atan();
-                    }
-                    if ui.button("2:3").clicked() {
-                        self.current_gen_config.tilt = 0.666666666666_f64.atan();
-                    }
-                    if ui.button("1:4").clicked() {
-                        self.current_gen_config.tilt = 0.25_f64.atan();
-                    }
-                });
-                self.lua_field_tilt.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
-
-                //TODO: Make circular slider for more intuitive controls (need to build this myself probably)
-            }
-
-            // Squircle parameter
-            // due to the scale of the parameter this is all a bit awkward... Introduce a temporary variable for controlling it
-            {
-                let mut squircle_ui_parameter = self.current_gen_config.get_squircle_ui_parameter();
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                ui.heading("Generation");
                 ui.separator();
-                ui.add(egui::Slider::new(&mut squircle_ui_parameter, 0.0..=1.0)
-                    .text("Squircicity")
-                    .custom_formatter(|param, _| {
-                        format!("{:.02}", 1.0 / (1.0 - param) - 1.0)
-                    })
-                    .custom_parser(|s| {
-                        s.parse::<f64>().map(|t| {
-                            1.0 - 1.0 / (t + 1.0)
-                        }).ok()
-                    })
-                );
 
-                // Default values
+                // Select algorithm
+                if egui::ComboBox
+                ::from_label("Algorithm")
+                    .selected_text(format!("{:?}", self.current_gen_config.algorithm))
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(
+                            &mut self.current_gen_config.algorithm,
+                            Algorithm::CenterPoint,
+                            "Center point",
+                        );
+                        ui.selectable_value(
+                            &mut self.current_gen_config.algorithm,
+                            Algorithm::Conservative,
+                            "Conservative",
+                        );
+                        ui.selectable_value(
+                            &mut self.current_gen_config.algorithm,
+                            Algorithm::Contained,
+                            "Contained");
+                        ui.selectable_value(
+                            &mut self.current_gen_config.algorithm,
+                            Algorithm::Percentage(0.5),
+                            "Percentage",
+                        );
+                    }).response.changed() { self.layer_config_changed |= true };
 
-                // Aim: Make choice of squircle parameter easy. there are distinct values at 2/3 and 1/3 we want to be exact
+                // additional algorithm-specific options + description
+                match self.current_gen_config.algorithm {
+                    Algorithm::CenterPoint => {
+                        ui.label("Include a particular block iff its centerpoint is in the ellipse");
+                    }
+                    Algorithm::Conservative => {
+                        ui.label(
+                            "Include a particular block in the voxelization iff it has nonempty intersection with the ellipse"
+                        );
+                    }
+                    Algorithm::Contained => {
+                        ui.label("Include a particular block iff it is fully contained in the ellipse");
+                    }
+                    Algorithm::Percentage(percentage) => { //TODO: implement ellipse, superellipse
+                        ui.label(
+                            format!(
+                                "Include a particular block in the voxelization iff more than {:.0}% of it is contained in the circle. Ellipses and squircles not implemented.",
+                                100.0 * percentage
+                            )
+                        );
+                        let mut perc_slider = percentage.clone();
+                        if ui.add(
+                            egui::Slider
+                            ::new(&mut perc_slider, 0.0..=1.0)
+                                .text("")
+                                .fixed_decimals(2)
+                                .custom_formatter(|n, _| {
+                                    format!("{:.0}%", n * 100.0) //  formatting of percentage slider
+                                })
+                        ).changed() {
+                            self.layer_config_changed |= true
+                        };
+                        self.current_gen_config.algorithm = Algorithm::Percentage(perc_slider);
+                    }
+                }
+
+                // Radius
+                ui.separator();
+                if ui.checkbox(&mut self.circle_mode, "Circle mode").changed() {
+                    self.layer_config_changed |= true;
+                };
+                if self.circle_mode {
+                    if ui.add(
+                        egui::Slider
+                        ::new(&mut self.current_gen_config.radius_a, 0.0..=30.0)
+                            .text("Radius")
+                            .clamp_to_range(false)
+                            .custom_formatter(|param, _| {
+                                format!("{:.02}", param)
+                            })
+                    ).changed() {
+                        self.layer_config_changed |= true;
+                        self.lua_field_radius_a.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest)
+                    };
+
+                    self.current_gen_config.radius_b = self.current_gen_config.radius_a;
+                    self.current_gen_config.tilt = 0.0;
+
+                    // lua
+                    self.lua_field_radius_a.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
+                } else {
+                    // radius a
+                    if ui.add(
+                        egui::Slider
+                        ::new(&mut self.current_gen_config.radius_a, 0.0..=30.0)
+                            .text("Radius A")
+                            .clamp_to_range(false)
+                            .custom_formatter(|param, _| {
+                                format!("{:.02}", param)
+                            })
+                    ).changed() {
+                        self.layer_config_changed |= true;
+                        self.lua_field_radius_a.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest)
+                    };
+                    self.lua_field_radius_a.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
+
+                    // radius b
+                    if ui.add(
+                        egui::Slider
+                        ::new(&mut self.current_gen_config.radius_b, 0.0..=30.0)
+                            .text("Radius B")
+                            .clamp_to_range(false)
+                            .custom_formatter(|param, _| {
+                                format!("{:.02}", param)
+                            })
+                    ).changed() {
+                        self.layer_config_changed |= true;
+                        self.lua_field_radius_b.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest)
+                    };
+                    self.lua_field_radius_b.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
+
+                    if ui.add(
+                        egui::Slider
+                        ::new(&mut self.current_gen_config.tilt, -6.28..=6.28)
+                            .text("Tilt (radians)")
+                            .fixed_decimals(2)
+                    ).changed() {
+                        self.layer_config_changed |= true;
+                        self.lua_field_tilt.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest)
+                    };
+
+
+                    // Particular values
+                    ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
+                    {
+                        if ui.button("0°").clicked() {
+                            self.current_gen_config.tilt = 0.0;
+                            self.layer_config_changed |= true;
+                            self.lua_field_tilt.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest)
+                        }
+                        if ui.button("30°").clicked() {
+                            self.current_gen_config.tilt = PI / 6.0;
+                            self.layer_config_changed |= true;
+                            self.lua_field_tilt.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest)
+                        }
+                        if ui.button("45°").clicked() {
+                            self.current_gen_config.tilt = PI / 4.0;
+                            self.layer_config_changed |= true;
+                            self.lua_field_tilt.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest)
+                        }
+                        if ui.button("1:2").clicked() {
+                            self.current_gen_config.tilt = 0.5_f64.atan();
+                            self.layer_config_changed |= true;
+                            self.lua_field_tilt.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest)
+                        }
+                        if ui.button("1:3").clicked() {
+                            self.current_gen_config.tilt = 0.333333333333_f64.atan();
+                            self.layer_config_changed |= true;
+                            self.lua_field_tilt.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest)
+                        }
+                        if ui.button("2:3").clicked() {
+                            self.current_gen_config.tilt = 0.666666666666_f64.atan();
+                            self.layer_config_changed |= true;
+                            self.lua_field_tilt.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest)
+                        }
+                        if ui.button("1:4").clicked() {
+                            self.current_gen_config.tilt = 0.25_f64.atan();
+                            self.layer_config_changed |= true;
+                            self.lua_field_tilt.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest)
+                        }
+                    });
+                    self.lua_field_tilt.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
+
+                    //TODO: Make circular slider for more intuitive controls (need to build this myself probably)
+                }
+
+                // Squircle parameter
+                // due to the scale of the parameter this is all a bit awkward... Introduce a temporary variable for controlling it
+                {
+                    let mut squircle_ui_parameter = self.current_gen_config.get_squircle_ui_parameter();
+                    ui.separator();
+                    if ui.add(egui::Slider::new(&mut squircle_ui_parameter, 0.0..=1.0)
+                        .text("Squircicity")
+                        .custom_formatter(|param, _| {
+                            format!("{:.02}", 1.0 / (1.0 - param) - 1.0)
+                        })
+                        .custom_parser(|s| {
+                            s.parse::<f64>().map(|t| {
+                                1.0 - 1.0 / (t + 1.0)
+                            }).ok()
+                        })
+                    ).changed() {
+                        self.layer_config_changed |= true;
+                        self.lua_field_squircle_parameter.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest)
+                    };
+
+                    // Default values
+
+                    // Aim: Make choice of squircle parameter easy. there are distinct values at 2/3 and 1/3 we want to be exact
+                    ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
+                    {
+                        if ui.button("Circle").clicked() {
+                            squircle_ui_parameter = 0.666666666666666;
+                            self.layer_config_changed |= true;
+                            self.lua_field_squircle_parameter.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest)
+                        }
+                        if ui.button("Diamond").clicked() {
+                            squircle_ui_parameter = 0.5;
+                            self.layer_config_changed |= true;
+                            self.lua_field_squircle_parameter.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest)
+                        }
+                        if ui.button("Square").clicked() {
+                            squircle_ui_parameter = 1.0;
+                            self.layer_config_changed |= true;
+                            self.lua_field_squircle_parameter.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest)
+                        }
+                    });
+                    self.current_gen_config.squircle_parameter = 1.0 / (1.0 - squircle_ui_parameter) - 1.0;
+                }
+                // now kill the temporary variable
+
+                self.lua_field_squircle_parameter.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
+
+
+                // Centerpoint
+                ui.separator();
+                if ui.add(egui::Slider::new(&mut self.current_gen_config.center_offset_x, -1.0..=1.0).text("x offset")).changed() {
+                    self.layer_config_changed |= true;
+                    self.lua_field_center_offset_x.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest)
+                };
+                self.lua_field_center_offset_x.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
+                if ui.add(egui::Slider::new(&mut self.current_gen_config.center_offset_y, -1.0..=1.0).text("y offset")).changed() {
+                    self.layer_config_changed |= true;
+                    self.lua_field_center_offset_y.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest)
+                };
+                self.lua_field_center_offset_y.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
+                // Add odd and even buttons (also good so people understand what the abstraction "offset center" actually means)
                 ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
                 {
-                    if ui.button("Circle").clicked() {
-                        squircle_ui_parameter = 0.666666666666666;
+                    if ui.button("Even center").clicked() {
+                        self.current_gen_config.center_offset_x = 0.0;
+                        self.current_gen_config.center_offset_y = 0.0;
+                        self.layer_config_changed |= true;
+                        self.lua_field_center_offset_x.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest);
+                        self.lua_field_center_offset_y.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest)
                     }
-                    if ui.button("Diamond").clicked() {
-                        squircle_ui_parameter = 0.5;
-                    }
-                    if ui.button("Square").clicked() {
-                        squircle_ui_parameter = 1.0;
-                    }
-                });
-                self.current_gen_config.squircle_parameter = 1.0 / (1.0 - squircle_ui_parameter) - 1.0;
-            }
-            // now kill the termporary variable
-
-            self.lua_field_squircle_parameter.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
-
-
-            // Centerpoint
-            ui.separator();
-            ui.add(egui::Slider::new(&mut self.current_gen_config.center_offset_x, -1.0..=1.0).text("x offset"));
-            self.lua_field_center_offset_x.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
-            ui.add(egui::Slider::new(&mut self.current_gen_config.center_offset_y, -1.0..=1.0).text("y offset"));
-            self.lua_field_center_offset_y.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
-            // Add odd and even buttons (also good so people understand what the abstraction "offset center" actually means)
-            ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
-            {
-                if ui.button("Even center").clicked() {
-                    self.current_gen_config.center_offset_x = 0.0;
-                    self.current_gen_config.center_offset_y = 0.0;
-                }
-                if ui.button("Odd center").clicked() {
-                    self.current_gen_config.center_offset_x = 0.5;
-                    self.current_gen_config.center_offset_y = 0.5;
-                }
-            });
-
-
-
-            // Viewport options
-            ui.separator();
-            ui.separator();
-            ui.heading("View options");
-
-            ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
-            {
-                ui.checkbox(&mut self.view_blocks_all, "All");
-                ui.checkbox(&mut self.view_blocks_boundary, "Boundary");
-                ui.checkbox(&mut self.view_blocks_interior, "Interior");
-                ui.checkbox(&mut self.view_complement, "Complement");
-                // TODO: 3D boundary algorithm and viewport
-            });
-            ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
-            {
-                ui.checkbox(&mut self.view_convex_hull, "Convex hull");
-                ui.checkbox(&mut self.view_outer_corners, "Outer corners");
-            });
-            ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
-            {
-                ui.add_enabled(self.circle_mode, egui::Checkbox::new(&mut self.view_intersect_area, "Intersect area"));
-            });
-
-            // Generate action
-            ui.separator();
-
-            ui.columns(2, |columns| {
-                columns[0].checkbox(&mut self.auto_generate, "Auto generate");
-                columns[0].centered_and_justified(|ui| {
-                    if ui.button("Generate current layer").clicked() || self.auto_generate {
-                        // TODO: Only auto generate if the values have changed!
-
-                        // Generate from circle with selected algorithm
-                        self.current_gen_output = self.current_gen_config.generate();
-
-                        // update metrics
-                        self.nr_blocks_total = self.current_gen_output.blocks_all.get_nr_blocks();
-                        self.nr_blocks_interior = self.current_gen_output.blocks_interior.get_nr_blocks();
-                        self.nr_blocks_boundary = self.current_gen_output.blocks_boundary.get_nr_blocks();
-
-                        self.outer_corners = self.current_gen_output.blocks_all.get_outer_corners();
-                        self.convex_hull = get_convex_hull(&self.outer_corners);
+                    if ui.button("Odd center").clicked() {
+                        self.current_gen_config.center_offset_x = 0.5;
+                        self.current_gen_config.center_offset_y = 0.5;
+                        self.layer_config_changed |= true;
+                        self.lua_field_center_offset_x.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest);
+                        self.lua_field_center_offset_y.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest)
                     }
                 });
 
-                if columns[1].button("Set parameters by code").clicked() {
 
-                    for layer in self.layer_lowest..=self.layer_highest {
-                        self.lua.globals().set("layer", layer).unwrap();
+                // Viewport options
+                ui.separator();
+                ui.separator();
+                ui.heading("View options");
 
-                        self.lua_field_radius_a.eval(
-                            &mut self.lua,
-                            &mut self.stack_gen_config.get_mut((layer - self.layer_lowest) as usize).unwrap().radius_a
-                        );
-                        if self.circle_mode {self.lua_field_radius_a.eval(
-                            &mut self.lua,
-                            &mut self.stack_gen_config.get_mut((layer - self.layer_lowest) as usize).unwrap().radius_b,
-                        );} else {
-                            self.lua_field_radius_b.eval(
-                                &mut self.lua,
-                                &mut self.stack_gen_config.get_mut((layer - self.layer_lowest) as usize).unwrap().radius_b,
+                ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
+                {
+                    ui.checkbox(&mut self.view_voxelization, "Voxelization");
+                    ui.checkbox(&mut self.view_complement, "Complement");
+                });
+                ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
+                {
+                    ui.checkbox(&mut self.view_convex_hull, "Convex hull");
+                    ui.checkbox(&mut self.view_outer_corners, "Outer corners");
+                });
+                ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
+                {
+                    ui.add_enabled(self.circle_mode, egui::Checkbox::new(&mut self.view_intersect_area, "Intersect area"));
+                });
+                ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
+                {
+                    ui.checkbox(&mut self.view_boundary_2d, "Boundary 2D");
+                    ui.checkbox(&mut self.view_interior_2d, "Interior 2D");
+                });
+                ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
+                {
+                    ui.checkbox(&mut self.view_boundary_3d, "Boundary 3D");
+                    ui.checkbox(&mut self.view_interior_3d, "Interior 3D");
+                });
+
+
+                // Generate action
+                ui.separator();
+
+                ui.columns(2, |columns| {
+                    columns[0].checkbox(&mut self.auto_generate, "Auto generate");
+                    columns[0].centered_and_justified(|ui| {
+                        if self.layer_config_changed {
+                            // always zoom correctly if the layer config has changed
+                            self.global_bounding_box = square_max(
+                                self.stack_gen_config
+                                    .iter()
+                                    .map(|g_c| exact_squircle_bounds(g_c, 1.1))
+                                    .fold(
+                                        [
+                                            [f64::INFINITY, f64::INFINITY],
+                                            [f64::NEG_INFINITY, f64::NEG_INFINITY],
+                                        ],
+                                        |a, b| square_max(a, b),
+                                    ),
+                                exact_squircle_bounds(&self.current_gen_config, 1.1),
                             );
+
+                            // make sure the config stored on the stack matches the current config
+                            self.stack_gen_config[(self.layer - self.layer_lowest) as usize] = self.current_gen_config.clone();
                         }
 
-                        self.lua_field_tilt.eval(
-                            &mut self.lua,
-                            &mut self.stack_gen_config.get_mut((layer - self.layer_lowest) as usize).unwrap().tilt
-                        );
+                        if (ui.button("Generate current layer").clicked() || self.auto_generate) && self.layer_config_changed {
+                            self.grid_size = (f64::max(
+                                f64::max(self.global_bounding_box[0][0], self.global_bounding_box[0][1]),
+                                f64::max(self.global_bounding_box[1][0], self.global_bounding_box[1][1]))
+                                .ceil() as usize) * 2 + 4;
 
-                        self.lua_field_squircle_parameter.eval(
-                            &mut self.lua,
-                            &mut self.stack_gen_config.get_mut((layer - self.layer_lowest) as usize).unwrap().squircle_parameter
-                        );
+                            // Generate from circle with selected algorithm
+                            self.current_gen_output = self.current_gen_config.generate(self.grid_size);
 
-                        self.lua_field_center_offset_x.eval(
-                            &mut self.lua,
-                            &mut self.stack_gen_config.get_mut((layer - self.layer_lowest) as usize).unwrap().center_offset_x
-                        );
-                        self.lua_field_center_offset_y.eval(
-                            &mut self.lua,
-                            &mut self.stack_gen_config.get_mut((layer - self.layer_lowest) as usize).unwrap().center_offset_y
-                        );
-                    }
-                    self.lua_field_radius_a.register_success();
-                    self.lua_field_radius_b.register_success();
-                    self.lua_field_tilt.register_success();
-                    self.lua_field_squircle_parameter.register_success();
-                    self.lua_field_center_offset_x.register_success();
-                    self.lua_field_center_offset_y.register_success();
+                            self.layer_output_changed |= true;
+                            self.layer_config_changed = false;
+                        }
+                    });
 
-                    self.current_gen_config = self.stack_gen_config[(self.layer - self.layer_lowest) as usize].clone()
+                    if columns[1].button("Set parameters by code").clicked() {
+                        for layer in self.layer_lowest..=self.layer_highest {
+                            self.lua.globals().set("layer", layer).unwrap();
 
-                }
-                columns[1].centered_and_justified(|ui| {
-                    if ui.button("Generate all layers").clicked() {
+                            self.lua_field_radius_a.eval(
+                                &mut self.lua,
+                                &mut self.stack_gen_config.get_mut((layer - self.layer_lowest) as usize).unwrap().radius_a,
+                            );
+                            if self.circle_mode { // force both radii to be equal, so generate them with the same code
+                                self.lua_field_radius_a.eval(
+                                    &mut self.lua,
+                                    &mut self.stack_gen_config.get_mut((layer - self.layer_lowest) as usize).unwrap().radius_b,
+                                );
+                            } else {
+                                self.lua_field_radius_b.eval(
+                                    &mut self.lua,
+                                    &mut self.stack_gen_config.get_mut((layer - self.layer_lowest) as usize).unwrap().radius_b,
+                                );
+                            }
 
-                        // Generate all layers
-                        self.stack_gen_output = self.stack_gen_config.iter().map(|config| config.generate()).collect();
+                            self.lua_field_tilt.eval(
+                                &mut self.lua,
+                                &mut self.stack_gen_config.get_mut((layer - self.layer_lowest) as usize).unwrap().tilt,
+                            );
 
-                        // Update current layer
+                            self.lua_field_squircle_parameter.eval(
+                                &mut self.lua,
+                                &mut self.stack_gen_config.get_mut((layer - self.layer_lowest) as usize).unwrap().squircle_parameter,
+                            );
+
+                            self.lua_field_center_offset_x.eval(
+                                &mut self.lua,
+                                &mut self.stack_gen_config.get_mut((layer - self.layer_lowest) as usize).unwrap().center_offset_x,
+                            );
+                            self.lua_field_center_offset_y.eval(
+                                &mut self.lua,
+                                &mut self.stack_gen_config.get_mut((layer - self.layer_lowest) as usize).unwrap().center_offset_y,
+                            );
+                        }
+                        self.lua_field_radius_a.register_success();
+                        self.lua_field_radius_b.register_success();
+                        self.lua_field_tilt.register_success();
+                        self.lua_field_squircle_parameter.register_success();
+                        self.lua_field_center_offset_x.register_success();
+                        self.lua_field_center_offset_y.register_success();
+
                         self.current_gen_config = self.stack_gen_config[(self.layer - self.layer_lowest) as usize].clone();
-                        self.current_gen_output = self.stack_gen_output[(self.layer - self.layer_lowest) as usize].clone();
+
+                        self.layer_config_changed |= true;
+                    }
+
+                    columns[1].centered_and_justified(|ui| {
+                        if ui.button("Generate all layers").clicked() {
+
+                            // Generate all layers
+                            self.stack_gen_output = self.stack_gen_config.iter().map(|config| config.generate(self.grid_size)).collect();
+
+                            // Update current layer
+                            self.current_gen_config = self.stack_gen_config[(self.layer - self.layer_lowest) as usize].clone();
+                            self.current_gen_output = self.stack_gen_output[(self.layer - self.layer_lowest) as usize].clone();
+
+                            // update metrics for this layer
+                            self.nr_blocks_total = self.current_gen_output.blocks_all.get_nr_blocks();
+                            self.nr_blocks_interior = self.current_gen_output.blocks_interior.get_nr_blocks();
+                            self.nr_blocks_boundary = self.current_gen_output.blocks_boundary.get_nr_blocks();
+
+                            self.outer_corners = self.current_gen_output.blocks_all.get_outer_corners();
+                            self.convex_hull = get_convex_hull(&self.outer_corners);
+
+                            self.layer_config_changed = false;
+                            self.layer_output_changed |= true;
+                        }
+                    });
+
+                    if self.layer_output_changed {
+                        // update stack with new information
+                        self.stack_gen_output[(self.layer - self.layer_lowest) as usize] = self.current_gen_output.clone();
 
                         // update metrics for this layer
                         self.nr_blocks_total = self.current_gen_output.blocks_all.get_nr_blocks();
@@ -466,6 +581,16 @@ impl eframe::App for App {
 
                         self.outer_corners = self.current_gen_output.blocks_all.get_outer_corners();
                         self.convex_hull = get_convex_hull(&self.outer_corners);
+
+                        self.boundary_3d = boundary_3d(
+                            &self.stack_gen_output,
+                            self.layer_lowest,
+                            self.layer_highest,
+                            true,
+                            true,
+                        );
+
+                        self.layer_output_changed = false;
                     }
                 });
             });
@@ -490,7 +615,6 @@ impl eframe::App for App {
                         formatting::format_block_count(self.nr_blocks_total),
                         formatting::format_block_count(self.nr_blocks_boundary),
                         formatting::format_block_count(self.nr_blocks_interior),
-                        // TODO: Better to run these once every time a new shape is generated. But it's not like we're running into performance issues
                         formatting::format_block_diameter(self.current_gen_output.blocks_all.get_diameters()),
                         //self.blocks_all.get_build_sequence() //FIXME: Redo, note it doesn't make sense for *tilted* superellipses (or non-centered ones?)
                     )
@@ -697,6 +821,9 @@ impl eframe::App for App {
                         self.stack_gen_config[(self.layer - self.layer_lowest) as usize].clone();
                     self.current_gen_output =
                         self.stack_gen_output[(self.layer - self.layer_lowest) as usize].clone();
+
+                    self.layer_config_changed |= true;
+                    self.layer_output_changed |= true;
                 }
             })
         });
@@ -731,26 +858,9 @@ impl eframe::App for App {
                 .show(ui, |plot_ui| {
                     // Reset zoom (approximates default behaviour, but we get to specify the action of automatic zooming
                     if self.reset_zoom_once || self.reset_zoom {
-                        let mut global_bounding_box = self
-                            .stack_gen_config
-                            .iter()
-                            .map(|g_c| exact_squircle_bounds(g_c, 1.1))
-                            .fold(
-                                [
-                                    [f64::INFINITY, f64::INFINITY],
-                                    [f64::NEG_INFINITY, f64::NEG_INFINITY],
-                                ],
-                                |a, b| square_max(a, b),
-                            );
-
-                        global_bounding_box = square_max(
-                            global_bounding_box,
-                            exact_squircle_bounds(&self.current_gen_config, 1.1),
-                        );
-
                         plot_ui.set_plot_bounds(PlotBounds::from_min_max(
-                            global_bounding_box[0],
-                            global_bounding_box[1],
+                            self.global_bounding_box[0],
+                            self.global_bounding_box[1],
                         ));
                         self.reset_zoom_once = false
                     }
@@ -764,7 +874,7 @@ impl eframe::App for App {
                     }
 
                     // * Viewport plotting * //
-                    if self.view_blocks_all {
+                    if self.view_voxelization {
                         for coord in self.current_gen_output.blocks_all.get_block_coords() {
                             plot_ui.polygon(
                                 plotting::square_at_coords(coord)
@@ -777,7 +887,7 @@ impl eframe::App for App {
                         }
                     }
 
-                    if self.view_blocks_boundary {
+                    if self.view_boundary_2d {
                         for coord in self.current_gen_output.blocks_boundary.get_block_coords() {
                             plot_ui.polygon(
                                 plotting::square_at_coords(coord)
@@ -790,7 +900,7 @@ impl eframe::App for App {
                         }
                     }
 
-                    if self.view_blocks_interior {
+                    if self.view_interior_2d {
                         for coord in self.current_gen_output.blocks_interior.get_block_coords() {
                             plot_ui.polygon(
                                 plotting::square_at_coords(coord)
@@ -800,6 +910,28 @@ impl eframe::App for App {
                                     })
                                     .fill_color(COLOR_YELLOW),
                             );
+                        }
+                    }
+
+                    if self.view_boundary_3d {
+                        // need to check for this, because of update order the layer isn't generated yet
+                        if self
+                            .boundary_3d
+                            .get((self.layer - self.layer_lowest) as usize)
+                            .is_some()
+                        {
+                            for coord in self.boundary_3d[(self.layer - self.layer_lowest) as usize]
+                                .get_block_coords()
+                            {
+                                plot_ui.polygon(
+                                    plotting::square_at_coords(coord)
+                                        .stroke(Stroke {
+                                            width: 1.0,
+                                            color: COLOR_WIRE,
+                                        })
+                                        .fill_color(COLOR_PURPLE),
+                                );
+                            }
                         }
                     }
 
