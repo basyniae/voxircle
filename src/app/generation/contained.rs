@@ -11,7 +11,7 @@ pub fn generate_alg_contained(
     squircle_parameter: f64,
     grid_size: usize,
 ) -> Blocks {
-    let origin = Blocks::get_origin_from_grid_size(grid_size);
+    let origin = Blocks::get_origin_float_from_grid_size(grid_size);
 
     let x_grid_step = sqrt_quad_form * Vec2::UNIT_X;
     let y_grid_step = sqrt_quad_form * Vec2::UNIT_Y;
