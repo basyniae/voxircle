@@ -10,8 +10,9 @@ pub fn generate_alg_percentage(
     center_offset: Vec2,
     percentage: f64,
     grid_size: usize,
-    origin: Vec2,
 ) -> Blocks {
+    let origin = Blocks::get_origin_from_grid_size(grid_size);
+
     let blocks = (0..grid_size.pow(2))
         .map(|i| {
             // loop over all coords
@@ -39,11 +40,7 @@ pub fn generate_alg_percentage(
         })
         .collect();
 
-    Blocks {
-        blocks,
-        grid_size,
-        origin,
-    }
+    Blocks::new(blocks, grid_size)
 }
 
 pub fn cell_disk_intersection_area(radius: f64, x_center: f64, y_center: f64) -> f64 {

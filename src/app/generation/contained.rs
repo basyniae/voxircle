@@ -10,8 +10,9 @@ pub fn generate_alg_contained(
     sqrt_quad_form: Mat2,
     squircle_parameter: f64,
     grid_size: usize,
-    origin: Vec2,
 ) -> Blocks {
+    let origin = Blocks::get_origin_from_grid_size(grid_size);
+
     let x_grid_step = sqrt_quad_form * Vec2::UNIT_X;
     let y_grid_step = sqrt_quad_form * Vec2::UNIT_Y;
 
@@ -54,9 +55,5 @@ pub fn generate_alg_contained(
         })
         .collect();
 
-    Blocks {
-        blocks,
-        grid_size,
-        origin,
-    }
+    Blocks::new(blocks, grid_size)
 }

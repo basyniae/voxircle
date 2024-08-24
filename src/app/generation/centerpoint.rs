@@ -6,8 +6,9 @@ pub fn generate_alg_centerpoint(
     sqrt_quad_form: Mat2,
     squircle_parameter: f64,
     grid_size: usize,
-    origin: Vec2,
 ) -> Blocks {
+    let origin = Blocks::get_origin_from_grid_size(grid_size);
+
     let blocks = (0..grid_size.pow(2))
         .map(|i| {
             // loop over all coords
@@ -24,9 +25,5 @@ pub fn generate_alg_centerpoint(
         })
         .collect();
 
-    Blocks {
-        blocks,
-        grid_size,
-        origin,
-    }
+    Blocks::new(blocks, grid_size)
 }
