@@ -1,29 +1,34 @@
-mod generation;
-pub mod helpers;
-mod lua_field;
-mod metrics;
+use std::collections::VecDeque;
+use std::default::Default;
+use std::f64::consts::PI;
 
-use self::generation::Algorithm;
-use self::helpers::convex_hull::{get_convex_hull, line_segments_from_conv_hull};
-use crate::app::helpers::exact_squircle_bounds::exact_squircle_bounds;
-use crate::app::helpers::gen_config::GenConfig;
-use crate::app::helpers::gen_output::GenOutput;
-use crate::app::helpers::linear_algebra::Vec2;
-use crate::app::helpers::square_max::square_max;
-use crate::app::lua_field::LuaField;
-use crate::formatting;
 use eframe::egui::{self, Vec2b};
 use eframe::egui::{Direction, Layout};
 use eframe::emath::Align;
 use eframe::epaint::{Color32, Stroke};
 use egui_plot::{
-    uniform_grid_spacer, HLine, Line, Plot, PlotBounds, PlotPoint, PlotPoints, Points, Text, VLine,
+    HLine, Line, Plot, PlotBounds, PlotPoint, PlotPoints, Points, Text, uniform_grid_spacer, VLine,
 };
+use mlua::Lua;
+
 use helpers::blocks::Blocks;
 use helpers::plotting;
-use mlua::Lua;
-use std::default::Default;
-use std::f64::consts::PI;
+
+use crate::app::helpers::exact_squircle_bounds::exact_squircle_bounds;
+use crate::app::helpers::gen_config::GenConfig;
+use crate::app::helpers::square_max::square_max;
+use crate::app::helpers::zvec::ZVec;
+use crate::app::lua_field::LuaField;
+use crate::app::metrics::boundary_3d::boundary_3d;
+use crate::formatting;
+
+use self::generation::Algorithm;
+use self::helpers::convex_hull::{get_convex_hull, line_segments_from_conv_hull};
+
+mod generation;
+pub mod helpers;
+mod lua_field;
+mod metrics;
 
 // Colors based on Blender Minimal Dark scheme, 3D Viewport
 const COLOR_BACKGROUND: Color32 = Color32::from_rgb(28, 28, 28); // middle background color (dark gray)
@@ -33,37 +38,44 @@ const COLOR_LIME: Color32 = Color32::from_rgb(0, 255, 47); // "Active object" co
 const COLOR_LIGHT_BLUE: Color32 = Color32::from_rgb(0, 217, 255); // "Object selected" color (light blue)
 const COLOR_ORANGE: Color32 = Color32::from_rgb(255, 133, 0); // "Grease Pencil Vertex Select" color (orange)
 const COLOR_DARK_ORANGE: Color32 = Color32::from_rgb(204, 106, 0); // Darker shade of orange
-const COLOR_PURPLE: Color32 = Color32::from_rgb(179, 104, 186); // Darker shade of orange
+const COLOR_PURPLE: Color32 = Color32::from_rgb(179, 104, 186); // Dark purple
 const COLOR_YELLOW: Color32 = Color32::from_rgb(255, 242, 0); // "Edge Angle Text" color (yellow)
 const COLOR_X_AXIS: Color32 = Color32::from_rgb(123, 34, 34); // x-axis color (red)
 const COLOR_Y_AXIS: Color32 = Color32::from_rgb(44, 107, 44); // y-axis color (green)
 
 pub struct App {
-    layer_number: isize,
-    stack_index: usize,
+    current_layer: isize,
+    // stack_index: usize,
     // Go from stack number (nonnegative) to layer number (integer) by (-1)^(n+1) floor((n+1)/2)
     // Go from layer number to stack number by 2|l| - 1/2 (sgn(l) + 1)
     layer_lowest: isize,
     layer_highest: isize,
 
-    stack_gen_config: Vec<GenConfig>, // In the order 0, 1, -1, 2, -2, 3, -3, ...
-    current_gen_config: GenConfig,
+    stack_gen_config: ZVec<GenConfig>, //  document
+    stack_gen_output: ZVec<Blocks>,
 
-    stack_gen_output: Vec<GenOutput>,
-    current_gen_output: GenOutput,
+    recompute_metrics: bool,
 
     nr_blocks_total: u64,
     nr_blocks_interior: u64,
     nr_blocks_boundary: u64,
+
+    boundary_2d: Blocks,
+    interior_2d: Blocks,
+    complement_2d: Blocks,
+    boundary_3d: ZVec<Blocks>,
+    interior_3d: ZVec<Blocks>,
 
     auto_generate: bool,
 
     view_blocks_all: bool,
     view_blocks_boundary: bool,
     view_blocks_interior: bool,
-
     view_complement: bool,
     view_intersect_area: bool,
+
+    view_boundary_3d: bool,
+    view_interior_3d: bool,
 
     view_convex_hull: bool,
     view_outer_corners: bool,
@@ -98,20 +110,25 @@ impl App {
         // Defaults should be such that we get useful output on startup
         // esp. some positive integral radius, auto generate on, and view blocks on
         Self {
-            layer_number: 0,
-            stack_index: 0,
+            current_layer: 0,
+            // stack_index: 0,
             layer_lowest: 0,
             layer_highest: 0,
 
-            stack_gen_config: vec![Default::default()],
-            current_gen_config: Default::default(),
+            stack_gen_config: ZVec::new(VecDeque::from(vec![GenConfig::default()]), 0),
+            stack_gen_output: ZVec::new(VecDeque::from(vec![Blocks::default()]), 0),
 
-            stack_gen_output: vec![Default::default()],
-            current_gen_output: Default::default(),
+            recompute_metrics: true,
 
             nr_blocks_total: Default::default(),
             nr_blocks_interior: Default::default(),
             nr_blocks_boundary: Default::default(),
+
+            boundary_2d: Default::default(),
+            interior_2d: Default::default(),
+            complement_2d: Default::default(),
+            boundary_3d: ZVec::new(VecDeque::from(vec![Blocks::default()]), 0),
+            interior_3d: ZVec::new(VecDeque::from(vec![Blocks::default()]), 0),
 
             auto_generate: true,
 
@@ -120,6 +137,9 @@ impl App {
             view_blocks_interior: false,
             view_intersect_area: false,
             view_complement: false,
+
+            view_boundary_3d: false,
+            view_interior_3d: false,
 
             view_convex_hull: false,
             view_outer_corners: false,
@@ -144,7 +164,7 @@ impl App {
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // Options panel
+        // Options panel TODO: make scroll area
         egui::SidePanel::right("options-panel").show(ctx, |ui| {
             ui.heading("Generation");
             ui.separator();
@@ -152,31 +172,31 @@ impl eframe::App for App {
             // Select algorithm
             egui::ComboBox
                 ::from_label("Algorithm")
-                .selected_text(format!("{:?}", self.current_gen_config.algorithm))
+                .selected_text(format!("{:?}", self.stack_gen_config.get_mut(self.current_layer).unwrap().algorithm))
                 .show_ui(ui, |ui| {
                     ui.selectable_value(
-                        &mut self.current_gen_config.algorithm,
+                        &mut self.stack_gen_config.get_mut(self.current_layer).unwrap().algorithm,
                         Algorithm::CenterPoint,
                         "Center point"
                     );
                     ui.selectable_value(
-                        &mut self.current_gen_config.algorithm,
+                        &mut self.stack_gen_config.get_mut(self.current_layer).unwrap().algorithm,
                         Algorithm::Conservative,
                         "Conservative"
                     );
                     ui.selectable_value(
-                        &mut self.current_gen_config.algorithm,
+                        &mut self.stack_gen_config.get_mut(self.current_layer).unwrap().algorithm,
                         Algorithm::Contained,
                         "Contained");
                     ui.selectable_value(
-                        &mut self.current_gen_config.algorithm,
+                        &mut self.stack_gen_config.get_mut(self.current_layer).unwrap().algorithm,
                         Algorithm::Percentage(0.5),
                         "Percentage"
                     );
                 });
 
             // additional algorithm-specific options + description
-            match self.current_gen_config.algorithm {
+            match self.stack_gen_config.get_mut(self.current_layer).unwrap().algorithm {
                 Algorithm::CenterPoint => {
                     ui.label("Include a particular block iff its centerpoint is in the ellipse");
                 }
@@ -205,7 +225,7 @@ impl eframe::App for App {
                                 format!("{:.0}%", n * 100.0) //  formatting of percentage slider
                             })
                     );
-                    self.current_gen_config.algorithm = Algorithm::Percentage(perc_slider);
+                    self.stack_gen_config.get_mut(self.current_layer).unwrap().algorithm = Algorithm::Percentage(perc_slider);
                 }
                 Algorithm::Empty => {
                     ui.label("Include no blocks in the voxelization");
@@ -218,7 +238,7 @@ impl eframe::App for App {
             if self.circle_mode {
                 ui.add(
                     egui::Slider
-                    ::new(&mut self.current_gen_config.radius_a, 0.0..=30.0)
+                    ::new(&mut self.stack_gen_config.get_mut(self.current_layer).unwrap().radius_a, 0.0..=30.0)
                         .text("Radius")
                         .clamp_to_range(false)
                         .custom_formatter(|param, _| {
@@ -229,13 +249,13 @@ impl eframe::App for App {
                 // lua
                 self.lua_field_radius_a.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
 
-                self.current_gen_config.tilt = 0.0;
+                self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt = 0.0;
             }
             else {
                 // radius a
                 ui.add(
                     egui::Slider
-                    ::new(&mut self.current_gen_config.radius_a, 0.0..=30.0)
+                    ::new(&mut self.stack_gen_config.get_mut(self.current_layer).unwrap().radius_a, 0.0..=30.0)
                         .text("Radius A")
                         .clamp_to_range(false)
                         .custom_formatter(|param, _| {
@@ -248,7 +268,7 @@ impl eframe::App for App {
                 // radius b
                 ui.add(
                     egui::Slider
-                    ::new(&mut self.current_gen_config.radius_b, 0.0..=30.0)
+                    ::new(&mut self.stack_gen_config.get_mut(self.current_layer).unwrap().radius_b, 0.0..=30.0)
                         .text("Radius B")
                         .clamp_to_range(false)
                         .custom_formatter(|param, _| {
@@ -259,7 +279,7 @@ impl eframe::App for App {
 
                 ui.add(
                     egui::Slider
-                    ::new(&mut self.current_gen_config.tilt, -6.28..=6.28)
+                    ::new(&mut self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt, -6.28..=6.28)
                         .text("Tilt (radians)")
                         .fixed_decimals(2)
                 );
@@ -269,25 +289,25 @@ impl eframe::App for App {
                 ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
                 {
                     if ui.button("0°").clicked() {
-                        self.current_gen_config.tilt = 0.0;
+                        self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt = 0.0;
                     }
                     if ui.button("30°").clicked() {
-                        self.current_gen_config.tilt = PI/6.0;
+                        self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt = PI/6.0;
                     }
                     if ui.button("45°").clicked() {
-                        self.current_gen_config.tilt = PI/4.0;
+                        self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt = PI/4.0;
                     }
                     if ui.button("1:2").clicked() {
-                        self.current_gen_config.tilt = 0.5_f64.atan();
+                        self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt = 0.5_f64.atan();
                     }
                     if ui.button("1:3").clicked() {
-                        self.current_gen_config.tilt = 0.333333333333_f64.atan();
+                        self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt = 0.333333333333_f64.atan();
                     }
                     if ui.button("2:3").clicked() {
-                        self.current_gen_config.tilt = 0.666666666666_f64.atan();
+                        self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt = 0.666666666666_f64.atan();
                     }
                     if ui.button("1:4").clicked() {
-                        self.current_gen_config.tilt = 0.25_f64.atan();
+                        self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt = 0.25_f64.atan();
                     }
                 });
                 self.lua_field_tilt.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
@@ -298,7 +318,7 @@ impl eframe::App for App {
             // Squircle parameter
             // due to the scale of the parameter this is all a bit awkward... Introduce a temporary variable for controlling it
             {
-                let mut squircle_ui_parameter = self.current_gen_config.get_squircle_ui_parameter();
+                let mut squircle_ui_parameter = self.stack_gen_config.get_mut(self.current_layer).unwrap().get_squircle_ui_parameter();
                 ui.separator();
                 ui.add(egui::Slider::new(&mut squircle_ui_parameter, 0.0..=1.0)
                     .text("Squircicity")
@@ -327,7 +347,7 @@ impl eframe::App for App {
                         squircle_ui_parameter = 1.0;
                     }
                 });
-                self.current_gen_config.squircle_parameter = 1.0 / (1.0 - squircle_ui_parameter) - 1.0;
+                self.stack_gen_config.get_mut(self.current_layer).unwrap().squircle_parameter = 1.0 / (1.0 - squircle_ui_parameter) - 1.0;
             }
             // now kill the termporary variable
 
@@ -336,20 +356,20 @@ impl eframe::App for App {
 
             // Centerpoint
             ui.separator();
-            ui.add(egui::Slider::new(&mut self.current_gen_config.center_offset_x, -1.0..=1.0).text("x offset"));
+            ui.add(egui::Slider::new(&mut self.stack_gen_config.get_mut(self.current_layer).unwrap().center_offset_x, -1.0..=1.0).text("x offset"));
             self.lua_field_center_offset_x.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
-            ui.add(egui::Slider::new(&mut self.current_gen_config.center_offset_y, -1.0..=1.0).text("y offset"));
+            ui.add(egui::Slider::new(&mut self.stack_gen_config.get_mut(self.current_layer).unwrap().center_offset_y, -1.0..=1.0).text("y offset"));
             self.lua_field_center_offset_y.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
             // Add odd and even buttons (also good so people understand what the abstraction "offset center" actually means)
             ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
             {
                 if ui.button("Even center").clicked() {
-                    self.current_gen_config.center_offset_x = 0.0;
-                    self.current_gen_config.center_offset_y = 0.0;
+                    self.stack_gen_config.get_mut(self.current_layer).unwrap().center_offset_x = 0.0;
+                    self.stack_gen_config.get_mut(self.current_layer).unwrap().center_offset_y = 0.0;
                 }
                 if ui.button("Odd center").clicked() {
-                    self.current_gen_config.center_offset_x = 0.5;
-                    self.current_gen_config.center_offset_y = 0.5;
+                    self.stack_gen_config.get_mut(self.current_layer).unwrap().center_offset_x = 0.5;
+                    self.stack_gen_config.get_mut(self.current_layer).unwrap().center_offset_y = 0.5;
                 }
             });
 
@@ -366,7 +386,6 @@ impl eframe::App for App {
                 ui.checkbox(&mut self.view_blocks_boundary, "Boundary");
                 ui.checkbox(&mut self.view_blocks_interior, "Interior");
                 ui.checkbox(&mut self.view_complement, "Complement");
-                // TODO: 3D boundary algorithm and viewport
             });
             ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
             {
@@ -376,6 +395,11 @@ impl eframe::App for App {
             ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
             {
                 ui.add_enabled(self.circle_mode, egui::Checkbox::new(&mut self.view_intersect_area, "Intersect area"));
+            });
+            ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
+            {
+                ui.checkbox(&mut self.view_boundary_3d, "Boundary 3D");
+                ui.checkbox(&mut self.view_interior_3d, "Interior 3D");
             });
 
             // Generate action
@@ -388,54 +412,51 @@ impl eframe::App for App {
                         // TODO: Only auto generate if the values have changed!
 
                         // Generate from circle with selected algorithm
-                        self.current_gen_output = self.current_gen_config.generate();
+                        self.stack_gen_output.set(self.current_layer, self.stack_gen_config.get_mut(self.current_layer).unwrap().generate());
 
-                        // update metrics
-                        self.nr_blocks_total = self.current_gen_output.blocks_all.get_nr_blocks();
-                        self.nr_blocks_interior = self.current_gen_output.blocks_interior.get_nr_blocks();
-                        self.nr_blocks_boundary = self.current_gen_output.blocks_boundary.get_nr_blocks();
-
-                        self.outer_corners = self.current_gen_output.blocks_all.get_outer_corners();
-                        self.convex_hull = get_convex_hull(&self.outer_corners);
+                        self.recompute_metrics = true;
                     }
                 });
 
-                if columns[1].button("Set parameters by code").clicked() {
+                if columns[1].button("Set parameters for all layers by code").clicked() {
 
                     for layer in self.layer_lowest..=self.layer_highest {
                         self.lua.globals().set("layer", layer).unwrap();
 
                         self.lua_field_radius_a.eval(
                             &mut self.lua,
-                            &mut self.stack_gen_config[layer_number_to_stack_number(layer)].radius_a
+                            &mut self.stack_gen_config.get_mut(layer).unwrap().radius_a
                         );
-                        if self.circle_mode {self.lua_field_radius_a.eval(
-                            &mut self.lua,
-                            &mut self.stack_gen_config[layer_number_to_stack_number(layer)].radius_b,
-                        );} else {
+
+                        if self.circle_mode {
+                            self.lua_field_radius_a.eval(
+                                &mut self.lua,
+                                &mut self.stack_gen_config.get_mut(layer).unwrap().radius_b,
+                            );
+                        } else {
                             self.lua_field_radius_b.eval(
                                 &mut self.lua,
-                                &mut self.stack_gen_config[layer_number_to_stack_number(layer)].radius_b,
+                                &mut self.stack_gen_config.get_mut(layer).unwrap().radius_b,
                             );
                         }
 
                         self.lua_field_tilt.eval(
                             &mut self.lua,
-                            &mut self.stack_gen_config[layer_number_to_stack_number(layer)].tilt
+                            &mut self.stack_gen_config.get_mut(layer).unwrap().tilt
                         );
 
                         self.lua_field_squircle_parameter.eval(
                             &mut self.lua,
-                            &mut self.stack_gen_config[layer_number_to_stack_number(layer)].squircle_parameter
+                            &mut self.stack_gen_config.get_mut(layer).unwrap().squircle_parameter
                         );
 
                         self.lua_field_center_offset_x.eval(
                             &mut self.lua,
-                            &mut self.stack_gen_config[layer_number_to_stack_number(layer)].center_offset_x
+                            &mut self.stack_gen_config.get_mut(layer).unwrap().center_offset_x
                         );
                         self.lua_field_center_offset_y.eval(
                             &mut self.lua,
-                            &mut self.stack_gen_config[layer_number_to_stack_number(layer)].center_offset_y
+                            &mut self.stack_gen_config.get_mut(layer).unwrap().center_offset_y
                         );
                     }
                     self.lua_field_radius_a.register_success();
@@ -445,31 +466,89 @@ impl eframe::App for App {
                     self.lua_field_center_offset_x.register_success();
                     self.lua_field_center_offset_y.register_success();
 
-                    self.current_gen_config = self.stack_gen_config[self.stack_index].clone()
-
                 }
                 columns[1].centered_and_justified(|ui| {
                     if ui.button("Generate all layers").clicked() {
 
                         // Generate all layers
-                        self.stack_gen_output = self.stack_gen_config.iter().map(|config| config.generate()).collect();
+                        self.stack_gen_output = ZVec::new(self.stack_gen_config.data.iter().map(|config| config.generate()).collect(), self.layer_lowest);
 
-                        // Update current layer
-                        self.current_gen_config = self.stack_gen_config[self.stack_index].clone();
-                        self.current_gen_output = self.stack_gen_output[self.stack_index].clone();
-
-                        // update metrics for this layer
-                        self.nr_blocks_total = self.current_gen_output.blocks_all.get_nr_blocks();
-                        self.nr_blocks_interior = self.current_gen_output.blocks_interior.get_nr_blocks();
-                        self.nr_blocks_boundary = self.current_gen_output.blocks_boundary.get_nr_blocks();
-
-                        self.outer_corners = self.current_gen_output.blocks_all.get_outer_corners();
-                        self.convex_hull = get_convex_hull(&self.outer_corners);
+                        self.recompute_metrics = true;
                     }
                 });
             });
 
         });
+
+        if self.recompute_metrics {
+            // update 2d spatial metrics
+            self.interior_2d = self
+                .stack_gen_output
+                .get(self.current_layer)
+                .unwrap()
+                .get_interior();
+            self.boundary_2d = Blocks::new(
+                // boundary is in all but not in interior (so all && interior.not())
+                self.stack_gen_output
+                    .get(self.current_layer)
+                    .unwrap()
+                    .blocks
+                    .iter()
+                    .zip(self.interior_2d.blocks.iter())
+                    .map(|(all, interior)| *all && !interior)
+                    .collect(),
+                self.interior_2d.grid_size,
+            );
+            self.complement_2d = self
+                .stack_gen_output
+                .get(self.current_layer)
+                .unwrap()
+                .get_complement();
+
+            // update 3d spatial metrics
+            self.boundary_3d = boundary_3d(
+                &self.stack_gen_output,
+                self.layer_lowest,
+                self.layer_highest,
+                true,
+                true,
+            );
+
+            self.interior_3d = ZVec::new(
+                (self.layer_lowest..self.layer_highest)
+                    .map(|layer| {
+                        Blocks::new(
+                            self.boundary_3d
+                                .get(layer)
+                                .unwrap()
+                                .blocks
+                                .iter()
+                                .zip(self.stack_gen_output.get(layer).unwrap().blocks)
+                                .map(|(is_bdry, is_block)| is_block && !is_bdry)
+                                .collect(),
+                            self.stack_gen_output.get(layer).unwrap().grid_size,
+                        )
+                    })
+                    .collect(),
+                self.layer_lowest,
+            );
+
+            // update numerical metrics
+            self.nr_blocks_total = self
+                .stack_gen_output
+                .get_mut(self.current_layer)
+                .unwrap()
+                .get_nr_blocks();
+            self.nr_blocks_interior = self.interior_2d.get_nr_blocks();
+            self.nr_blocks_boundary = self.boundary_2d.get_nr_blocks();
+
+            self.outer_corners = self
+                .stack_gen_output
+                .get_mut(self.current_layer)
+                .unwrap()
+                .get_outer_corners();
+            self.convex_hull = get_convex_hull(&self.outer_corners);
+        }
 
         // Status bar (bottom)
         egui::TopBottomPanel::bottom("status-bar").show(ctx, |ui| {
@@ -489,8 +568,7 @@ impl eframe::App for App {
                         formatting::format_block_count(self.nr_blocks_total),
                         formatting::format_block_count(self.nr_blocks_boundary),
                         formatting::format_block_count(self.nr_blocks_interior),
-                        // TODO: Better to run these once every time a new shape is generated. But it's not like we're running into performance issues
-                        formatting::format_block_diameter(self.current_gen_output.blocks_all.get_diameters()),
+                        formatting::format_block_diameter(self.stack_gen_output.get_mut(self.current_layer).unwrap().get_diameters()),
                         //self.blocks_all.get_build_sequence() //FIXME: Redo, note it doesn't make sense for *tilted* superellipses (or non-centered ones?)
                     )
                 )
@@ -500,8 +578,11 @@ impl eframe::App for App {
         // Layer navigation bar (top)
         egui::TopBottomPanel::top("layer-navigation").show(ctx, |ui| {
             ui.centered_and_justified(|ui| {
-                let mut has_changed = false;
-                let old_stack_index = self.stack_index;
+                // bookkeeping for updating the configuration
+                let old_layer = self.current_layer;
+                let prev_layer_lowest = self.layer_lowest;
+                let prev_layer_highest = self.layer_highest;
+
                 // Finicky due to not being able to know the size of the widget in advance
                 // so do a pretty good prediction
                 let height = ui.style().spacing.interact_size.y;
@@ -527,8 +608,7 @@ impl eframe::App for App {
                             )
                             .clicked()
                         {
-                            self.layer_number = self.layer_lowest;
-                            has_changed = true;
+                            self.current_layer = self.layer_lowest;
                         }
                         if ui
                             .add(
@@ -537,14 +617,13 @@ impl eframe::App for App {
                             )
                             .clicked()
                         {
-                            self.layer_number = self.layer_number.saturating_sub(1);
-                            has_changed = true;
+                            self.current_layer = self.current_layer - 1;
                         }
                         let central_field =
-                            ui.add(egui::DragValue::new(&mut self.layer_number).speed(0.05));
-                        if central_field.clicked() || central_field.drag_released() {
-                            has_changed = true
-                        }
+                            ui.add(egui::DragValue::new(&mut self.current_layer).speed(0.05));
+                        // if central_field.clicked() || central_field.drag_released() {
+                        //     has_changed = true
+                        // }
 
                         if ui
                             .add(
@@ -553,8 +632,7 @@ impl eframe::App for App {
                             )
                             .clicked()
                         {
-                            self.layer_number = self.layer_number.saturating_add(1);
-                            has_changed = true
+                            self.current_layer = self.current_layer + 1;
                         }
                         if ui
                             .add(
@@ -563,8 +641,7 @@ impl eframe::App for App {
                             )
                             .clicked()
                         {
-                            self.layer_number = self.layer_highest;
-                            has_changed = true
+                            self.current_layer = self.layer_highest;
                         }
                         ui.add(egui::DragValue::new(&mut self.layer_highest).speed(0.05));
                     });
@@ -572,40 +649,56 @@ impl eframe::App for App {
                 });
 
                 // Check if enough (empty) layers are initialized, else initialize more
-                if has_changed {
-                    self.stack_index = layer_number_to_stack_number(self.layer_number);
+                self.layer_lowest = self.layer_lowest.min(self.current_layer);
+                self.layer_highest = self.layer_highest.max(self.current_layer);
 
-                    // Update lower and upper bounds
-                    self.layer_lowest = self.layer_lowest.min(self.layer_number);
-                    self.layer_highest = self.layer_highest.max(self.layer_number);
+                self.stack_gen_config.resize(
+                    self.layer_lowest,
+                    self.layer_highest,
+                    self.stack_gen_config.get(old_layer).unwrap().clone(),
+                );
 
-                    // update stacks so they include the bounds
-                    if self.stack_index >= self.stack_gen_config.len() {
-                        self.stack_gen_config.extend(
-                            (0..=(self.stack_index - self.stack_gen_config.len()))
-                                .map(|_| self.current_gen_config.clone()),
-                        );
+                self.stack_gen_output.resize(
+                    self.layer_lowest,
+                    self.layer_highest,
+                    self.stack_gen_output.get(old_layer).unwrap().clone(),
+                );
 
-                        self.stack_gen_output.extend(
-                            (0..=(self.stack_index - self.stack_gen_output.len()))
-                                .map(|_| self.current_gen_output.clone()),
-                        );
+                self.recompute_metrics = true;
 
-                        // update field state when the bounds change TODO: Only if layer_highest increases or layer_lowest decreases!
-                        self.lua_field_radius_a.update_field_state(
-                            &mut self.lua,
-                            self.layer_lowest,
-                            self.layer_highest,
-                        );
-                    }
-
-                    // Save configuration to stack
-                    self.stack_gen_config[old_stack_index] = self.current_gen_config.clone();
-                    self.stack_gen_output[old_stack_index] = self.current_gen_output.clone();
-
-                    // Set Gen Config to whatever was stored at that location
-                    self.current_gen_config = self.stack_gen_config[self.stack_index].clone();
-                    self.current_gen_output = self.stack_gen_output[self.stack_index].clone();
+                // update field state when the bounds increase
+                if prev_layer_lowest > self.layer_lowest || prev_layer_highest < self.layer_highest
+                {
+                    self.lua_field_radius_a.update_field_state(
+                        &mut self.lua,
+                        self.layer_lowest,
+                        self.layer_highest,
+                    );
+                    self.lua_field_radius_b.update_field_state(
+                        &mut self.lua,
+                        self.layer_lowest,
+                        self.layer_highest,
+                    );
+                    self.lua_field_tilt.update_field_state(
+                        &mut self.lua,
+                        self.layer_lowest,
+                        self.layer_highest,
+                    );
+                    self.lua_field_center_offset_x.update_field_state(
+                        &mut self.lua,
+                        self.layer_lowest,
+                        self.layer_highest,
+                    );
+                    self.lua_field_center_offset_y.update_field_state(
+                        &mut self.lua,
+                        self.layer_lowest,
+                        self.layer_highest,
+                    );
+                    self.lua_field_squircle_parameter.update_field_state(
+                        &mut self.lua,
+                        self.layer_lowest,
+                        self.layer_highest,
+                    );
                 }
             })
         });
@@ -642,6 +735,7 @@ impl eframe::App for App {
                     if self.reset_zoom_once || self.reset_zoom {
                         let mut global_bounding_box = self
                             .stack_gen_config
+                            .data
                             .iter()
                             .map(|g_c| exact_squircle_bounds(g_c, 1.1))
                             .fold(
@@ -654,7 +748,10 @@ impl eframe::App for App {
 
                         global_bounding_box = square_max(
                             global_bounding_box,
-                            exact_squircle_bounds(&self.current_gen_config, 1.1),
+                            exact_squircle_bounds(
+                                &self.stack_gen_config.get(self.current_layer).unwrap(),
+                                1.1,
+                            ),
                         );
 
                         plot_ui.set_plot_bounds(PlotBounds::from_min_max(
@@ -674,7 +771,12 @@ impl eframe::App for App {
 
                     // * Viewport plotting * //
                     if self.view_blocks_all {
-                        for coord in self.current_gen_output.blocks_all.get_all_block_coords() {
+                        for coord in self
+                            .stack_gen_output
+                            .get_mut(self.current_layer)
+                            .unwrap()
+                            .get_all_block_coords()
+                        {
                             plot_ui.polygon(
                                 plotting::square_at_coords(coord)
                                     .stroke(Stroke {
@@ -687,11 +789,7 @@ impl eframe::App for App {
                     }
 
                     if self.view_blocks_boundary {
-                        for coord in self
-                            .current_gen_output
-                            .blocks_boundary
-                            .get_all_block_coords()
-                        {
+                        for coord in self.boundary_2d.get_all_block_coords() {
                             plot_ui.polygon(
                                 plotting::square_at_coords(coord)
                                     .stroke(Stroke {
@@ -704,11 +802,7 @@ impl eframe::App for App {
                     }
 
                     if self.view_blocks_interior {
-                        for coord in self
-                            .current_gen_output
-                            .blocks_interior
-                            .get_all_block_coords()
-                        {
+                        for coord in self.interior_2d.get_all_block_coords() {
                             plot_ui.polygon(
                                 plotting::square_at_coords(coord)
                                     .stroke(Stroke {
@@ -721,11 +815,7 @@ impl eframe::App for App {
                     }
 
                     if self.view_complement {
-                        for coord in self
-                            .current_gen_output
-                            .blocks_complement
-                            .get_all_block_coords()
-                        {
+                        for coord in self.complement_2d.get_all_block_coords() {
                             plot_ui.polygon(
                                 plotting::square_at_coords(coord)
                                     .stroke(Stroke {
@@ -737,11 +827,59 @@ impl eframe::App for App {
                         }
                     }
 
+                    if self.view_boundary_3d {
+                        // need to check for this, because of update order the layer isn't generated yet
+                        if self.boundary_3d.get(self.current_layer).is_some() {
+                            for coord in self
+                                .boundary_3d
+                                .get(self.current_layer)
+                                .unwrap()
+                                .get_all_block_coords()
+                            {
+                                plot_ui.polygon(
+                                    plotting::square_at_coords(coord)
+                                        .stroke(Stroke {
+                                            width: 1.0,
+                                            color: COLOR_WIRE,
+                                        })
+                                        .fill_color(COLOR_PURPLE),
+                                );
+                            }
+                        }
+                    }
+
+                    if self.view_interior_3d {
+                        // need to check for this, because of update order the layer isn't generated yet
+                        if self.interior_3d.get(self.current_layer).is_some() {
+                            for coord in self
+                                .interior_3d
+                                .get(self.current_layer)
+                                .unwrap()
+                                .get_all_block_coords()
+                            {
+                                plot_ui.polygon(
+                                    plotting::square_at_coords(coord)
+                                        .stroke(Stroke {
+                                            width: 1.0,
+                                            color: COLOR_WIRE,
+                                        })
+                                        .fill_color(COLOR_YELLOW), // TODO: other color for this
+                                );
+                            }
+                        }
+                    }
+
                     // Plot center
                     plot_ui.points(
                         Points::new(vec![[
-                            self.current_gen_config.center_offset_x,
-                            self.current_gen_config.center_offset_y,
+                            self.stack_gen_config
+                                .get_mut(self.current_layer)
+                                .unwrap()
+                                .center_offset_x,
+                            self.stack_gen_config
+                                .get_mut(self.current_layer)
+                                .unwrap()
+                                .center_offset_y,
                         ]])
                         .radius(5.0)
                         .color(COLOR_LIME),
@@ -750,46 +888,99 @@ impl eframe::App for App {
                     // Plot target shape
                     plot_ui.line(
                         plotting::superellipse_at_coords(
-                            self.current_gen_config.center_offset_x,
-                            self.current_gen_config.center_offset_y,
-                            self.current_gen_config.radius_a,
-                            self.current_gen_config.radius_b,
-                            self.current_gen_config.tilt,
-                            self.current_gen_config.squircle_parameter,
+                            self.stack_gen_config
+                                .get_mut(self.current_layer)
+                                .unwrap()
+                                .center_offset_x,
+                            self.stack_gen_config
+                                .get_mut(self.current_layer)
+                                .unwrap()
+                                .center_offset_y,
+                            self.stack_gen_config
+                                .get_mut(self.current_layer)
+                                .unwrap()
+                                .radius_a,
+                            self.stack_gen_config
+                                .get_mut(self.current_layer)
+                                .unwrap()
+                                .radius_b,
+                            self.stack_gen_config
+                                .get_mut(self.current_layer)
+                                .unwrap()
+                                .tilt,
+                            self.stack_gen_config
+                                .get_mut(self.current_layer)
+                                .unwrap()
+                                .squircle_parameter,
                         )
                         .color(COLOR_LIME),
                     );
 
                     // Plot x and y axes through the center of the shape
                     plot_ui.hline(
-                        HLine::new(self.current_gen_config.center_offset_y)
-                            .color(COLOR_X_AXIS)
-                            .width(2.0),
+                        HLine::new(
+                            self.stack_gen_config
+                                .get_mut(self.current_layer)
+                                .unwrap()
+                                .center_offset_y,
+                        )
+                        .color(COLOR_X_AXIS)
+                        .width(2.0),
                     );
                     plot_ui.vline(
-                        VLine::new(self.current_gen_config.center_offset_x)
-                            .color(COLOR_Y_AXIS)
-                            .width(2.0),
+                        VLine::new(
+                            self.stack_gen_config
+                                .get_mut(self.current_layer)
+                                .unwrap()
+                                .center_offset_x,
+                        )
+                        .color(COLOR_Y_AXIS)
+                        .width(2.0),
                     );
 
                     // Plot rotated x and y axes for nonzero tilt (dark orange and purple)
-                    if self.current_gen_config.tilt != 0.0 {
+                    if self
+                        .stack_gen_config
+                        .get_mut(self.current_layer)
+                        .unwrap()
+                        .tilt
+                        != 0.0
+                    {
                         let bounds = plot_ui.plot_bounds();
                         plot_ui.line(
                             plotting::tilted_line_in_bounds(
                                 bounds,
-                                self.current_gen_config.tilt,
-                                self.current_gen_config.center_offset_x,
-                                self.current_gen_config.center_offset_y,
+                                self.stack_gen_config
+                                    .get_mut(self.current_layer)
+                                    .unwrap()
+                                    .tilt,
+                                self.stack_gen_config
+                                    .get_mut(self.current_layer)
+                                    .unwrap()
+                                    .center_offset_x,
+                                self.stack_gen_config
+                                    .get_mut(self.current_layer)
+                                    .unwrap()
+                                    .center_offset_y,
                             )
                             .color(COLOR_DARK_ORANGE),
                         );
                         plot_ui.line(
                             plotting::tilted_line_in_bounds(
                                 bounds,
-                                self.current_gen_config.tilt + PI / 2.0,
-                                self.current_gen_config.center_offset_x,
-                                self.current_gen_config.center_offset_y,
+                                self.stack_gen_config
+                                    .get_mut(self.current_layer)
+                                    .unwrap()
+                                    .tilt
+                                    + PI / 2.0,
+                                self.stack_gen_config
+                                    .get_mut(self.current_layer)
+                                    .unwrap()
+                                    .center_offset_x,
+                                self.stack_gen_config
+                                    .get_mut(self.current_layer)
+                                    .unwrap()
+                                    .center_offset_y,
                             )
                             .color(COLOR_PURPLE),
                         );
@@ -799,8 +990,14 @@ impl eframe::App for App {
                         let grid_size = (2.0
                             * 1.42
                             * f64::max(
-                                self.current_gen_config.radius_a,
-                                self.current_gen_config.radius_b,
+                                self.stack_gen_config
+                                    .get_mut(self.current_layer)
+                                    .unwrap()
+                                    .radius_a,
+                                self.stack_gen_config
+                                    .get_mut(self.current_layer)
+                                    .unwrap()
+                                    .radius_b,
                             ))
                         .ceil() as usize
                             + 4;
@@ -810,10 +1007,18 @@ impl eframe::App for App {
 
                         for coord in square.get_all_block_coords() {
                             let cell_center = [coord[0] + 0.5, coord[1] + 0.5];
-                            let mut x_center =
-                                cell_center[0] - self.current_gen_config.center_offset_x;
-                            let mut y_center =
-                                cell_center[1] - self.current_gen_config.center_offset_y;
+                            let mut x_center = cell_center[0]
+                                - self
+                                    .stack_gen_config
+                                    .get_mut(self.current_layer)
+                                    .unwrap()
+                                    .center_offset_x;
+                            let mut y_center = cell_center[1]
+                                - self
+                                    .stack_gen_config
+                                    .get_mut(self.current_layer)
+                                    .unwrap()
+                                    .center_offset_y;
 
                             // Dihedral symmetry swaps (see percentage.rs for explanation)
                             if x_center < 0.0 {
@@ -828,9 +1033,16 @@ impl eframe::App for App {
 
                             plot_ui.text(Text::new(PlotPoint::from(cell_center), {
                                 let value = generation::percentage::cell_disk_intersection_area(
-                                    self.current_gen_config
+                                    self.stack_gen_config
+                                        .get_mut(self.current_layer)
+                                        .unwrap()
                                         .radius_a
-                                        .max(self.current_gen_config.radius_b),
+                                        .max(
+                                            self.stack_gen_config
+                                                .get_mut(self.current_layer)
+                                                .unwrap()
+                                                .radius_b,
+                                        ),
                                     x_center,
                                     y_center,
                                 );
@@ -865,24 +1077,5 @@ impl eframe::App for App {
                     }
                 });
         });
-    }
-}
-
-fn layer_number_to_stack_number(layer_number: isize) -> usize {
-    if layer_number == 0 {
-        0
-    } else {
-        (2 * layer_number.abs() - (layer_number.signum() + 1) / 2) as usize
-    }
-}
-
-fn stack_number_to_layer_number(stack_number: usize) -> isize {
-    let stack_number = stack_number as isize;
-    if stack_number == 0 {
-        0
-    } else if stack_number % 2 == 1 {
-        1 + stack_number / 2
-    } else {
-        -stack_number / 2
     }
 }

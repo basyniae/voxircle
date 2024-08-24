@@ -10,7 +10,7 @@ pub fn generate_alg_conservative(
     squircle_parameter: f64,
     grid_size: usize,
 ) -> Blocks {
-    let origin = Blocks::get_origin_from_grid_size(grid_size);
+    let origin = Blocks::get_origin_float_from_grid_size(grid_size);
 
     // For tilt 0, there is no real need to do this sort of computation: the max x is radius_a,
     // the min x is -radius_a, the max y is radius_b, the min y is radius_a
