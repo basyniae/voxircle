@@ -674,7 +674,7 @@ impl eframe::App for App {
 
                     // * Viewport plotting * //
                     if self.view_blocks_all {
-                        for coord in self.current_gen_output.blocks_all.get_block_coords() {
+                        for coord in self.current_gen_output.blocks_all.get_all_block_coords() {
                             plot_ui.polygon(
                                 plotting::square_at_coords(coord)
                                     .stroke(Stroke {
@@ -687,7 +687,11 @@ impl eframe::App for App {
                     }
 
                     if self.view_blocks_boundary {
-                        for coord in self.current_gen_output.blocks_boundary.get_block_coords() {
+                        for coord in self
+                            .current_gen_output
+                            .blocks_boundary
+                            .get_all_block_coords()
+                        {
                             plot_ui.polygon(
                                 plotting::square_at_coords(coord)
                                     .stroke(Stroke {
@@ -700,7 +704,11 @@ impl eframe::App for App {
                     }
 
                     if self.view_blocks_interior {
-                        for coord in self.current_gen_output.blocks_interior.get_block_coords() {
+                        for coord in self
+                            .current_gen_output
+                            .blocks_interior
+                            .get_all_block_coords()
+                        {
                             plot_ui.polygon(
                                 plotting::square_at_coords(coord)
                                     .stroke(Stroke {
@@ -713,7 +721,11 @@ impl eframe::App for App {
                     }
 
                     if self.view_complement {
-                        for coord in self.current_gen_output.blocks_complement.get_block_coords() {
+                        for coord in self
+                            .current_gen_output
+                            .blocks_complement
+                            .get_all_block_coords()
+                        {
                             plot_ui.polygon(
                                 plotting::square_at_coords(coord)
                                     .stroke(Stroke {
@@ -793,12 +805,10 @@ impl eframe::App for App {
                         .ceil() as usize
                             + 4;
 
-                        let square = Blocks {
-                            blocks: (0..grid_size.pow(2)).map(|_| true).collect(),
-                            grid_size,
-                            origin: Vec2::from([(grid_size / 2) as f64, (grid_size / 2) as f64]),
-                        };
-                        for coord in square.get_block_coords() {
+                        let square =
+                            Blocks::new((0..grid_size.pow(2)).map(|_| true).collect(), grid_size);
+
+                        for coord in square.get_all_block_coords() {
                             let cell_center = [coord[0] + 0.5, coord[1] + 0.5];
                             let mut x_center =
                                 cell_center[0] - self.current_gen_config.center_offset_x;

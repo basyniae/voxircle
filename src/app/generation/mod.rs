@@ -35,37 +35,23 @@ pub fn generate_all_blocks(
     radius_a: f64,
     radius_b: f64,
     grid_size: usize,
-    origin: Vec2,
 ) -> Blocks {
     match algorithm {
-        Algorithm::CenterPoint => generate_alg_centerpoint(
-            center_offset,
-            sqrt_quad_form,
-            squircle_parameter,
-            grid_size,
-            origin,
-        ),
-        Algorithm::Conservative => generate_alg_conservative(
-            center_offset,
-            sqrt_quad_form,
-            squircle_parameter,
-            grid_size,
-            origin,
-        ),
-        Algorithm::Contained => generate_alg_contained(
-            center_offset,
-            sqrt_quad_form,
-            squircle_parameter,
-            grid_size,
-            origin,
-        ),
+        Algorithm::CenterPoint => {
+            generate_alg_centerpoint(center_offset, sqrt_quad_form, squircle_parameter, grid_size)
+        }
+        Algorithm::Conservative => {
+            generate_alg_conservative(center_offset, sqrt_quad_form, squircle_parameter, grid_size)
+        }
+        Algorithm::Contained => {
+            generate_alg_contained(center_offset, sqrt_quad_form, squircle_parameter, grid_size)
+        }
         Algorithm::Percentage(percentage) => generate_alg_percentage(
             f64::max(radius_a, radius_b),
             center_offset,
             *percentage,
             grid_size,
-            origin,
         ),
-        Algorithm::Empty => generate_alg_empty(grid_size, origin),
+        Algorithm::Empty => generate_alg_empty(grid_size),
     }
 }

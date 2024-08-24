@@ -10,14 +10,24 @@ pub struct Blocks {
     pub grid_size: usize, // of type usize because we index with it a bunch of times
     // the total number of cells where there can be blocks is edge_length**2
     // Order is x first left to right, then y down to up (to match coord space)
-    pub origin: Vec2, // At which bitmatrix coords is the center of the circle?
-                      // For a block-diameter 4 circle it would be [2.0,2.0], for a block-diameter 5 circle it would be [2.5,2.5]
-                      // but how does this work paradigmatically
+    pub origin: Vec2, // In bitmatrix coordinates, where is the point (0,0)? (Note that it has integer coordinates)
 }
 
 impl Blocks {
+    pub fn new(blocks: Vec<bool>, grid_size: usize) -> Self {
+        Blocks {
+            blocks,
+            grid_size,
+            origin: Self::get_origin_from_grid_size(grid_size),
+        }
+    }
+
+    pub fn get_origin_from_grid_size(grid_size: usize) -> Vec2 {
+        Vec2::from([(grid_size / 2) as f64, (grid_size / 2) as f64])
+    }
+
     /// Centered block coordinates, i.e., where the origin lies at (0,0)
-    pub fn get_block_coords(&self) -> Vec<[f64; 2]> {
+    pub fn get_all_block_coords(&self) -> Vec<[f64; 2]> {
         let mut i = 0;
         let mut output_vec = Vec::new();
 
@@ -34,6 +44,17 @@ impl Blocks {
         output_vec
     }
 
+    pub fn get_global_block_coord_from_index(&self, i: usize) -> [f64; 2] {
+        [
+            ((i % self.grid_size) as f64), // Get integer x position (which is bot. left), then make origin center
+            ((i / self.grid_size) as f64),
+        ]
+    }
+
+    pub fn get_index_from_global_block_coord(&self, coords: [f64; 2]) -> usize {
+        (coords[0].round() as usize)
+    }
+
     /// Get number of blocks
     pub fn get_nr_blocks(&self) -> u64 {
         (*self.blocks).into_iter().filter(|b| **b).count() as u64
@@ -44,9 +65,10 @@ impl Blocks {
     pub fn get_interior(&self) -> Blocks {
         // let mut output_vec = Vec::new();
 
-        let blocks = (0..self.grid_size.pow(2))
-            .map(|i| {
-                self.blocks[i] == true
+        Blocks::new(
+            (0..self.grid_size.pow(2))
+                .map(|i| {
+                    self.blocks[i] == true
                     // has to be a block in self
                     && i % self.grid_size != 0
                     && i % self.grid_size != self.grid_size - 1
@@ -57,19 +79,21 @@ impl Blocks {
                     && self.blocks[i - 1] == true
                     && self.blocks[i + self.grid_size] == true
                     && self.blocks[i - self.grid_size] == true
-                // all direct neighbors should also be blocks
-            })
-            .collect();
-
-        Blocks { blocks, ..*self }
+                    // all direct neighbors should also be blocks
+                })
+                .collect(),
+            self.grid_size,
+        )
     }
 
     /// Complement of blocks (for interiors)
     pub fn get_complement(&self) -> Blocks {
-        let blocks = (0..self.grid_size.pow(2))
-            .map(|i| self.blocks[i].not())
-            .collect();
-        Blocks { blocks, ..*self }
+        Blocks::new(
+            (0..self.grid_size.pow(2))
+                .map(|i| self.blocks[i].not())
+                .collect(),
+            self.grid_size,
+        )
     }
 
     // From a shape (which is assumed to be non-pathological, TODO: make checks for this)

@@ -49,9 +49,6 @@ impl GenConfig {
         //  on each side.
         let grid_size = (2.0 * 1.42 * f64::max(self.radius_a, self.radius_b)).ceil() as usize + 4;
 
-        // In bitmatrix coordinates, where is the point (0,0)? (Note that it has integer coordinates)
-        let origin = Vec2::from([(grid_size / 2) as f64, (grid_size / 2) as f64]);
-
         // Generate from circle with selected algorithm
         let blocks_all = generate_all_blocks(
             &self.algorithm,
@@ -61,22 +58,20 @@ impl GenConfig {
             self.radius_a,
             self.radius_b,
             grid_size,
-            origin,
         );
 
         // run preprocessing
         let blocks_interior = blocks_all.get_interior();
-        let blocks_boundary = Blocks {
+        let blocks_boundary = Blocks::new(
             // boundary is in all but not in interior (so all && interior.not())
-            blocks: blocks_all
+            blocks_all
                 .blocks
                 .iter()
                 .zip(blocks_interior.blocks.iter())
                 .map(|(all, interior)| *all && interior.not())
                 .collect(),
-            grid_size: blocks_all.grid_size,
-            origin: blocks_all.origin,
-        };
+            blocks_all.grid_size,
+        );
         let blocks_complement = blocks_all.get_complement();
 
         GenOutput {
