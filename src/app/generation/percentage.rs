@@ -11,7 +11,7 @@ pub fn generate_alg_percentage(
     percentage: f64,
     grid_size: usize,
 ) -> Blocks {
-    let origin = Blocks::get_origin_from_grid_size(grid_size);
+    let origin = Blocks::get_origin_float_from_grid_size(grid_size);
 
     let blocks = (0..grid_size.pow(2))
         .map(|i| {
