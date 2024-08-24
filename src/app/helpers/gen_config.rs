@@ -1,12 +1,10 @@
-use crate::app::generation::{generate_all_blocks, Algorithm};
+use crate::app::generation::{Algorithm, generate_all_blocks};
 use crate::app::helpers::blocks::Blocks;
-use crate::app::helpers::gen_output::GenOutput;
 use crate::app::helpers::linear_algebra::{Mat2, Vec2};
-use std::ops::Not;
 
 // TODO: factor squircle ui parameter out of GenConfig. Idem for circle mode, radius major & minor.
 /// Document
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct GenConfig {
     pub algorithm: Algorithm,
 
@@ -41,7 +39,7 @@ impl Default for GenConfig {
 
 /// Document
 impl GenConfig {
-    pub fn generate(&self) -> GenOutput {
+    pub fn generate(&self) -> Blocks {
         // Determine grid size
         // The major radius should be included, for some metrics we need at least one layer of padding
         //  around the generated figure. Assuming a square figure (squircle parameter infinity), we
@@ -50,7 +48,7 @@ impl GenConfig {
         let grid_size = (2.0 * 1.42 * f64::max(self.radius_a, self.radius_b)).ceil() as usize + 4;
 
         // Generate from circle with selected algorithm
-        let blocks_all = generate_all_blocks(
+        generate_all_blocks(
             &self.algorithm,
             Vec2::from([self.center_offset_x, self.center_offset_y]),
             self.get_sqrt_quad_form(),
@@ -58,28 +56,7 @@ impl GenConfig {
             self.radius_a,
             self.radius_b,
             grid_size,
-        );
-
-        // run preprocessing
-        let blocks_interior = blocks_all.get_interior();
-        let blocks_boundary = Blocks::new(
-            // boundary is in all but not in interior (so all && interior.not())
-            blocks_all
-                .blocks
-                .iter()
-                .zip(blocks_interior.blocks.iter())
-                .map(|(all, interior)| *all && interior.not())
-                .collect(),
-            blocks_all.grid_size,
-        );
-        let blocks_complement = blocks_all.get_complement();
-
-        GenOutput {
-            blocks_all,
-            blocks_interior,
-            blocks_boundary,
-            blocks_complement,
-        }
+        )
     }
 
     pub fn get_sqrt_quad_form(&self) -> Mat2 {

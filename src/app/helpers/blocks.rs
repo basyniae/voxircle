@@ -1,29 +1,67 @@
-use crate::app::helpers::linear_algebra::{Mat2, Vec2};
-use crate::app::helpers::square::Square;
 use std::ops::Not;
 
-/// Captures a bit matrix. The length of the vector should always be edge_length**2
+use crate::app::helpers::linear_algebra::{Mat2, Vec2};
+use crate::app::helpers::square::Square;
 
+/// Captures a bit matrix. The length of the vector should always be edge_length**2
 #[derive(Default, Debug, Clone)]
 pub struct Blocks {
     pub blocks: Vec<bool>,
     pub grid_size: usize, // of type usize because we index with it a bunch of times
     // the total number of cells where there can be blocks is edge_length**2
     // Order is x first left to right, then y down to up (to match coord space)
-    pub origin: Vec2, // In bitmatrix coordinates, where is the point (0,0)? (Note that it has integer coordinates)
+    origin_float: Vec2, // In bitmatrix coordinates, where is the point (0,0)? (Note that it has integer coordinates)
+    origin_usize: [usize; 2], //  same as origin_float but with usize coordinates
 }
 
+// TODO: make intersect and complement methods for easier computation
 impl Blocks {
     pub fn new(blocks: Vec<bool>, grid_size: usize) -> Self {
         Blocks {
             blocks,
             grid_size,
-            origin: Self::get_origin_from_grid_size(grid_size),
+            origin_float: Self::get_origin_float_from_grid_size(grid_size),
+            origin_usize: [grid_size / 2, grid_size / 2],
         }
     }
 
-    pub fn get_origin_from_grid_size(grid_size: usize) -> Vec2 {
+    pub fn get_origin_float_from_grid_size(grid_size: usize) -> Vec2 {
         Vec2::from([(grid_size / 2) as f64, (grid_size / 2) as f64])
+    }
+
+    /// Get the index of the block whose left bottom corner coordinates are the global coord, if it
+    ///  exists (else return none)
+    pub fn get_index_from_global_coord_usize(&self, global_coord: [isize; 2]) -> Option<usize> {
+        let local_coord = [
+            global_coord[0] + (self.origin_usize[0] as isize),
+            global_coord[1] + (self.origin_usize[1] as isize),
+        ];
+
+        if 0 <= local_coord[0]
+            && 0 <= local_coord[1]
+            && local_coord[0] < (self.grid_size as isize)
+            && local_coord[1] < (self.grid_size as isize)
+        {
+            Some((local_coord[1] * (self.grid_size as isize) + local_coord[0]) as usize)
+        } else {
+            None
+        }
+    }
+
+    pub fn get_global_coord_usize_from_index(&self, i: usize) -> [isize; 2] {
+        [
+            (i % self.grid_size) as isize - (self.origin_usize[0] as isize),
+            (i / self.grid_size) as isize - (self.origin_usize[1] as isize),
+        ]
+    }
+
+    /// return true if there is a block with left bottom coordinate the input global coordinate
+    /// if the point is outside the grid or there is no block there, return false
+    pub fn is_block_on_global_coord(&self, global_coord: [isize; 2]) -> bool {
+        match self.get_index_from_global_coord_usize(global_coord) {
+            None => false,
+            Some(index) => self.blocks[index],
+        }
     }
 
     /// Centered block coordinates, i.e., where the origin lies at (0,0)
@@ -34,25 +72,14 @@ impl Blocks {
         for b in &self.blocks {
             if *b {
                 output_vec.push([
-                    ((i % self.grid_size) as f64) - self.origin.x, // Get integer x position (which is bot. left), then make origin center
-                    ((i / self.grid_size) as f64) - self.origin.y,
+                    ((i % self.grid_size) as f64) - self.origin_float.x, // Get integer x position (which is bot. left), then make origin center
+                    ((i / self.grid_size) as f64) - self.origin_float.y,
                 ]);
             }
             i += 1;
         }
 
         output_vec
-    }
-
-    pub fn get_global_block_coord_from_index(&self, i: usize) -> [f64; 2] {
-        [
-            ((i % self.grid_size) as f64), // Get integer x position (which is bot. left), then make origin center
-            ((i / self.grid_size) as f64),
-        ]
-    }
-
-    pub fn get_index_from_global_block_coord(&self, coords: [f64; 2]) -> usize {
-        (coords[0].round() as usize)
     }
 
     /// Get number of blocks
@@ -213,8 +240,8 @@ impl Blocks {
             {
                 // add to output
                 output.push([
-                    ((corner_point % self.grid_size) as f64) - self.origin.x + 1.0,
-                    ((corner_point / self.grid_size) as f64) - self.origin.y + 1.0,
+                    ((corner_point % self.grid_size) as f64) - self.origin_float.x + 1.0,
+                    ((corner_point / self.grid_size) as f64) - self.origin_float.y + 1.0,
                 ]);
             }
         }
@@ -233,7 +260,7 @@ impl Blocks {
                 i,
                 self.grid_size,
                 Vec2::from([0.0, 0.0]),
-                self.origin,
+                self.origin_float,
                 Mat2::from([0.0, 0.0, 0.0, 0.0]),
             );
 
