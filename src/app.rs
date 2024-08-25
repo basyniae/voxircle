@@ -202,7 +202,7 @@ impl eframe::App for App {
 
                 ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
                 {
-                    ui.add_enabled(self.circle_mode, egui::Checkbox::new(&mut self.view_intersect_area, "Intersect area (circle mode only)"));
+                    ui.add_enabled(self.circle_mode, egui::Checkbox::new(&mut self.view_intersect_area, "Intersect area (circle mode only, beta)"));
                 });
             });
 
@@ -217,7 +217,7 @@ impl eframe::App for App {
                 // Select algorithm
                 egui::ComboBox
                 ::from_label("Algorithm")
-                    .selected_text(format!("{:?}", self.stack_gen_config.get_mut(self.current_layer).unwrap().algorithm))
+                    .selected_text(format!("{:?}", self.stack_gen_config.get_mut(self.current_layer).unwrap().algorithm)) // TODO: change formatting to text
                     .show_ui(ui, |ui| {
                         ui.selectable_value(
                             &mut self.stack_gen_config.get_mut(self.current_layer).unwrap().algorithm,
@@ -281,7 +281,7 @@ impl eframe::App for App {
                 ui.separator();
 
                 if self.circle_mode {
-                    ui.add(
+                    if ui.add(
                         egui::Slider
                         ::new(&mut self.stack_gen_config.get_mut(self.current_layer).unwrap().radius_a, 0.0..=30.0)
                             .text("Radius")
@@ -289,7 +289,11 @@ impl eframe::App for App {
                             .custom_formatter(|param, _| {
                                 format!("{:.02}", param)
                             })
-                    );
+                    ).changed() {
+                        // the code is now invalid
+                        self.lua_field_radius_a.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest);
+                        self.lua_field_radius_b.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest);
+                    };
 
                     // lua
                     if self.lua_mode {
@@ -301,7 +305,7 @@ impl eframe::App for App {
                     self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt = 0.0;
                 } else {
                     // radius a
-                    ui.add(
+                    if ui.add(
                         egui::Slider
                         ::new(&mut self.stack_gen_config.get_mut(self.current_layer).unwrap().radius_a, 0.0..=30.0)
                             .text("Radius A")
@@ -309,14 +313,15 @@ impl eframe::App for App {
                             .custom_formatter(|param, _| {
                                 format!("{:.02}", param)
                             })
-                    );
-                    // TODO: Changes here should affect the validity of the run of the Lua field!
+                    ).changed() {
+                        self.lua_field_radius_a.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest);
+                    }
                     if self.lua_mode {
                         self.lua_field_radius_a.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
                     }
 
                     // radius b
-                    ui.add(
+                    if ui.add(
                         egui::Slider
                         ::new(&mut self.stack_gen_config.get_mut(self.current_layer).unwrap().radius_b, 0.0..=30.0)
                             .text("Radius B")
@@ -324,17 +329,21 @@ impl eframe::App for App {
                             .custom_formatter(|param, _| {
                                 format!("{:.02}", param)
                             })
-                    );
+                    ).changed() {
+                        self.lua_field_radius_b.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest);
+                    }
                     if self.lua_mode {
                         self.lua_field_radius_b.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
                     }
 
-                    ui.add(
+                    if ui.add(
                         egui::Slider
                         ::new(&mut self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt, -6.28..=6.28)
                             .text("Tilt (radians)")
                             .fixed_decimals(2)
-                    );
+                    ).changed() {
+                        self.lua_field_tilt.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest);
+                    };
 
 
                     // Particular values
@@ -342,24 +351,31 @@ impl eframe::App for App {
                     {
                         if ui.button("0°").clicked() {
                             self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt = 0.0;
+                            self.lua_field_tilt.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest);
                         }
                         if ui.button("30°").clicked() {
                             self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt = PI / 6.0;
+                            self.lua_field_tilt.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest);
                         }
                         if ui.button("45°").clicked() {
                             self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt = PI / 4.0;
+                            self.lua_field_tilt.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest);
                         }
                         if ui.button("1:2").clicked() {
                             self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt = 0.5_f64.atan();
+                            self.lua_field_tilt.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest);
                         }
                         if ui.button("1:3").clicked() {
                             self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt = 0.333333333333_f64.atan();
+                            self.lua_field_tilt.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest);
                         }
                         if ui.button("2:3").clicked() {
                             self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt = 0.666666666666_f64.atan();
+                            self.lua_field_tilt.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest);
                         }
                         if ui.button("1:4").clicked() {
                             self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt = 0.25_f64.atan();
+                            self.lua_field_tilt.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest);
                         }
                     });
                     if self.lua_mode {
@@ -374,7 +390,7 @@ impl eframe::App for App {
                 {
                     let mut squircle_ui_parameter = self.stack_gen_config.get_mut(self.current_layer).unwrap().get_squircle_ui_parameter();
                     ui.separator();
-                    ui.add(egui::Slider::new(&mut squircle_ui_parameter, 0.0..=1.0)
+                    if ui.add(egui::Slider::new(&mut squircle_ui_parameter, 0.0..=1.0)
                         .text("Squircicity")
                         .custom_formatter(|param, _| {
                             format!("{:.02}", 1.0 / (1.0 - param) - 1.0)
@@ -384,7 +400,9 @@ impl eframe::App for App {
                                 1.0 - 1.0 / (t + 1.0)
                             }).ok()
                         })
-                    );
+                    ).changed() {
+                        self.lua_field_squircle_parameter.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest);
+                    };
 
                     // Default values
 
@@ -393,12 +411,15 @@ impl eframe::App for App {
                     {
                         if ui.button("Circle").clicked() {
                             squircle_ui_parameter = 0.666666666666666;
+                            self.lua_field_squircle_parameter.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest);
                         }
                         if ui.button("Diamond").clicked() {
                             squircle_ui_parameter = 0.5;
+                            self.lua_field_squircle_parameter.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest);
                         }
                         if ui.button("Square").clicked() {
                             squircle_ui_parameter = 1.0;
+                            self.lua_field_squircle_parameter.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest);
                         }
                     });
                     self.stack_gen_config.get_mut(self.current_layer).unwrap().squircle_parameter = 1.0 / (1.0 - squircle_ui_parameter) - 1.0;
@@ -412,11 +433,15 @@ impl eframe::App for App {
 
                 // Centerpoint
                 ui.separator();
-                ui.add(egui::Slider::new(&mut self.stack_gen_config.get_mut(self.current_layer).unwrap().center_offset_x, -1.0..=1.0).text("x offset"));
+                if ui.add(egui::Slider::new(&mut self.stack_gen_config.get_mut(self.current_layer).unwrap().center_offset_x, -1.0..=1.0).text("x offset")).changed() {
+                    self.lua_field_center_offset_x.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest);
+                }
                 if self.lua_mode {
                     self.lua_field_center_offset_x.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
                 }
-                ui.add(egui::Slider::new(&mut self.stack_gen_config.get_mut(self.current_layer).unwrap().center_offset_y, -1.0..=1.0).text("y offset"));
+                if ui.add(egui::Slider::new(&mut self.stack_gen_config.get_mut(self.current_layer).unwrap().center_offset_y, -1.0..=1.0).text("y offset")).changed() {
+                    self.lua_field_center_offset_y.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest);
+                };
                 if self.lua_mode {
                     self.lua_field_center_offset_y.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
                 }
@@ -426,14 +451,17 @@ impl eframe::App for App {
                     if ui.button("Even center").clicked() {
                         self.stack_gen_config.get_mut(self.current_layer).unwrap().center_offset_x = 0.0;
                         self.stack_gen_config.get_mut(self.current_layer).unwrap().center_offset_y = 0.0;
+                        self.lua_field_center_offset_x.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest);
+                        self.lua_field_center_offset_y.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest);
                     }
                     if ui.button("Odd center").clicked() {
                         self.stack_gen_config.get_mut(self.current_layer).unwrap().center_offset_x = 0.5;
                         self.stack_gen_config.get_mut(self.current_layer).unwrap().center_offset_y = 0.5;
+                        self.lua_field_center_offset_x.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest);
+                        self.lua_field_center_offset_y.update_field_state(&mut self.lua, self.layer_lowest, self.layer_highest);
                     }
                 });
 
-                // old viewport options place
 
                 // Generate action
                 ui.separator();
