@@ -1,5 +1,6 @@
-use crate::app::helpers::linear_algebra::Vec2;
 use std::f64::consts::PI;
+
+use crate::app::math::linear_algebra::Vec2;
 
 /// With -radius <= x0 <= x1 <= radius, what is the area of the semicircle y=sqrt(R^2-x^2) from x0 to x1?
 /// Have an exact primitive for non-edge cases

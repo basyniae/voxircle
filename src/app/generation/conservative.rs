@@ -1,8 +1,8 @@
-use crate::app::helpers::blocks::Blocks;
-use crate::app::helpers::circle_geometry::get_squircle_tangent_point;
-use crate::app::helpers::linear_algebra::{Mat2, Vec2};
-use crate::app::helpers::linear_geometry::line_segments_intersect;
-use crate::app::helpers::square::Square;
+use crate::app::data_structures::blocks::Blocks;
+use crate::app::data_structures::square::Square;
+use crate::app::math::circle_geometry::get_squircle_tangent_point;
+use crate::app::math::linear_algebra::{Mat2, Vec2};
+use crate::app::math::linear_geometry::line_segments_intersect;
 
 pub fn generate_alg_conservative(
     center_offset: Vec2,

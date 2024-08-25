@@ -1,9 +1,11 @@
-use crate::app::helpers::blocks::Blocks;
-use crate::app::helpers::zvec::ZVec;
+use crate::app::data_structures::blocks::Blocks;
+use crate::app::data_structures::zvec::ZVec;
 
-/// document
+/// For the input `stack_blocks` viewed as a 3D shape, compute which are on the boundary, i.e.,
+///  which blocks cannot be removed to alter the outside appearance of the shape. If the shape has holes,
+///  these are also counted as 'outside' (so it is a topological boundary)
 pub fn boundary_3d(
-    gen_output: &ZVec<Blocks>,
+    stack_blocks: &ZVec<Blocks>,
     layer_min: isize,
     layer_max: isize,
     floating_bottom: bool,
@@ -11,7 +13,7 @@ pub fn boundary_3d(
 ) -> ZVec<Blocks> {
     let out = (layer_min..=layer_max)
         .map(|layer| {
-            let blocks = gen_output.get(layer).clone().unwrap();
+            let blocks = stack_blocks.get(layer).clone().unwrap();
 
             Blocks::new(
                 (0..blocks.grid_size.pow(2))
@@ -20,9 +22,7 @@ pub fn boundary_3d(
 
                         blocks.blocks[i] == true
                             // has to be a block in self
-                            && (
-
-                            i % blocks.grid_size == 0
+                            && (i % blocks.grid_size == 0
                                 // edges of layer boundary are automatically boundary  (extreme coords):
                                 || i % blocks.grid_size == blocks.grid_size - 1
                                 || i / blocks.grid_size == 0
@@ -36,8 +36,8 @@ pub fn boundary_3d(
                                 || (layer == layer_min && floating_bottom)
                                 || (layer == layer_max && floating_top)
                                 // vertical boundary: see if 1. the layer above exists, 2. there is no block at the global coords on the layer above
-                                || gen_output.get(layer + 1).is_some_and(|layer_above| !layer_above.is_block_on_global_coord(global_coords))
-                                || gen_output.get(layer - 1).is_some_and(|layer_above| !layer_above.is_block_on_global_coord(global_coords))
+                                || stack_blocks.get(layer + 1).is_some_and(|layer_above| !layer_above.is_block_on_global_coord(global_coords))
+                                || stack_blocks.get(layer - 1).is_some_and(|layer_above| !layer_above.is_block_on_global_coord(global_coords))
                             )
                     })
                     .collect(), blocks.grid_size)
