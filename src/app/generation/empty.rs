@@ -1,4 +1,4 @@
-use crate::app::helpers::blocks::Blocks;
+use crate::app::data_structures::blocks::Blocks;
 
 // generate empty blocks with correct grid size
 pub fn generate_alg_empty(grid_size: usize) -> Blocks {

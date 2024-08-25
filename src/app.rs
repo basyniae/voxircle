@@ -11,24 +11,23 @@ use egui_plot::{
 };
 use mlua::Lua;
 
-use helpers::blocks::Blocks;
-use helpers::plotting;
+use data_structures::blocks::Blocks;
+use data_structures::gen_config::GenConfig;
+use data_structures::zvec::ZVec;
+use generation::Algorithm;
+use lua_field::LuaField;
+use math::convex_hull::{get_convex_hull, line_segments_from_conv_hull};
+use math::exact_squircle_bounds::exact_squircle_bounds;
+use math::square_max::square_max;
+use metrics::boundary_3d::boundary_3d;
 
-use crate::app::helpers::exact_squircle_bounds::exact_squircle_bounds;
-use crate::app::helpers::gen_config::GenConfig;
-use crate::app::helpers::square_max::square_max;
-use crate::app::helpers::zvec::ZVec;
-use crate::app::lua_field::LuaField;
-use crate::app::metrics::boundary_3d::boundary_3d;
-use crate::formatting;
-
-use self::generation::Algorithm;
-use self::helpers::convex_hull::{get_convex_hull, line_segments_from_conv_hull};
-
+mod data_structures;
+mod formatting;
 mod generation;
-pub mod helpers;
 mod lua_field;
+mod math;
 mod metrics;
+mod plotting;
 
 // Colors based on Blender Minimal Dark scheme, 3D Viewport
 const COLOR_BACKGROUND: Color32 = Color32::from_rgb(28, 28, 28); // middle background color (dark gray)
@@ -44,46 +43,50 @@ const COLOR_X_AXIS: Color32 = Color32::from_rgb(123, 34, 34); // x-axis color (r
 const COLOR_Y_AXIS: Color32 = Color32::from_rgb(44, 107, 44); // y-axis color (green)
 
 pub struct App {
+    // Layer management
     current_layer: isize,
     layer_lowest: isize,
     layer_highest: isize,
 
-    stack_gen_config: ZVec<GenConfig>, //  document
-    stack_gen_output: ZVec<Blocks>,
+    stack_gen_config: ZVec<GenConfig>, // Store the configuration for each layer, handily indexed by integers
+    stack_blocks: ZVec<Blocks>,        // Store the blocks for each layer
 
-    recompute_metrics: bool,
+    recompute_metrics: bool, // If the current layer has changed, recompute the metrics. By update order, this needs to be a global variable
 
+    // Metrics
     nr_blocks_total: u64,
     nr_blocks_interior: u64,
     nr_blocks_boundary: u64,
-
     boundary_2d: Blocks,
     interior_2d: Blocks,
     complement_2d: Blocks,
     boundary_3d: ZVec<Blocks>,
     interior_3d: ZVec<Blocks>,
+    convex_hull: Vec<[f64; 2]>, //todo: check update orders and such
+    outer_corners: Vec<[f64; 2]>,
 
+    // Generate new shape on this layer automatically from the provided parameters
     auto_generate: bool,
+    circle_mode: bool,
+    lua_mode: bool,
 
+    // Viewport options
     view_blocks_all: bool,
     view_blocks_boundary: bool,
     view_blocks_interior: bool,
     view_complement: bool,
     view_intersect_area: bool,
-
     view_boundary_3d: bool,
     view_interior_3d: bool,
-
     view_convex_hull: bool,
     view_outer_corners: bool,
-    convex_hull: Vec<[f64; 2]>,
-    outer_corners: Vec<[f64; 2]>,
+
+    // Zoom options (used for double click to reset zoom)
     reset_zoom_once: bool,
-    reset_zoom: bool,
+    reset_zoom_continuous: bool,
 
-    circle_mode: bool,
-
-    lua: Lua,
+    // Lua fields
+    lua: Lua, // Lua instance (only initialized once)
     lua_field_radius_a: LuaField,
     lua_field_radius_b: LuaField,
     lua_field_tilt: LuaField,
@@ -103,51 +106,66 @@ impl App {
         let lua = Lua::new();
         // give lua as little information as possible about the configurations... handle that all in rust
         lua.globals().set("layer", 0).unwrap();
+        // lua.globals().set("l", 0).unwrap(); // short layer alias TODO: implement
+
+        // Make math functions global for easier access (so `sqrt` instead of `math.sqrt`)
+        lua.load(
+            r#"
+                for k, v in pairs(math) do
+                  _G[k] = v
+                end
+            "#,
+        )
+        .exec()
+        .unwrap();
 
         // Defaults should be such that we get useful output on startup
-        // esp. some positive integral radius, auto generate on, and view blocks on
         Self {
+            // Start on layer zero with no additional layers initialized
             current_layer: 0,
-            // stack_index: 0,
             layer_lowest: 0,
             layer_highest: 0,
 
+            // Initialize for single layer (it will get overridden on the first update)
             stack_gen_config: ZVec::new(VecDeque::from(vec![GenConfig::default()]), 0),
-            stack_gen_output: ZVec::new(VecDeque::from(vec![Blocks::default()]), 0),
+            stack_blocks: ZVec::new(VecDeque::from(vec![Blocks::default()]), 0),
 
+            // Compute the metrics on the first update
             recompute_metrics: true,
 
+            // Initialize empty metrics
             nr_blocks_total: Default::default(),
             nr_blocks_interior: Default::default(),
             nr_blocks_boundary: Default::default(),
-
             boundary_2d: Default::default(),
             interior_2d: Default::default(),
             complement_2d: Default::default(),
             boundary_3d: ZVec::new(VecDeque::from(vec![Blocks::default()]), 0),
             interior_3d: ZVec::new(VecDeque::from(vec![Blocks::default()]), 0),
+            convex_hull: Default::default(),
+            outer_corners: Default::default(),
 
+            // Initialize on simplest working mode of operation
             auto_generate: true,
+            circle_mode: true,
+            lua_mode: false, // TODO: Implement (hide the lua field and showing "generate parameters from code" etc.
 
+            // ""
             view_blocks_all: true,
             view_blocks_boundary: false,
             view_blocks_interior: false,
             view_intersect_area: false,
             view_complement: false,
-
             view_boundary_3d: false,
             view_interior_3d: false,
-
             view_convex_hull: false,
             view_outer_corners: false,
-            convex_hull: Default::default(),
-            outer_corners: Default::default(),
 
+            // Start with continuously updating zoom
             reset_zoom_once: false,
-            reset_zoom: true,
+            reset_zoom_continuous: true,
 
-            circle_mode: true,
-
+            // Standard initializations, finite or nonnegative as necessary and sensible for the data type
             lua,
             lua_field_radius_a: LuaField::new(true, true),
             lua_field_radius_b: LuaField::new(true, true),
@@ -409,7 +427,7 @@ impl eframe::App for App {
                         // TODO: Only auto generate if the values have changed!
 
                         // Generate from circle with selected algorithm
-                        self.stack_gen_output.set(self.current_layer, self.stack_gen_config.get_mut(self.current_layer).unwrap().generate());
+                        self.stack_blocks.set(self.current_layer, self.stack_gen_config.get_mut(self.current_layer).unwrap().generate());
 
                         self.recompute_metrics = true;
                     }
@@ -468,7 +486,7 @@ impl eframe::App for App {
                     if ui.button("Generate all layers").clicked() {
 
                         // Generate all layers
-                        self.stack_gen_output = ZVec::new(self.stack_gen_config.data.iter().map(|config| config.generate()).collect(), self.layer_lowest);
+                        self.stack_blocks = ZVec::new(self.stack_gen_config.data.iter().map(|config| config.generate()).collect(), self.layer_lowest);
 
                         self.recompute_metrics = true;
                     }
@@ -482,13 +500,13 @@ impl eframe::App for App {
 
             // update 2d spatial metrics
             self.interior_2d = self
-                .stack_gen_output
+                .stack_blocks
                 .get(self.current_layer)
                 .unwrap()
                 .get_interior();
             self.boundary_2d = Blocks::new(
                 // boundary is in all but not in interior (so all && interior.not())
-                self.stack_gen_output
+                self.stack_blocks
                     .get(self.current_layer)
                     .unwrap()
                     .blocks
@@ -499,14 +517,14 @@ impl eframe::App for App {
                 self.interior_2d.grid_size,
             );
             self.complement_2d = self
-                .stack_gen_output
+                .stack_blocks
                 .get(self.current_layer)
                 .unwrap()
                 .get_complement();
 
             // update 3d spatial metrics
             self.boundary_3d = boundary_3d(
-                &self.stack_gen_output,
+                &self.stack_blocks,
                 self.layer_lowest,
                 self.layer_highest,
                 true,
@@ -522,10 +540,10 @@ impl eframe::App for App {
                                 .unwrap()
                                 .blocks
                                 .iter()
-                                .zip(self.stack_gen_output.get(layer).unwrap().blocks)
+                                .zip(self.stack_blocks.get(layer).unwrap().blocks)
                                 .map(|(is_bdry, is_block)| is_block && !is_bdry)
                                 .collect(),
-                            self.stack_gen_output.get(layer).unwrap().grid_size,
+                            self.stack_blocks.get(layer).unwrap().grid_size,
                         )
                     })
                     .collect(),
@@ -534,7 +552,7 @@ impl eframe::App for App {
 
             // update numerical metrics
             self.nr_blocks_total = self
-                .stack_gen_output
+                .stack_blocks
                 .get_mut(self.current_layer)
                 .unwrap()
                 .get_nr_blocks();
@@ -542,7 +560,7 @@ impl eframe::App for App {
             self.nr_blocks_boundary = self.boundary_2d.get_nr_blocks();
 
             self.outer_corners = self
-                .stack_gen_output
+                .stack_blocks
                 .get_mut(self.current_layer)
                 .unwrap()
                 .get_outer_corners();
@@ -567,7 +585,7 @@ impl eframe::App for App {
                         formatting::format_block_count(self.nr_blocks_total),
                         formatting::format_block_count(self.nr_blocks_boundary),
                         formatting::format_block_count(self.nr_blocks_interior),
-                        formatting::format_block_diameter(self.stack_gen_output.get_mut(self.current_layer).unwrap().get_diameters()),
+                        formatting::format_block_diameter(self.stack_blocks.get_mut(self.current_layer).unwrap().get_diameters()),
                         //self.blocks_all.get_build_sequence() //FIXME: Redo, note it doesn't make sense for *tilted* superellipses (or non-centered ones?)
                     )
                 )
@@ -657,10 +675,10 @@ impl eframe::App for App {
                     self.stack_gen_config.get(old_layer).unwrap().clone(),
                 );
 
-                self.stack_gen_output.resize(
+                self.stack_blocks.resize(
                     self.layer_lowest,
                     self.layer_highest,
-                    self.stack_gen_output.get(old_layer).unwrap().clone(),
+                    self.stack_blocks.get(old_layer).unwrap().clone(),
                 );
 
                 self.recompute_metrics = true;
@@ -731,7 +749,7 @@ impl eframe::App for App {
                 .show_axes([false, false]) // Don't show number axes
                 .show(ui, |plot_ui| {
                     // Reset zoom (approximates default behaviour, but we get to specify the action of automatic zooming
-                    if self.reset_zoom_once || self.reset_zoom {
+                    if self.reset_zoom_once || self.reset_zoom_continuous {
                         let mut global_bounding_box = self
                             .stack_gen_config
                             .data
@@ -761,17 +779,17 @@ impl eframe::App for App {
                     }
 
                     if plot_ui.response().clicked() || plot_ui.response().drag_started() {
-                        self.reset_zoom = false
+                        self.reset_zoom_continuous = false
                     }
 
                     if plot_ui.response().double_clicked() {
-                        self.reset_zoom = true // not sure if best to reset zoom once or reset zoom continuously
+                        self.reset_zoom_continuous = true // not sure if best to reset zoom once or reset zoom continuously
                     }
 
                     // * Viewport plotting * //
                     if self.view_blocks_all {
                         for coord in self
-                            .stack_gen_output
+                            .stack_blocks
                             .get_mut(self.current_layer)
                             .unwrap()
                             .get_all_block_coords()

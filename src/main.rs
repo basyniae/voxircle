@@ -1,12 +1,12 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
                                                                    // (ripped straight from the example)
 
-mod app;
-mod formatting;
-
-use eframe::egui::ViewportBuilder;
-use eframe::{HardwareAcceleration, Theme};
 use std::default::Default;
+
+use eframe::{HardwareAcceleration, Theme};
+use eframe::egui::ViewportBuilder;
+
+mod app;
 
 fn main() {
     let options = eframe::NativeOptions {

@@ -1,7 +1,7 @@
 use std::ops::Not;
 
-use crate::app::helpers::linear_algebra::{Mat2, Vec2};
-use crate::app::helpers::square::Square;
+use crate::app::data_structures::square::Square;
+use crate::app::math::linear_algebra::{Mat2, Vec2};
 
 /// Captures a bit matrix. The length of the vector should always be edge_length**2
 #[derive(Default, Debug, Clone)]

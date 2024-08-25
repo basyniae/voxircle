@@ -1,20 +1,20 @@
 // For outputting the bitmatrices + size. Always solid, we do interior removal in preprocessing. Bunch of algorithms
 
-mod centerpoint;
-mod conservative;
-mod contained;
-mod empty;
-pub mod percentage;
-// want it public because we use the circle intersection area as a widget
-
-use crate::app::helpers::blocks::Blocks;
-use crate::app::helpers::linear_algebra::{Mat2, Vec2};
+use crate::app::data_structures::blocks::Blocks;
+use crate::app::math::linear_algebra::{Mat2, Vec2};
 
 use self::{
     centerpoint::generate_alg_centerpoint, conservative::generate_alg_conservative,
     contained::generate_alg_contained, empty::generate_alg_empty,
     percentage::generate_alg_percentage,
 };
+
+mod centerpoint;
+mod conservative;
+mod contained;
+mod empty;
+pub mod percentage;
+// want it public because we use the circle intersection area as a widget
 
 #[derive(Debug, PartialEq, Default, Clone, Copy)]
 pub enum Algorithm {

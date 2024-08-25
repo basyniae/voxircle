@@ -1,9 +1,8 @@
+use crate::app::data_structures::blocks::Blocks;
 use crate::app::generation::{Algorithm, generate_all_blocks};
-use crate::app::helpers::blocks::Blocks;
-use crate::app::helpers::linear_algebra::{Mat2, Vec2};
+use crate::app::math::linear_algebra::{Mat2, Vec2};
 
-// TODO: factor squircle ui parameter out of GenConfig. Idem for circle mode, radius major & minor.
-/// Document
+/// All parameters necessary to run the generation algorithm
 #[derive(Debug, Copy, Clone)]
 pub struct GenConfig {
     pub algorithm: Algorithm,
@@ -37,8 +36,8 @@ impl Default for GenConfig {
     }
 }
 
-/// Document
 impl GenConfig {
+    /// Run the generation algorithm for the configuration `self`, the output is a `Blocks` object.
     pub fn generate(&self) -> Blocks {
         // Determine grid size
         // The major radius should be included, for some metrics we need at least one layer of padding
@@ -59,6 +58,7 @@ impl GenConfig {
         )
     }
 
+    /// Compute the sqrt_quad_form for the configuration `self`
     pub fn get_sqrt_quad_form(&self) -> Mat2 {
         // Compute a square root of the PSD symmetric quadratic form X defining the ellipse:
         //  (x,y)^TX(x,y)=1.
@@ -70,6 +70,7 @@ impl GenConfig {
         )
     }
 
+    /// Get the squircle ui parameter (used for the slider) from the configuration `self`
     pub fn get_squircle_ui_parameter(&self) -> f64 {
         1.0 - 1.0 / (1.0 + self.squircle_parameter)
     }

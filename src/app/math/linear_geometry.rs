@@ -1,5 +1,6 @@
-use crate::app::helpers::linear_algebra::Vec2;
 use std::cmp::Ordering;
+
+use crate::app::math::linear_algebra::Vec2;
 
 /// Return true if the closed line segments intersect, false otherwise.
 /// From http://www.dcs.gla.ac.uk/~pat/52233/slides/Geometry1x1.pdf p.6
