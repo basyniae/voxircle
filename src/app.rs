@@ -37,6 +37,7 @@ const COLOR_LIME: Color32 = Color32::from_rgb(0, 255, 47); // "Active object" co
 const COLOR_LIGHT_BLUE: Color32 = Color32::from_rgb(0, 217, 255); // "Object selected" color (light blue)
 const COLOR_ORANGE: Color32 = Color32::from_rgb(255, 133, 0); // "Grease Pencil Vertex Select" color (orange)
 const COLOR_DARK_ORANGE: Color32 = Color32::from_rgb(204, 106, 0); // Darker shade of orange
+const COLOR_MUTED_ORANGE: Color32 = Color32::from_rgb(212, 148, 78); // Darker shade of orange
 const COLOR_PURPLE: Color32 = Color32::from_rgb(179, 104, 186); // Dark purple
 const COLOR_YELLOW: Color32 = Color32::from_rgb(255, 242, 0); // "Edge Angle Text" color (yellow)
 const COLOR_X_AXIS: Color32 = Color32::from_rgb(123, 34, 34); // x-axis color (red)
@@ -66,14 +67,15 @@ pub struct App {
     outer_corners: Vec<[f64; 2]>,
 
     // Generate new shape on this layer automatically from the provided parameters
-    auto_generate: bool,
+    auto_generate_current_layer: bool,
+    auto_generate_all_layers: bool,
     circle_mode: bool,
     lua_mode: bool,
 
     // Viewport options
-    view_blocks_all: bool,
-    view_blocks_boundary: bool,
-    view_blocks_interior: bool,
+    view_blocks: bool,
+    view_boundary_2d: bool,
+    view_interior_2d: bool,
     view_complement: bool,
     view_intersect_area: bool,
     view_boundary_3d: bool,
@@ -106,7 +108,7 @@ impl App {
         let lua = Lua::new();
         // give lua as little information as possible about the configurations... handle that all in rust
         lua.globals().set("layer", 0).unwrap();
-        // lua.globals().set("l", 0).unwrap(); // short layer alias TODO: implement
+        lua.globals().set("l", 0).unwrap(); // short layer alias
 
         // Make math functions global for easier access (so `sqrt` instead of `math.sqrt`)
         lua.load(
@@ -146,14 +148,15 @@ impl App {
             outer_corners: Default::default(),
 
             // Initialize on simplest working mode of operation
-            auto_generate: true,
+            auto_generate_current_layer: true,
+            auto_generate_all_layers: false,
             circle_mode: true,
             lua_mode: false, // TODO: Implement (hide the lua field and showing "generate parameters from code" etc.
 
             // ""
-            view_blocks_all: true,
-            view_blocks_boundary: false,
-            view_blocks_interior: false,
+            view_blocks: true,
+            view_boundary_2d: false,
+            view_interior_2d: false,
             view_intersect_area: false,
             view_complement: false,
             view_boundary_3d: false,
@@ -181,317 +184,404 @@ impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Options panel TODO: make scroll area
         egui::SidePanel::right("options-panel").show(ctx, |ui| {
-            ui.heading("Generation");
-            ui.separator();
 
-            // Select algorithm
-            egui::ComboBox
-                ::from_label("Algorithm")
-                .selected_text(format!("{:?}", self.stack_gen_config.get_mut(self.current_layer).unwrap().algorithm))
-                .show_ui(ui, |ui| {
-                    ui.selectable_value(
-                        &mut self.stack_gen_config.get_mut(self.current_layer).unwrap().algorithm,
-                        Algorithm::CenterPoint,
-                        "Center point"
-                    );
-                    ui.selectable_value(
-                        &mut self.stack_gen_config.get_mut(self.current_layer).unwrap().algorithm,
-                        Algorithm::Conservative,
-                        "Conservative"
-                    );
-                    ui.selectable_value(
-                        &mut self.stack_gen_config.get_mut(self.current_layer).unwrap().algorithm,
-                        Algorithm::Contained,
-                        "Contained");
-                    ui.selectable_value(
-                        &mut self.stack_gen_config.get_mut(self.current_layer).unwrap().algorithm,
-                        Algorithm::Percentage(0.5),
-                        "Percentage"
-                    );
+            // viewport options
+            egui::TopBottomPanel::bottom("viewport-panel").show_inside(ui, |ui| {
+                ui.heading("View");
+
+                ui.columns(2, |columns| {
+                    columns[0].checkbox(&mut self.view_blocks, "Blocks");
+                    columns[0].checkbox(&mut self.view_complement, "Complement");
+                    columns[0].checkbox(&mut self.view_convex_hull, "Convex hull");
+                    columns[0].checkbox(&mut self.view_outer_corners, "Outer corners");
+                    columns[1].checkbox(&mut self.view_boundary_2d, "Layer Boundary");
+                    columns[1].checkbox(&mut self.view_interior_2d, "Layer Interior");
+                    columns[1].checkbox(&mut self.view_boundary_3d, "3D Boundary");
+                    columns[1].checkbox(&mut self.view_interior_3d, "3D Interior");
                 });
 
-            // additional algorithm-specific options + description
-            match self.stack_gen_config.get_mut(self.current_layer).unwrap().algorithm {
-                Algorithm::CenterPoint => {
-                    ui.label("Include a particular block iff its centerpoint is in the ellipse");
+                ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
+                {
+                    ui.add_enabled(self.circle_mode, egui::Checkbox::new(&mut self.view_intersect_area, "Intersect area (circle mode only)"));
+                });
+            });
+
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                ui.heading("Options");
+                ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
+                {
+                    ui.checkbox(&mut self.circle_mode, "Circle mode");
+                    ui.checkbox(&mut self.lua_mode, "Code mode");
+                });
+
+                // Select algorithm
+                egui::ComboBox
+                ::from_label("Algorithm")
+                    .selected_text(format!("{:?}", self.stack_gen_config.get_mut(self.current_layer).unwrap().algorithm))
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(
+                            &mut self.stack_gen_config.get_mut(self.current_layer).unwrap().algorithm,
+                            Algorithm::CenterPoint,
+                            "Center point",
+                        );
+                        ui.selectable_value(
+                            &mut self.stack_gen_config.get_mut(self.current_layer).unwrap().algorithm,
+                            Algorithm::Conservative,
+                            "Conservative",
+                        );
+                        ui.selectable_value(
+                            &mut self.stack_gen_config.get_mut(self.current_layer).unwrap().algorithm,
+                            Algorithm::Contained,
+                            "Contained");
+                        ui.selectable_value(
+                            &mut self.stack_gen_config.get_mut(self.current_layer).unwrap().algorithm,
+                            Algorithm::Percentage(0.5),
+                            "Percentage",
+                        );
+                    });
+
+                // additional algorithm-specific options + description
+                match self.stack_gen_config.get_mut(self.current_layer).unwrap().algorithm {
+                    Algorithm::CenterPoint => {
+                        ui.label("Include a particular block iff its centerpoint is in the ellipse");
+                    }
+                    Algorithm::Conservative => {
+                        ui.label(
+                            "Include a particular block in the voxelization iff it has nonempty intersection with the ellipse"
+                        );
+                    }
+                    Algorithm::Contained => {
+                        ui.label("Include a particular block iff it is fully contained in the ellipse");
+                    }
+                    Algorithm::Percentage(percentage) => { //TODO: implement ellipse, superellipse
+                        ui.label(
+                            format!(
+                                "Include a particular block in the voxelization iff more than {:.0}% of it is contained in the circle. Ellipses and squircles not implemented.",
+                                100.0 * percentage
+                            )
+                        );
+                        let mut perc_slider = percentage.clone();
+                        ui.add(
+                            egui::Slider
+                            ::new(&mut perc_slider, 0.0..=1.0)
+                                .text("")
+                                .fixed_decimals(2)
+                                .custom_formatter(|n, _| {
+                                    format!("{:.0}%", n * 100.0) //  formatting of percentage slider
+                                })
+                        );
+                        self.stack_gen_config.get_mut(self.current_layer).unwrap().algorithm = Algorithm::Percentage(perc_slider);
+                    }
+                    Algorithm::Empty => {
+                        ui.label("Include no blocks in the voxelization");
+                    }
                 }
-                Algorithm::Conservative => {
-                    ui.label(
-                        "Include a particular block in the voxelization iff it has nonempty intersection with the ellipse"
-                    );
-                }
-                Algorithm::Contained => {
-                    ui.label("Include a particular block iff it is fully contained in the ellipse");
-                }
-                Algorithm::Percentage(percentage) => { //TODO: implement ellipse, superellipse
-                    ui.label(
-                        format!(
-                            "Include a particular block in the voxelization iff more than {:.0}% of it is contained in the circle. Ellipses and squircles not implemented.",
-                            100.0 * percentage
-                        )
-                    );
-                    let mut perc_slider = percentage.clone();
+
+                // Radius
+                ui.separator();
+
+                if self.circle_mode {
                     ui.add(
                         egui::Slider
-                        ::new(&mut perc_slider, 0.0..=1.0)
-                            .text("")
-                            .fixed_decimals(2)
-                            .custom_formatter(|n, _| {
-                                format!("{:.0}%", n * 100.0) //  formatting of percentage slider
+                        ::new(&mut self.stack_gen_config.get_mut(self.current_layer).unwrap().radius_a, 0.0..=30.0)
+                            .text("Radius")
+                            .clamp_to_range(false)
+                            .custom_formatter(|param, _| {
+                                format!("{:.02}", param)
                             })
                     );
-                    self.stack_gen_config.get_mut(self.current_layer).unwrap().algorithm = Algorithm::Percentage(perc_slider);
+
+                    // lua
+                    if self.lua_mode {
+                        self.lua_field_radius_a.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
+                    }
+
+                    self.stack_gen_config.get_mut(self.current_layer).unwrap().radius_b = self.stack_gen_config.get(self.current_layer).unwrap().radius_a;
+
+                    self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt = 0.0;
+                } else {
+                    // radius a
+                    ui.add(
+                        egui::Slider
+                        ::new(&mut self.stack_gen_config.get_mut(self.current_layer).unwrap().radius_a, 0.0..=30.0)
+                            .text("Radius A")
+                            .clamp_to_range(false)
+                            .custom_formatter(|param, _| {
+                                format!("{:.02}", param)
+                            })
+                    );
+                    // TODO: Changes here should affect the validity of the run of the Lua field!
+                    if self.lua_mode {
+                        self.lua_field_radius_a.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
+                    }
+
+                    // radius b
+                    ui.add(
+                        egui::Slider
+                        ::new(&mut self.stack_gen_config.get_mut(self.current_layer).unwrap().radius_b, 0.0..=30.0)
+                            .text("Radius B")
+                            .clamp_to_range(false)
+                            .custom_formatter(|param, _| {
+                                format!("{:.02}", param)
+                            })
+                    );
+                    if self.lua_mode {
+                        self.lua_field_radius_b.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
+                    }
+
+                    ui.add(
+                        egui::Slider
+                        ::new(&mut self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt, -6.28..=6.28)
+                            .text("Tilt (radians)")
+                            .fixed_decimals(2)
+                    );
+
+
+                    // Particular values
+                    ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
+                    {
+                        if ui.button("0°").clicked() {
+                            self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt = 0.0;
+                        }
+                        if ui.button("30°").clicked() {
+                            self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt = PI / 6.0;
+                        }
+                        if ui.button("45°").clicked() {
+                            self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt = PI / 4.0;
+                        }
+                        if ui.button("1:2").clicked() {
+                            self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt = 0.5_f64.atan();
+                        }
+                        if ui.button("1:3").clicked() {
+                            self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt = 0.333333333333_f64.atan();
+                        }
+                        if ui.button("2:3").clicked() {
+                            self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt = 0.666666666666_f64.atan();
+                        }
+                        if ui.button("1:4").clicked() {
+                            self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt = 0.25_f64.atan();
+                        }
+                    });
+                    if self.lua_mode {
+                        self.lua_field_tilt.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
+                    }
+
+                    //TODO: Make circular slider for more intuitive controls (need to build this myself probably)
                 }
-                Algorithm::Empty => {
-                    ui.label("Include no blocks in the voxelization");
-                }
-            }
 
-            // Radius
-            ui.separator();
-            ui.checkbox(&mut self.circle_mode, "Circle mode");
-            if self.circle_mode {
-                ui.add(
-                    egui::Slider
-                    ::new(&mut self.stack_gen_config.get_mut(self.current_layer).unwrap().radius_a, 0.0..=30.0)
-                        .text("Radius")
-                        .clamp_to_range(false)
-                        .custom_formatter(|param, _| {
-                            format!("{:.02}", param)
-                        })
-                );
-
-                // lua
-                self.lua_field_radius_a.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
-
-                self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt = 0.0;
-            }
-            else {
-                // radius a
-                ui.add(
-                    egui::Slider
-                    ::new(&mut self.stack_gen_config.get_mut(self.current_layer).unwrap().radius_a, 0.0..=30.0)
-                        .text("Radius A")
-                        .clamp_to_range(false)
-                        .custom_formatter(|param, _| {
-                            format!("{:.02}", param)
-                        })
-                );
-                // TODO: Changes here should affect the validity of the run of the Lua field!
-                self.lua_field_radius_a.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
-
-                // radius b
-                ui.add(
-                    egui::Slider
-                    ::new(&mut self.stack_gen_config.get_mut(self.current_layer).unwrap().radius_b, 0.0..=30.0)
-                        .text("Radius B")
-                        .clamp_to_range(false)
-                        .custom_formatter(|param, _| {
-                            format!("{:.02}", param)
-                        })
-                );
-                self.lua_field_radius_b.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
-
-                ui.add(
-                    egui::Slider
-                    ::new(&mut self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt, -6.28..=6.28)
-                        .text("Tilt (radians)")
-                        .fixed_decimals(2)
-                );
-
-
-                // Particular values
-                ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
+                // Squircle parameter
+                // due to the scale of the parameter this is all a bit awkward... Introduce a temporary variable for controlling it
                 {
-                    if ui.button("0°").clicked() {
-                        self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt = 0.0;
-                    }
-                    if ui.button("30°").clicked() {
-                        self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt = PI/6.0;
-                    }
-                    if ui.button("45°").clicked() {
-                        self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt = PI/4.0;
-                    }
-                    if ui.button("1:2").clicked() {
-                        self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt = 0.5_f64.atan();
-                    }
-                    if ui.button("1:3").clicked() {
-                        self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt = 0.333333333333_f64.atan();
-                    }
-                    if ui.button("2:3").clicked() {
-                        self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt = 0.666666666666_f64.atan();
-                    }
-                    if ui.button("1:4").clicked() {
-                        self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt = 0.25_f64.atan();
-                    }
-                });
-                self.lua_field_tilt.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
+                    let mut squircle_ui_parameter = self.stack_gen_config.get_mut(self.current_layer).unwrap().get_squircle_ui_parameter();
+                    ui.separator();
+                    ui.add(egui::Slider::new(&mut squircle_ui_parameter, 0.0..=1.0)
+                        .text("Squircicity")
+                        .custom_formatter(|param, _| {
+                            format!("{:.02}", 1.0 / (1.0 - param) - 1.0)
+                        })
+                        .custom_parser(|s| {
+                            s.parse::<f64>().map(|t| {
+                                1.0 - 1.0 / (t + 1.0)
+                            }).ok()
+                        })
+                    );
 
-                //TODO: Make circular slider for more intuitive controls (need to build this myself probably)
-            }
+                    // Default values
 
-            // Squircle parameter
-            // due to the scale of the parameter this is all a bit awkward... Introduce a temporary variable for controlling it
-            {
-                let mut squircle_ui_parameter = self.stack_gen_config.get_mut(self.current_layer).unwrap().get_squircle_ui_parameter();
+                    // Aim: Make choice of squircle parameter easy. there are distinct values at 2/3 and 1/3 we want to be exact
+                    ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
+                    {
+                        if ui.button("Circle").clicked() {
+                            squircle_ui_parameter = 0.666666666666666;
+                        }
+                        if ui.button("Diamond").clicked() {
+                            squircle_ui_parameter = 0.5;
+                        }
+                        if ui.button("Square").clicked() {
+                            squircle_ui_parameter = 1.0;
+                        }
+                    });
+                    self.stack_gen_config.get_mut(self.current_layer).unwrap().squircle_parameter = 1.0 / (1.0 - squircle_ui_parameter) - 1.0;
+                }
+                // now kill the termporary variable
+
+                if self.lua_mode {
+                    self.lua_field_squircle_parameter.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
+                }
+
+
+                // Centerpoint
                 ui.separator();
-                ui.add(egui::Slider::new(&mut squircle_ui_parameter, 0.0..=1.0)
-                    .text("Squircicity")
-                    .custom_formatter(|param, _| {
-                        format!("{:.02}", 1.0 / (1.0 - param) - 1.0)
-                    })
-                    .custom_parser(|s| {
-                        s.parse::<f64>().map(|t| {
-                            1.0 - 1.0 / (t + 1.0)
-                        }).ok()
-                    })
-                );
-
-                // Default values
-
-                // Aim: Make choice of squircle parameter easy. there are distinct values at 2/3 and 1/3 we want to be exact
+                ui.add(egui::Slider::new(&mut self.stack_gen_config.get_mut(self.current_layer).unwrap().center_offset_x, -1.0..=1.0).text("x offset"));
+                if self.lua_mode {
+                    self.lua_field_center_offset_x.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
+                }
+                ui.add(egui::Slider::new(&mut self.stack_gen_config.get_mut(self.current_layer).unwrap().center_offset_y, -1.0..=1.0).text("y offset"));
+                if self.lua_mode {
+                    self.lua_field_center_offset_y.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
+                }
+                // Add odd and even buttons (also good so people understand what the abstraction "offset center" actually means)
                 ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
                 {
-                    if ui.button("Circle").clicked() {
-                        squircle_ui_parameter = 0.666666666666666;
+                    if ui.button("Even center").clicked() {
+                        self.stack_gen_config.get_mut(self.current_layer).unwrap().center_offset_x = 0.0;
+                        self.stack_gen_config.get_mut(self.current_layer).unwrap().center_offset_y = 0.0;
                     }
-                    if ui.button("Diamond").clicked() {
-                        squircle_ui_parameter = 0.5;
-                    }
-                    if ui.button("Square").clicked() {
-                        squircle_ui_parameter = 1.0;
-                    }
-                });
-                self.stack_gen_config.get_mut(self.current_layer).unwrap().squircle_parameter = 1.0 / (1.0 - squircle_ui_parameter) - 1.0;
-            }
-            // now kill the termporary variable
-
-            self.lua_field_squircle_parameter.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
-
-
-            // Centerpoint
-            ui.separator();
-            ui.add(egui::Slider::new(&mut self.stack_gen_config.get_mut(self.current_layer).unwrap().center_offset_x, -1.0..=1.0).text("x offset"));
-            self.lua_field_center_offset_x.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
-            ui.add(egui::Slider::new(&mut self.stack_gen_config.get_mut(self.current_layer).unwrap().center_offset_y, -1.0..=1.0).text("y offset"));
-            self.lua_field_center_offset_y.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
-            // Add odd and even buttons (also good so people understand what the abstraction "offset center" actually means)
-            ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
-            {
-                if ui.button("Even center").clicked() {
-                    self.stack_gen_config.get_mut(self.current_layer).unwrap().center_offset_x = 0.0;
-                    self.stack_gen_config.get_mut(self.current_layer).unwrap().center_offset_y = 0.0;
-                }
-                if ui.button("Odd center").clicked() {
-                    self.stack_gen_config.get_mut(self.current_layer).unwrap().center_offset_x = 0.5;
-                    self.stack_gen_config.get_mut(self.current_layer).unwrap().center_offset_y = 0.5;
-                }
-            });
-
-
-
-            // Viewport options
-            ui.separator();
-            ui.separator();
-            ui.heading("View options");
-
-            ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
-            {
-                ui.checkbox(&mut self.view_blocks_all, "All");
-                ui.checkbox(&mut self.view_blocks_boundary, "Boundary");
-                ui.checkbox(&mut self.view_blocks_interior, "Interior");
-                ui.checkbox(&mut self.view_complement, "Complement");
-            });
-            ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
-            {
-                ui.checkbox(&mut self.view_convex_hull, "Convex hull");
-                ui.checkbox(&mut self.view_outer_corners, "Outer corners");
-            });
-            ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
-            {
-                ui.add_enabled(self.circle_mode, egui::Checkbox::new(&mut self.view_intersect_area, "Intersect area"));
-            });
-            ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
-            {
-                ui.checkbox(&mut self.view_boundary_3d, "Boundary 3D");
-                ui.checkbox(&mut self.view_interior_3d, "Interior 3D");
-            });
-
-            // Generate action
-            ui.separator();
-
-            ui.columns(2, |columns| {
-                columns[0].checkbox(&mut self.auto_generate, "Auto generate");
-                columns[0].centered_and_justified(|ui| {
-                    if ui.button("Generate current layer").clicked() || self.auto_generate {
-                        // TODO: Only auto generate if the values have changed!
-
-                        // Generate from circle with selected algorithm
-                        self.stack_blocks.set(self.current_layer, self.stack_gen_config.get_mut(self.current_layer).unwrap().generate());
-
-                        self.recompute_metrics = true;
+                    if ui.button("Odd center").clicked() {
+                        self.stack_gen_config.get_mut(self.current_layer).unwrap().center_offset_x = 0.5;
+                        self.stack_gen_config.get_mut(self.current_layer).unwrap().center_offset_y = 0.5;
                     }
                 });
 
-                if columns[1].button("Set parameters for all layers by code").clicked() {
+                // old viewport options place
 
-                    for layer in self.layer_lowest..=self.layer_highest {
-                        self.lua.globals().set("layer", layer).unwrap();
+                // Generate action
+                ui.separator();
+                ui.checkbox(&mut self.auto_generate_current_layer, "Auto-generate current layer");
+                ui.checkbox(&mut self.auto_generate_all_layers, "Auto-generate all layers");
 
-                        self.lua_field_radius_a.eval(
-                            &mut self.lua,
-                            &mut self.stack_gen_config.get_mut(layer).unwrap().radius_a
-                        );
+                if self.lua_mode {
+                    ui.columns(2, |columns| {
+                        if columns[0].button("Set parameters for current layers by code").clicked() {
+                            self.lua.globals().set("layer", self.current_layer).unwrap();
+                            self.lua.globals().set("l", self.current_layer).unwrap();
 
-                        if self.circle_mode {
                             self.lua_field_radius_a.eval(
                                 &mut self.lua,
-                                &mut self.stack_gen_config.get_mut(layer).unwrap().radius_b,
+                                &mut self.stack_gen_config.get_mut(self.current_layer).unwrap().radius_a,
                             );
-                        } else {
-                            self.lua_field_radius_b.eval(
+
+                            if self.circle_mode {
+                                self.lua_field_radius_a.eval(
+                                    &mut self.lua,
+                                    &mut self.stack_gen_config.get_mut(self.current_layer).unwrap().radius_b,
+                                );
+                            } else {
+                                self.lua_field_radius_b.eval(
+                                    &mut self.lua,
+                                    &mut self.stack_gen_config.get_mut(self.current_layer).unwrap().radius_b,
+                                );
+                            }
+
+                            self.lua_field_tilt.eval(
                                 &mut self.lua,
-                                &mut self.stack_gen_config.get_mut(layer).unwrap().radius_b,
+                                &mut self.stack_gen_config.get_mut(self.current_layer).unwrap().tilt,
                             );
+
+                            self.lua_field_squircle_parameter.eval(
+                                &mut self.lua,
+                                &mut self.stack_gen_config.get_mut(self.current_layer).unwrap().squircle_parameter,
+                            );
+
+                            self.lua_field_center_offset_x.eval(
+                                &mut self.lua,
+                                &mut self.stack_gen_config.get_mut(self.current_layer).unwrap().center_offset_x,
+                            );
+                            self.lua_field_center_offset_y.eval(
+                                &mut self.lua,
+                                &mut self.stack_gen_config.get_mut(self.current_layer).unwrap().center_offset_y,
+                            );
+                            self.lua_field_radius_a.register_success();
+                            self.lua_field_radius_b.register_success();
+                            self.lua_field_tilt.register_success();
+                            self.lua_field_squircle_parameter.register_success();
+                            self.lua_field_center_offset_x.register_success();
+                            self.lua_field_center_offset_y.register_success();
                         }
+                        columns[0].centered_and_justified(|ui| {
+                            if ui.button("Generate current layer").clicked() || self.auto_generate_current_layer {
+                                // TODO: Only auto generate if the values have changed!
 
-                        self.lua_field_tilt.eval(
-                            &mut self.lua,
-                            &mut self.stack_gen_config.get_mut(layer).unwrap().tilt
-                        );
+                                // Generate from circle with selected algorithm
+                                self.stack_blocks.set(self.current_layer, self.stack_gen_config.get_mut(self.current_layer).unwrap().generate());
 
-                        self.lua_field_squircle_parameter.eval(
-                            &mut self.lua,
-                            &mut self.stack_gen_config.get_mut(layer).unwrap().squircle_parameter
-                        );
+                                self.recompute_metrics = true;
+                            }
+                        });
 
-                        self.lua_field_center_offset_x.eval(
-                            &mut self.lua,
-                            &mut self.stack_gen_config.get_mut(layer).unwrap().center_offset_x
-                        );
-                        self.lua_field_center_offset_y.eval(
-                            &mut self.lua,
-                            &mut self.stack_gen_config.get_mut(layer).unwrap().center_offset_y
-                        );
-                    }
-                    self.lua_field_radius_a.register_success();
-                    self.lua_field_radius_b.register_success();
-                    self.lua_field_tilt.register_success();
-                    self.lua_field_squircle_parameter.register_success();
-                    self.lua_field_center_offset_x.register_success();
-                    self.lua_field_center_offset_y.register_success();
+                        if columns[1].button("Set parameters for all layers by code").clicked() {
+                            for layer in self.layer_lowest..=self.layer_highest {
+                                self.lua.globals().set("layer", layer).unwrap();
+                                self.lua.globals().set("l", layer).unwrap();
 
+                                self.lua_field_radius_a.eval(
+                                    &mut self.lua,
+                                    &mut self.stack_gen_config.get_mut(layer).unwrap().radius_a,
+                                );
+
+                                if self.circle_mode {
+                                    self.lua_field_radius_a.eval(
+                                        &mut self.lua,
+                                        &mut self.stack_gen_config.get_mut(layer).unwrap().radius_b,
+                                    );
+                                } else {
+                                    self.lua_field_radius_b.eval(
+                                        &mut self.lua,
+                                        &mut self.stack_gen_config.get_mut(layer).unwrap().radius_b,
+                                    );
+                                }
+
+                                self.lua_field_tilt.eval(
+                                    &mut self.lua,
+                                    &mut self.stack_gen_config.get_mut(layer).unwrap().tilt,
+                                );
+
+                                self.lua_field_squircle_parameter.eval(
+                                    &mut self.lua,
+                                    &mut self.stack_gen_config.get_mut(layer).unwrap().squircle_parameter,
+                                );
+
+                                self.lua_field_center_offset_x.eval(
+                                    &mut self.lua,
+                                    &mut self.stack_gen_config.get_mut(layer).unwrap().center_offset_x,
+                                );
+                                self.lua_field_center_offset_y.eval(
+                                    &mut self.lua,
+                                    &mut self.stack_gen_config.get_mut(layer).unwrap().center_offset_y,
+                                );
+                            }
+                            self.lua_field_radius_a.register_success();
+                            self.lua_field_radius_b.register_success();
+                            self.lua_field_tilt.register_success();
+                            self.lua_field_squircle_parameter.register_success();
+                            self.lua_field_center_offset_x.register_success();
+                            self.lua_field_center_offset_y.register_success();
+                        }
+                        columns[1].centered_and_justified(|ui| {
+                            if ui.button("Generate all layers").clicked() || self.auto_generate_all_layers {
+
+                                // Generate all layers
+                                self.stack_blocks = ZVec::new(self.stack_gen_config.data.iter().map(|config| config.generate()).collect(), self.layer_lowest);
+
+                                self.recompute_metrics = true;
+                            }
+                        });
+                    });
+                } else {
+                    ui.columns(2, |columns| {
+                        columns[0].centered_and_justified(|ui| {
+                            if ui.button("Generate current layer").clicked() || self.auto_generate_current_layer {
+                                // TODO: Only auto generate if the values have changed!
+
+                                // Generate from circle with selected algorithm
+                                self.stack_blocks.set(self.current_layer, self.stack_gen_config.get_mut(self.current_layer).unwrap().generate());
+
+                                self.recompute_metrics = true;
+                            }
+                        });
+
+                        columns[1].centered_and_justified(|ui| {
+                            if ui.button("Generate all layers").clicked() || self.auto_generate_all_layers {
+
+                                // Generate all layers
+                                self.stack_blocks = ZVec::new(self.stack_gen_config.data.iter().map(|config| config.generate()).collect(), self.layer_lowest);
+
+                                self.recompute_metrics = true;
+                            }
+                        });
+                    });
                 }
-                columns[1].centered_and_justified(|ui| {
-                    if ui.button("Generate all layers").clicked() {
-
-                        // Generate all layers
-                        self.stack_blocks = ZVec::new(self.stack_gen_config.data.iter().map(|config| config.generate()).collect(), self.layer_lowest);
-
-                        self.recompute_metrics = true;
-                    }
-                });
-            });
+            })
 
         });
 
@@ -787,7 +877,13 @@ impl eframe::App for App {
                     }
 
                     // * Viewport plotting * //
-                    if self.view_blocks_all {
+                    // Draw order should be largest to smallest, so
+                    // 1. blocks + complement
+                    // 2. 3d boundary
+                    // 3. 2d boundary
+                    // 4. 2d interior
+                    // 5. 3d interior
+                    if self.view_blocks {
                         for coord in self
                             .stack_blocks
                             .get_mut(self.current_layer)
@@ -801,32 +897,6 @@ impl eframe::App for App {
                                         color: COLOR_WIRE,
                                     })
                                     .fill_color(COLOR_FACE),
-                            );
-                        }
-                    }
-
-                    if self.view_blocks_boundary {
-                        for coord in self.boundary_2d.get_all_block_coords() {
-                            plot_ui.polygon(
-                                plotting::square_at_coords(coord)
-                                    .stroke(Stroke {
-                                        width: 1.0,
-                                        color: COLOR_WIRE,
-                                    })
-                                    .fill_color(COLOR_LIGHT_BLUE),
-                            );
-                        }
-                    }
-
-                    if self.view_blocks_interior {
-                        for coord in self.interior_2d.get_all_block_coords() {
-                            plot_ui.polygon(
-                                plotting::square_at_coords(coord)
-                                    .stroke(Stroke {
-                                        width: 1.0,
-                                        color: COLOR_WIRE,
-                                    })
-                                    .fill_color(COLOR_YELLOW),
                             );
                         }
                     }
@@ -865,6 +935,32 @@ impl eframe::App for App {
                         }
                     }
 
+                    if self.view_boundary_2d {
+                        for coord in self.boundary_2d.get_all_block_coords() {
+                            plot_ui.polygon(
+                                plotting::square_at_coords(coord)
+                                    .stroke(Stroke {
+                                        width: 1.0,
+                                        color: COLOR_WIRE,
+                                    })
+                                    .fill_color(COLOR_LIGHT_BLUE),
+                            );
+                        }
+                    }
+
+                    if self.view_interior_2d {
+                        for coord in self.interior_2d.get_all_block_coords() {
+                            plot_ui.polygon(
+                                plotting::square_at_coords(coord)
+                                    .stroke(Stroke {
+                                        width: 1.0,
+                                        color: COLOR_WIRE,
+                                    })
+                                    .fill_color(COLOR_YELLOW),
+                            );
+                        }
+                    }
+
                     if self.view_interior_3d {
                         // need to check for this, because of update order the layer isn't generated yet
                         if self.interior_3d.get(self.current_layer).is_some() {
@@ -880,7 +976,7 @@ impl eframe::App for App {
                                             width: 1.0,
                                             color: COLOR_WIRE,
                                         })
-                                        .fill_color(COLOR_YELLOW), // TODO: other color for this
+                                        .fill_color(COLOR_MUTED_ORANGE),
                                 );
                             }
                         }
