@@ -69,6 +69,7 @@ pub struct App {
     // Generate new shape on this layer automatically from the provided parameters
     auto_generate_current_layer: bool,
     auto_generate_all_layers: bool,
+    // todo: implement "layer mode", which when turned off hides all layer functionality
     circle_mode: bool,
     lua_mode: bool,
 
@@ -717,6 +718,8 @@ impl eframe::App for App {
                 let old_layer = self.current_layer;
                 let prev_layer_lowest = self.layer_lowest;
                 let prev_layer_highest = self.layer_highest;
+                // todo: implement 'lock' which freezes the lowest and highest layer and doesn't allow current layer to be outside that
+                //  for projects in which these bounds are known 
 
                 // Finicky due to not being able to know the size of the widget in advance
                 // so do a pretty good prediction
@@ -754,11 +757,7 @@ impl eframe::App for App {
                         {
                             self.current_layer = self.current_layer - 1;
                         }
-                        let central_field =
-                            ui.add(egui::DragValue::new(&mut self.current_layer).speed(0.05));
-                        // if central_field.clicked() || central_field.drag_released() {
-                        //     has_changed = true
-                        // }
+                        ui.add(egui::DragValue::new(&mut self.current_layer).speed(0.05));
 
                         if ui
                             .add(
