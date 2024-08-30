@@ -1,5 +1,6 @@
-use crate::app::helpers::linear_algebra::Vec2;
 use std::cmp::Ordering;
+
+use crate::app::math::linear_algebra::Vec2;
 
 /// Return true if the closed line segments intersect, false otherwise.
 /// From http://www.dcs.gla.ac.uk/~pat/52233/slides/Geometry1x1.pdf p.6
@@ -12,11 +13,11 @@ pub fn line_segments_intersect(line_one: [Vec2; 2], line_two: [Vec2; 2]) -> bool
     ((orient_triple(p_1, q_1, p_2) != orient_triple(p_1, q_1, q_2)) // General case
         && (orient_triple(p_2, q_2, p_1) != orient_triple(p_2, q_2, q_1)))
         || ((orient_triple(p_1, q_1, p_2) == Orientation::Collinear) // Special case
-            && (orient_triple(p_1, q_1, q_2) == Orientation::Collinear)
-            && (orient_triple(p_2, q_2, p_1) == Orientation::Collinear)
-            && (orient_triple(p_2, q_2, q_1) == Orientation::Collinear)
-            && intervals_intersect([p_1.x, q_1.x], [p_2.x, q_2.x])
-            && intervals_intersect([p_1.y, q_1.y], [p_2.y, q_2.y]))
+        && (orient_triple(p_1, q_1, q_2) == Orientation::Collinear)
+        && (orient_triple(p_2, q_2, p_1) == Orientation::Collinear)
+        && (orient_triple(p_2, q_2, q_1) == Orientation::Collinear)
+        && intervals_intersect([p_1.x, q_1.x], [p_2.x, q_2.x])
+        && intervals_intersect([p_1.y, q_1.y], [p_2.y, q_2.y]))
 }
 
 /// Return true if the closed line segment has nonempty intersection with the part of the line defined by the line segment that is not in the line segment itself
@@ -32,10 +33,10 @@ pub fn intersect_complemented_ray_segment(
     ((orient_triple(p_1, q_1, p_2) != orient_triple(p_1, q_1, q_2)) // General case
         && (orient_triple(p_2, q_2, p_1) == orient_triple(p_2, q_2, q_1)))
         || ((orient_triple(p_1, q_1, p_2) == Orientation::Collinear) // Special case (all points collinear)
-    && (orient_triple(p_1, q_1, q_2) == Orientation::Collinear)
-    && (orient_triple(p_2, q_2, p_1) == Orientation::Collinear)
-    && (orient_triple(p_2, q_2, q_1) == Orientation::Collinear)
-    && !(intervals_contains([p_1.x, q_1.x], [p_2.x, q_2.x])
+        && (orient_triple(p_1, q_1, q_2) == Orientation::Collinear)
+        && (orient_triple(p_2, q_2, p_1) == Orientation::Collinear)
+        && (orient_triple(p_2, q_2, q_1) == Orientation::Collinear)
+        && !(intervals_contains([p_1.x, q_1.x], [p_2.x, q_2.x])
         || intervals_contains([p_1.y, q_1.y], [p_2.y, q_2.y])))
 }
 
