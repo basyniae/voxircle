@@ -69,8 +69,8 @@ pub struct App {
     // Generate new shape on this layer automatically from the provided parameters
     auto_generate_current_layer: bool,
     auto_generate_all_layers: bool,
-    // todo: implement "layer mode", which when turned off hides all layer functionality
     circle_mode: bool,
+    layer_mode: bool,
     lua_mode: bool,
 
     // Viewport options
@@ -152,7 +152,8 @@ impl App {
             auto_generate_current_layer: true,
             auto_generate_all_layers: false,
             circle_mode: true,
-            lua_mode: false, // TODO: Implement (hide the lua field and showing "generate parameters from code" etc.
+            layer_mode: false,
+            lua_mode: false,
 
             // ""
             view_blocks: true,
@@ -197,13 +198,13 @@ impl eframe::App for App {
                     columns[0].checkbox(&mut self.view_outer_corners, "Outer corners");
                     columns[1].checkbox(&mut self.view_boundary_2d, "Layer Boundary");
                     columns[1].checkbox(&mut self.view_interior_2d, "Layer Interior");
-                    columns[1].checkbox(&mut self.view_boundary_3d, "3D Boundary");
-                    columns[1].checkbox(&mut self.view_interior_3d, "3D Interior");
+                    columns[1].add_enabled(self.layer_mode, egui::Checkbox::new(&mut self.view_boundary_3d, "3D Boundary"));
+                    columns[1].add_enabled(self.layer_mode, egui::Checkbox::new(&mut self.view_interior_3d, "3D Interior"));
                 });
 
                 ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
                 {
-                    ui.add_enabled(self.circle_mode, egui::Checkbox::new(&mut self.view_intersect_area, "Intersect area (circle mode only, beta)"));
+                    ui.add_enabled(self.circle_mode, egui::Checkbox::new(&mut self.view_intersect_area, "Intersect area"));
                 });
             });
 
@@ -212,7 +213,10 @@ impl eframe::App for App {
                 ui.allocate_ui_with_layout(egui::Vec2::from([100.0, 200.0]), Layout::left_to_right(Align::Min), |ui|
                 {
                     ui.checkbox(&mut self.circle_mode, "Circle mode");
-                    ui.checkbox(&mut self.lua_mode, "Code mode");
+                    if ui.checkbox(&mut self.layer_mode, "Layer mode").changed() {
+                        self.lua_mode &= self.layer_mode; //  if layer mode is turned off, also turn off code mode
+                    };
+                    ui.add_enabled(self.layer_mode, egui::Checkbox::new(&mut self.lua_mode, "Code mode"));
                 });
 
                 // Select algorithm
@@ -425,7 +429,7 @@ impl eframe::App for App {
                     });
                     self.stack_gen_config.get_mut(self.current_layer).unwrap().squircle_parameter = 1.0 / (1.0 - squircle_ui_parameter) - 1.0;
                 }
-                // now kill the termporary variable
+                // now kill the temporary variable
 
                 if self.lua_mode {
                     self.lua_field_squircle_parameter.show(ui, &mut self.lua, self.layer_lowest, self.layer_highest);
@@ -466,8 +470,13 @@ impl eframe::App for App {
 
                 // Generate action
                 ui.separator();
-                ui.checkbox(&mut self.auto_generate_current_layer, "Auto-generate current layer");
-                ui.checkbox(&mut self.auto_generate_all_layers, "Auto-generate all layers");
+                
+                if self.layer_mode {
+                    ui.checkbox(&mut self.auto_generate_current_layer, "Auto-generate current layer");
+                    ui.checkbox(&mut self.auto_generate_all_layers, "Auto-generate all layers");
+                } else {
+                    ui.checkbox(&mut self.auto_generate_current_layer, "Auto-generate");
+                }
 
                 if self.lua_mode {
                     ui.columns(2, |columns| {
@@ -587,9 +596,32 @@ impl eframe::App for App {
                         });
                     });
                 } else {
-                    ui.columns(2, |columns| {
-                        columns[0].centered_and_justified(|ui| {
-                            if ui.button("Generate current layer").clicked() || self.auto_generate_current_layer {
+                    if self.layer_mode {
+                        ui.columns(2, |columns| {
+                            columns[0].centered_and_justified(|ui| {
+                                if ui.button("Generate current layer").clicked() || self.auto_generate_current_layer {
+                                    // TODO: Only auto generate if the values have changed!
+
+                                    // Generate from circle with selected algorithm
+                                    self.stack_blocks.set(self.current_layer, self.stack_gen_config.get_mut(self.current_layer).unwrap().generate());
+
+                                    self.recompute_metrics = true;
+                                }
+                            });
+
+                            columns[1].centered_and_justified(|ui| {
+                                if ui.button("Generate all layers").clicked() || self.auto_generate_all_layers {
+
+                                    // Generate all layers
+                                    self.stack_blocks = ZVec::new(self.stack_gen_config.data.iter().map(|config| config.generate()).collect(), self.layer_lowest);
+
+                                    self.recompute_metrics = true;
+                                }
+                            });
+                        })
+                    } else {
+                        ui.centered_and_justified(|ui| {
+                            if ui.button("Generate").clicked() || self.auto_generate_current_layer {
                                 // TODO: Only auto generate if the values have changed!
 
                                 // Generate from circle with selected algorithm
@@ -598,19 +630,9 @@ impl eframe::App for App {
                                 self.recompute_metrics = true;
                             }
                         });
-
-                        columns[1].centered_and_justified(|ui| {
-                            if ui.button("Generate all layers").clicked() || self.auto_generate_all_layers {
-
-                                // Generate all layers
-                                self.stack_blocks = ZVec::new(self.stack_gen_config.data.iter().map(|config| config.generate()).collect(), self.layer_lowest);
-
-                                self.recompute_metrics = true;
-                            }
-                        });
-                    });
+                    }
                 }
-            })
+            });
 
         });
 
@@ -712,130 +734,138 @@ impl eframe::App for App {
         });
 
         // Layer navigation bar (top)
-        egui::TopBottomPanel::top("layer-navigation").show(ctx, |ui| {
-            ui.centered_and_justified(|ui| {
-                // bookkeeping for updating the configuration
-                let old_layer = self.current_layer;
-                let prev_layer_lowest = self.layer_lowest;
-                let prev_layer_highest = self.layer_highest;
-                // todo: implement 'lock' which freezes the lowest and highest layer and doesn't allow current layer to be outside that
-                //  for projects in which these bounds are known
+        if self.layer_mode {
+            egui::TopBottomPanel::top("layer-navigation").show(ctx, |ui| {
+                ui.centered_and_justified(|ui| {
+                    // bookkeeping for updating the configuration
+                    let old_layer = self.current_layer;
+                    let prev_layer_lowest = self.layer_lowest;
+                    let prev_layer_highest = self.layer_highest;
+                    // todo: implement 'lock' which freezes the lowest and highest layer and doesn't allow current layer to be outside that
+                    //  for projects in which these bounds are known
 
-                // Finicky due to not being able to know the size of the widget in advance
-                // so do a pretty good prediction
-                let height = ui.style().spacing.interact_size.y;
-                let controls_width = height + 10.0;
-                let main_width = ui.style().spacing.interact_size.x; // Incorrect for >4 digits (which is unlikely to occur)
-                let padding = ui.style().spacing.button_padding.x; //Button size is text size plus this on each side
+                    // Finicky due to not being able to know the size of the widget in advance
+                    // so do a pretty good prediction
+                    let height = ui.style().spacing.interact_size.y;
+                    let controls_width = height + 10.0;
+                    let main_width = ui.style().spacing.interact_size.x; // Incorrect for >4 digits (which is unlikely to occur)
+                    let padding = ui.style().spacing.button_padding.x; //Button size is text size plus this on each side
 
-                let (rect, response) = ui.allocate_exact_size(
-                    [
-                        4.0 * controls_width + 3.0 * main_width + padding * 12.0,
-                        height,
-                    ]
-                    .into(),
-                    egui::Sense::click(),
-                );
-                ui.put(rect, |ui: &mut egui::Ui| {
-                    ui.horizontal(|ui| {
-                        ui.add(egui::DragValue::new(&mut self.layer_lowest).speed(0.05));
-                        if ui
-                            .add(
-                                egui::Button::new("|<")
-                                    .min_size(egui::Vec2::from([controls_width, height])),
-                            )
-                            .clicked()
-                        {
-                            self.current_layer = self.layer_lowest;
-                        }
-                        if ui
-                            .add(
-                                egui::Button::new("<")
-                                    .min_size(egui::Vec2::from([controls_width, height])),
-                            )
-                            .clicked()
-                        {
-                            self.current_layer = self.current_layer - 1;
-                        }
-                        ui.add(egui::DragValue::new(&mut self.current_layer).speed(0.05));
+                    let (rect, response) = ui.allocate_exact_size(
+                        [
+                            4.0 * controls_width + 3.0 * main_width + padding * 12.0,
+                            height,
+                        ]
+                            .into(),
+                        egui::Sense::click(),
+                    );
+                    ui.put(rect, |ui: &mut egui::Ui| {
+                        ui.horizontal(|ui| {
+                            ui.add(
+                                egui::DragValue::new(&mut self.layer_lowest).speed(0.05),
+                            );
+                            if ui
+                                .add(
+                                    egui::Button::new("|<")
+                                        .min_size(egui::Vec2::from([controls_width, height])),
+                                )
+                                .clicked()
+                            {
+                                self.current_layer = self.layer_lowest;
+                            }
+                            if ui
+                                .add(
+                                    egui::Button::new("<")
+                                        .min_size(egui::Vec2::from([controls_width, height])),
+                                )
+                                .clicked()
+                            {
+                                self.current_layer = self.current_layer - 1;
+                            }
+                            ui.add(
+                                egui::DragValue::new(&mut self.current_layer).speed(0.05),
+                            );
 
-                        if ui
-                            .add(
-                                egui::Button::new(">")
-                                    .min_size(egui::Vec2::from([controls_width, height])),
-                            )
-                            .clicked()
-                        {
-                            self.current_layer = self.current_layer + 1;
-                        }
-                        if ui
-                            .add(
-                                egui::Button::new(">|")
-                                    .min_size(egui::Vec2::from([controls_width, height])),
-                            )
-                            .clicked()
-                        {
-                            self.current_layer = self.layer_highest;
-                        }
-                        ui.add(egui::DragValue::new(&mut self.layer_highest).speed(0.05));
+                            if ui
+                                .add(
+                                    egui::Button::new(">")
+                                        .min_size(egui::Vec2::from([controls_width, height])),
+                                )
+                                .clicked()
+                            {
+                                self.current_layer = self.current_layer + 1;
+                            }
+                            if ui
+                                .add(
+                                    egui::Button::new(">|")
+                                        .min_size(egui::Vec2::from([controls_width, height])),
+                                )
+                                .clicked()
+                            {
+                                self.current_layer = self.layer_highest;
+                            }
+                            ui.add(
+                                egui::DragValue::new(&mut self.layer_highest).speed(0.05),
+                            );
+                        });
+                        response
                     });
-                    response
-                });
 
-                // Check if enough (empty) layers are initialized, else initialize more
-                self.layer_lowest = self.layer_lowest.min(self.current_layer);
-                self.layer_highest = self.layer_highest.max(self.current_layer);
+                    // Check if enough (empty) layers are initialized, else initialize more
+                    self.layer_lowest = self.layer_lowest.min(self.current_layer);
+                    self.layer_highest = self.layer_highest.max(self.current_layer);
 
-                self.stack_gen_config.resize(
-                    self.layer_lowest,
-                    self.layer_highest,
-                    self.stack_gen_config.get(old_layer).unwrap().clone(),
-                );
+                    self.stack_gen_config.resize(
+                        self.layer_lowest,
+                        self.layer_highest,
+                        self.stack_gen_config.get(old_layer).unwrap().clone(),
+                    );
 
-                self.stack_blocks.resize(
-                    self.layer_lowest,
-                    self.layer_highest,
-                    self.stack_blocks.get(old_layer).unwrap().clone(),
-                );
+                    self.stack_blocks.resize(
+                        self.layer_lowest,
+                        self.layer_highest,
+                        self.stack_blocks.get(old_layer).unwrap().clone(),
+                    );
 
-                self.recompute_metrics = true;
+                    self.recompute_metrics = true;
 
-                // update field state when the bounds increase
-                if prev_layer_lowest > self.layer_lowest || prev_layer_highest < self.layer_highest
-                {
-                    self.lua_field_radius_a.update_field_state(
-                        &mut self.lua,
-                        self.layer_lowest,
-                        self.layer_highest,
-                    );
-                    self.lua_field_radius_b.update_field_state(
-                        &mut self.lua,
-                        self.layer_lowest,
-                        self.layer_highest,
-                    );
-                    self.lua_field_tilt.update_field_state(
-                        &mut self.lua,
-                        self.layer_lowest,
-                        self.layer_highest,
-                    );
-                    self.lua_field_center_offset_x.update_field_state(
-                        &mut self.lua,
-                        self.layer_lowest,
-                        self.layer_highest,
-                    );
-                    self.lua_field_center_offset_y.update_field_state(
-                        &mut self.lua,
-                        self.layer_lowest,
-                        self.layer_highest,
-                    );
-                    self.lua_field_squircle_parameter.update_field_state(
-                        &mut self.lua,
-                        self.layer_lowest,
-                        self.layer_highest,
-                    );
-                }
-            })
-        });
+                    // update field state when the bounds increase
+                    if prev_layer_lowest > self.layer_lowest || prev_layer_highest < self.layer_highest
+                    {
+                        self.lua_field_radius_a.update_field_state(
+                            &mut self.lua,
+                            self.layer_lowest,
+                            self.layer_highest,
+                        );
+                        self.lua_field_radius_b.update_field_state(
+                            &mut self.lua,
+                            self.layer_lowest,
+                            self.layer_highest,
+                        );
+                        self.lua_field_tilt.update_field_state(
+                            &mut self.lua,
+                            self.layer_lowest,
+                            self.layer_highest,
+                        );
+                        self.lua_field_center_offset_x.update_field_state(
+                            &mut self.lua,
+                            self.layer_lowest,
+                            self.layer_highest,
+                        );
+                        self.lua_field_center_offset_y.update_field_state(
+                            &mut self.lua,
+                            self.layer_lowest,
+                            self.layer_highest,
+                        );
+                        self.lua_field_squircle_parameter.update_field_state(
+                            &mut self.lua,
+                            self.layer_lowest,
+                            self.layer_highest,
+                        );
+                    }
+                })
+            });
+        }
 
         // Viewport
         egui::CentralPanel::default().show(ctx, |ui| {
