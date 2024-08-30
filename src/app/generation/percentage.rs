@@ -1,7 +1,8 @@
-use crate::app::helpers::blocks::Blocks;
-use crate::app::helpers::circle_geometry::{area_of_semicircle_section, intersection_hline_circle};
-use crate::app::helpers::linear_algebra::Vec2;
 use std::f64::consts::PI;
+
+use crate::app::data_structures::blocks::Blocks;
+use crate::app::math::circle_geometry::{area_of_semicircle_section, intersection_hline_circle};
+use crate::app::math::linear_algebra::Vec2;
 
 // logic + geometry + integration
 // Percentage is to be supplied as float between 0 and 1 (note that unexpected behaviour may occur if it 0.0 or 1.0 exactly due to numerical errors)
@@ -10,8 +11,9 @@ pub fn generate_alg_percentage(
     center_offset: Vec2,
     percentage: f64,
     grid_size: usize,
-    origin: Vec2,
 ) -> Blocks {
+    let origin = Blocks::get_origin_float_from_grid_size(grid_size);
+
     let blocks = (0..grid_size.pow(2))
         .map(|i| {
             // loop over all coords
@@ -39,11 +41,7 @@ pub fn generate_alg_percentage(
         })
         .collect();
 
-    Blocks {
-        blocks,
-        grid_size,
-        origin,
-    }
+    Blocks::new(blocks, grid_size)
 }
 
 pub fn cell_disk_intersection_area(radius: f64, x_center: f64, y_center: f64) -> f64 {

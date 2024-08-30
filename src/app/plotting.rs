@@ -1,5 +1,6 @@
-use egui_plot::{Line, PlotBounds, PlotPoints, Polygon};
 use std::f64::consts::PI;
+
+use egui_plot::{Line, PlotBounds, PlotPoints, Polygon};
 
 pub fn square_at_coords(coord: [f64; 2]) -> Polygon {
     // Specifiying the bottom left coordinates of the square.

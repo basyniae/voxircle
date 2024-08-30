@@ -1,17 +1,18 @@
-use crate::app::helpers::blocks::Blocks;
-use crate::app::helpers::circle_geometry::get_squircle_tangent_point;
-use crate::app::helpers::linear_algebra::{Mat2, Vec2};
-use crate::app::helpers::linear_geometry::intersect_complemented_ray_segment;
-use crate::app::helpers::square::Square;
+use crate::app::data_structures::blocks::Blocks;
+use crate::app::data_structures::square::Square;
+use crate::app::math::circle_geometry::get_squircle_tangent_point;
+use crate::app::math::linear_algebra::{Mat2, Vec2};
+use crate::app::math::linear_geometry::intersect_complemented_ray_segment;
 
-// Document
+/// Return blocks object with block contained in the squircle defined by the parameters
 pub fn generate_alg_contained(
     center_offset: Vec2,
     sqrt_quad_form: Mat2,
     squircle_parameter: f64,
     grid_size: usize,
-    origin: Vec2,
 ) -> Blocks {
+    let origin = Blocks::get_origin_float_from_grid_size(grid_size);
+
     let x_grid_step = sqrt_quad_form * Vec2::UNIT_X;
     let y_grid_step = sqrt_quad_form * Vec2::UNIT_Y;
 
@@ -30,15 +31,7 @@ pub fn generate_alg_contained(
                 // Convexity of the squircle with parameter p>=0 gives an easy characterization, just have to check the extreme points
                 square.for_all_m_corners(|corner| corner.pnorm(squircle_parameter) <= 1.0)
             } else {
-                // Document
-                // Case 0 <= p < 1.0
-                // The curve of the squircle can poke through the side of the parallelogram
-                // So we need that all corners of the parallelogram and the squircle pokes through
-                //  none of the sides.
-                // Have 4 rays which are never in the squircle and are "optimal with respect to this condition"
-                //  in the sense that a box with all corners in the squircle is not fully contained in
-                //  the squircle if and only if it intersects *any* of these rays.
-                // (The only if direction is the hard one, argue via Rolle's theorem(ish) and direction)
+                // See tex pdf
 
                 square.for_all_m_corners(|corner| corner.pnorm(squircle_parameter) <= 1.0)
                     && square.for_all_m_edges(|edge| {
@@ -54,9 +47,5 @@ pub fn generate_alg_contained(
         })
         .collect();
 
-    Blocks {
-        blocks,
-        grid_size,
-        origin,
-    }
+    Blocks::new(blocks, grid_size)
 }

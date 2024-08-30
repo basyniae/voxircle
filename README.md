@@ -23,7 +23,8 @@ ellipses
 which are on (possibly) tilted axes. The sliders can be dragged, or numbers can be entered directly in the field next to
 the slider, or the field can be dragged. Hold shift for greater precision.
 
-Below the generation options are the view options (see [Metrics, Stastistics, and Viewport Options](metrics)), and below
+Below the generation options are the view options (see [Metrics, Stastistics, and Viewport Options](#metrics)), and
+below
 that there is a button to generate. 'Auto generate' is on
 by default, which makes it so that the effect of changing the generation options is immediately visible.
 
@@ -98,9 +99,9 @@ for every layer, but the full 3D voxelization is spiky.
 A similar situation occurs when making a hollow shapes using the thin boundary of each layer. This boundary only knows
 about the 2D horizontal slice so will not include enough blocks for a hole-less appearance from the outside.
 
-### <a name=metrics>Metrics, Stastistics, and Viewport Options</a>
+### <a name="metrics"></a>Metrics, Statistics, and Viewport Options
 
-So far only one basic voxel-related stastic of the generated voxelization is computed.
+So far only one basic voxel-related statistic of the generated voxelization is computed.
 Namely checking the 'boundary' checkbox shows the so-called thin boundary of the generated shape.
 Below the viewport are some statistics of the currently visible approximation. The notation '1s16' should be read as '1
 stack and 16', as in Minecraft where a stack consists of 64 blocks. The block diameter is how many blocks across (in the

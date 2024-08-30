@@ -1,4 +1,4 @@
-use crate::app::helpers::linear_algebra::{Mat2, Vec2};
+use crate::app::math::linear_algebra::{Mat2, Vec2};
 
 /// Abstraction of a square on the grid and its image under the sqrt_quad_form.
 /// Contains easy ::new method and some checks that run over all points or edges (to prevent

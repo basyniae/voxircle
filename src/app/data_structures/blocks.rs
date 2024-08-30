@@ -1,30 +1,79 @@
-use crate::app::helpers::linear_algebra::Vec2;
 use std::ops::Not;
 
-/// Captures a bit matrix. The length of the vector should always be edge_length**2
+use crate::app::data_structures::square::Square;
+use crate::app::math::linear_algebra::{Mat2, Vec2};
 
+/// Captures a bit matrix. The length of the vector should always be edge_length**2
 #[derive(Default, Debug, Clone)]
 pub struct Blocks {
     pub blocks: Vec<bool>,
     pub grid_size: usize, // of type usize because we index with it a bunch of times
     // the total number of cells where there can be blocks is edge_length**2
     // Order is x first left to right, then y down to up (to match coord space)
-    pub origin: Vec2, // At which bitmatrix coords is the center of the circle?
-                      // For a block-diameter 4 circle it would be [2.0,2.0], for a block-diameter 5 circle it would be [2.5,2.5]
-                      // but how does this work paradigmatically
+    origin_float: Vec2, // In bitmatrix coordinates, where is the point (0,0)? (Note that it has integer coordinates)
+    origin_usize: [usize; 2], //  same as origin_float but with usize coordinates
 }
 
+// TODO: make intersect and complement methods for easier computation
 impl Blocks {
+    pub fn new(blocks: Vec<bool>, grid_size: usize) -> Self {
+        Blocks {
+            blocks,
+            grid_size,
+            origin_float: Self::get_origin_float_from_grid_size(grid_size),
+            origin_usize: [grid_size / 2, grid_size / 2],
+        }
+    }
+
+    pub fn get_origin_float_from_grid_size(grid_size: usize) -> Vec2 {
+        Vec2::from([(grid_size / 2) as f64, (grid_size / 2) as f64])
+    }
+
+    /// Get the index of the block whose left bottom corner coordinates are the global coord, if it
+    ///  exists (else return none)
+    pub fn get_index_from_global_coord_usize(&self, global_coord: [isize; 2]) -> Option<usize> {
+        let local_coord = [
+            global_coord[0] + (self.origin_usize[0] as isize),
+            global_coord[1] + (self.origin_usize[1] as isize),
+        ];
+
+        if 0 <= local_coord[0]
+            && 0 <= local_coord[1]
+            && local_coord[0] < (self.grid_size as isize)
+            && local_coord[1] < (self.grid_size as isize)
+        {
+            Some((local_coord[1] * (self.grid_size as isize) + local_coord[0]) as usize)
+        } else {
+            None
+        }
+    }
+
+    pub fn get_global_coord_usize_from_index(&self, i: usize) -> [isize; 2] {
+        [
+            (i % self.grid_size) as isize - (self.origin_usize[0] as isize),
+            (i / self.grid_size) as isize - (self.origin_usize[1] as isize),
+        ]
+    }
+
+    /// return true if there is a block with left bottom coordinate the input global coordinate
+    /// if the point is outside the grid or there is no block there, return false
+    pub fn is_block_on_global_coord(&self, global_coord: [isize; 2]) -> bool {
+        match self.get_index_from_global_coord_usize(global_coord) {
+            None => false,
+            Some(index) => self.blocks[index],
+        }
+    }
+
     /// Centered block coordinates, i.e., where the origin lies at (0,0)
-    pub fn get_block_coords(&self) -> Vec<[f64; 2]> {
+    pub fn get_all_block_coords(&self) -> Vec<[f64; 2]> {
         let mut i = 0;
         let mut output_vec = Vec::new();
 
         for b in &self.blocks {
             if *b {
                 output_vec.push([
-                    ((i % self.grid_size) as f64) - self.origin.x, // Get integer x position (which is bot. left), then make origin center
-                    ((i / self.grid_size) as f64) - self.origin.y,
+                    ((i % self.grid_size) as f64) - self.origin_float.x, // Get integer x position (which is bot. left), then make origin center
+                    ((i / self.grid_size) as f64) - self.origin_float.y,
                 ]);
             }
             i += 1;
@@ -43,32 +92,35 @@ impl Blocks {
     pub fn get_interior(&self) -> Blocks {
         // let mut output_vec = Vec::new();
 
-        let blocks = (0..self.grid_size.pow(2))
-            .map(|i| {
-                self.blocks[i] == true
-                    // has to be a block in self
-                    && i % self.grid_size != 0
-                    && i % self.grid_size != self.grid_size - 1
-                    && i / self.grid_size != 0
-                    && i / self.grid_size != self.grid_size - 1
-                    // cannot lie on the boundary of the grid
-                    && self.blocks[i + 1] == true
-                    && self.blocks[i - 1] == true
-                    && self.blocks[i + self.grid_size] == true
-                    && self.blocks[i - self.grid_size] == true
-                // all direct neighbors should also be blocks
-            })
-            .collect();
-
-        Blocks { blocks, ..*self }
+        Blocks::new(
+            (0..self.grid_size.pow(2))
+                .map(|i| {
+                    self.blocks[i] == true
+                        // has to be a block in self
+                        && i % self.grid_size != 0
+                        && i % self.grid_size != self.grid_size - 1
+                        && i / self.grid_size != 0
+                        && i / self.grid_size != self.grid_size - 1
+                        // cannot lie on the boundary of the grid
+                        && self.blocks[i + 1] == true
+                        && self.blocks[i - 1] == true
+                        && self.blocks[i + self.grid_size] == true
+                        && self.blocks[i - self.grid_size] == true
+                    // all direct neighbors should also be blocks
+                })
+                .collect(),
+            self.grid_size,
+        )
     }
 
     /// Complement of blocks (for interiors)
     pub fn get_complement(&self) -> Blocks {
-        let blocks = (0..self.grid_size.pow(2))
-            .map(|i| self.blocks[i].not())
-            .collect();
-        Blocks { blocks, ..*self }
+        Blocks::new(
+            (0..self.grid_size.pow(2))
+                .map(|i| self.blocks[i].not())
+                .collect(),
+            self.grid_size,
+        )
     }
 
     // From a shape (which is assumed to be non-pathological, TODO: make checks for this)
@@ -188,12 +240,54 @@ impl Blocks {
             {
                 // add to output
                 output.push([
-                    ((corner_point % self.grid_size) as f64) - self.origin.x + 1.0,
-                    ((corner_point / self.grid_size) as f64) - self.origin.y + 1.0,
+                    ((corner_point % self.grid_size) as f64) - self.origin_float.x + 1.0,
+                    ((corner_point / self.grid_size) as f64) - self.origin_float.y + 1.0,
                 ]);
             }
         }
 
         output
+    }
+
+    pub fn get_strict_bounds(&self) -> [[f64; 2]; 2] {
+        let mut min_x = 0.0_f64;
+        let mut max_x = 0.0_f64;
+        let mut min_y = 0.0_f64;
+        let mut max_y = 0.0_f64;
+
+        for i in 0..self.grid_size.pow(2) {
+            let square = Square::new(
+                i,
+                self.grid_size,
+                Vec2::from([0.0, 0.0]),
+                self.origin_float,
+                Mat2::from([0.0, 0.0, 0.0, 0.0]),
+            );
+
+            if self.blocks[i] {
+                if square.lb.x <= min_x {
+                    min_x = square.lb.x
+                }
+                if square.lb.y <= min_y {
+                    min_y = square.lb.y
+                }
+                if square.rt.x >= max_x {
+                    max_x = square.rt.x
+                }
+                if square.lb.y <= max_y {
+                    max_y = square.rt.y
+                }
+            }
+        }
+
+        [[min_x, min_y], [max_x, max_y]]
+    }
+
+    pub fn get_padded_bounds(&self, pad: f64) -> [[f64; 2]; 2] {
+        let strict_bounds = self.get_strict_bounds();
+        [
+            [strict_bounds[0][0] - pad, strict_bounds[0][1] - pad],
+            [strict_bounds[1][0] + pad, strict_bounds[1][1] + pad],
+        ]
     }
 }

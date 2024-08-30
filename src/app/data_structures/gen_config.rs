@@ -1,11 +1,9 @@
-use crate::app::gen_output::GenOutput;
-use crate::app::generation::{generate_all_blocks, Algorithm};
-use crate::app::helpers::blocks::Blocks;
-use crate::app::helpers::linear_algebra::{Mat2, Vec2};
-use std::ops::Not;
+use crate::app::data_structures::blocks::Blocks;
+use crate::app::generation::{Algorithm, generate_all_blocks};
+use crate::app::math::linear_algebra::{Mat2, Vec2};
 
-/// Document
-#[derive(Debug, Clone)]
+/// All parameters necessary to run the generation algorithm
+#[derive(Debug, Copy, Clone)]
 pub struct GenConfig {
     pub algorithm: Algorithm,
 
@@ -33,19 +31,23 @@ impl Default for GenConfig {
             center_offset_x: 0.0, // default: 0.0, 0.0 (even circle)
             center_offset_y: 0.0,
 
-            squircle_parameter: 2.0, // default: 2.0 (circle / ellipse)\
+            squircle_parameter: 2.0, // default: 2.0 (circle / ellipse)
         }
     }
 }
 
-/// Document
 impl GenConfig {
-    pub fn generate(&self, grid_size: usize) -> GenOutput {
-        // In bitmatrix coordinates, where is the point (0,0)? (Note that it has integer coordinates)
-        let origin = Vec2::from([(grid_size / 2) as f64, (grid_size / 2) as f64]);
+    /// Run the generation algorithm for the configuration `self`, the output is a `Blocks` object.
+    pub fn generate(&self) -> Blocks {
+        // Determine grid size
+        // The major radius should be included, for some metrics we need at least one layer of padding
+        //  around the generated figure. Assuming a square figure (squircle parameter infinity), we
+        //  need an x side length of 2.0 * sqrt(2) * radius_major. Add 4 for a padding of at least 2
+        //  on each side.
+        let grid_size = (2.0 * 1.42 * f64::max(self.radius_a, self.radius_b)).ceil() as usize + 4;
 
         // Generate from circle with selected algorithm
-        let blocks_all = generate_all_blocks(
+        generate_all_blocks(
             &self.algorithm,
             Vec2::from([self.center_offset_x, self.center_offset_y]),
             self.get_sqrt_quad_form(),
@@ -53,32 +55,10 @@ impl GenConfig {
             self.radius_a,
             self.radius_b,
             grid_size,
-            origin,
-        );
-
-        // run preprocessing
-        let blocks_interior = blocks_all.get_interior();
-        let blocks_boundary = Blocks {
-            // boundary is in all but not in interior (so all && interior.not())
-            blocks: blocks_all
-                .blocks
-                .iter()
-                .zip(blocks_interior.blocks.iter())
-                .map(|(all, interior)| *all && interior.not())
-                .collect(),
-            grid_size: blocks_all.grid_size,
-            origin: blocks_all.origin,
-        };
-        let blocks_complement = blocks_all.get_complement();
-
-        GenOutput {
-            blocks_all,
-            blocks_interior,
-            blocks_boundary,
-            blocks_complement,
-        }
+        )
     }
 
+    /// Compute the sqrt_quad_form for the configuration `self`
     pub fn get_sqrt_quad_form(&self) -> Mat2 {
         // Compute a square root of the PSD symmetric quadratic form X defining the ellipse:
         //  (x,y)^TX(x,y)=1.
@@ -90,6 +70,7 @@ impl GenConfig {
         )
     }
 
+    /// Get the squircle ui parameter (used for the slider) from the configuration `self`
     pub fn get_squircle_ui_parameter(&self) -> f64 {
         1.0 - 1.0 / (1.0 + self.squircle_parameter)
     }
