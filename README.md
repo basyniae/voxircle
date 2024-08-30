@@ -123,3 +123,4 @@ The conservative method will give a nice connected straight line for every layer
 
 A similar situation occurs when making a hollow shapes using the thin boundary of each layer.
 This boundary only knows about the 2D horizontal slice so will not include enough blocks for a hole-less appearance from the outside.
+The solution to this is using the 3D boundary algorithm, which is also aware of the layers above and below the current layer.
