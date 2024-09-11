@@ -2,7 +2,7 @@ use crate::app::data_structures::blocks::Blocks;
 use crate::app::data_structures::square::Square;
 use crate::app::math::circle_geometry::get_squircle_tangent_point;
 use crate::app::math::linear_algebra::{Mat2, Vec2};
-use crate::app::math::linear_geometry::line_segments_intersect;
+use crate::app::math::linear_geometry::intersect_segment_segment;
 
 pub fn generate_alg_conservative(
     center_offset: Vec2,
@@ -43,8 +43,8 @@ pub fn generate_alg_conservative(
                     // check by extreme points
                     // (these are the combinations of points on the ellipse where extreme values of x and y are achieved
                     //  and edges of the box)
-                    square.for_any_m_edge(|edge| line_segments_intersect([-max_x, max_x], edge))
-                        || square.for_any_m_edge(|edge| line_segments_intersect([-max_y, max_y], edge))
+                    square.for_any_m_edge(|edge| intersect_segment_segment([-max_x, max_x], edge))
+                        || square.for_any_m_edge(|edge| intersect_segment_segment([-max_y, max_y], edge))
                 }
         }).collect();
 

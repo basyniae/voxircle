@@ -8,7 +8,7 @@ pub struct ZVec<T> {
     minimum: isize,
     maximum: isize,
 }
-
+#[allow(dead_code)]
 impl<T: Clone + Debug> ZVec<T> {
     pub fn new(data: VecDeque<T>, minimum: isize) -> Self {
         let data_length = data.len();
