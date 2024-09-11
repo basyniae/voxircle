@@ -1,7 +1,6 @@
 use std::ops::Not;
 
-use crate::app::data_structures::square::Square;
-use crate::app::math::linear_algebra::{Mat2, Vec2};
+use crate::app::math::linear_algebra::Vec2;
 
 /// Captures a bit matrix. The length of the vector should always be edge_length**2
 #[derive(Default, Debug, Clone)]
@@ -123,7 +122,7 @@ impl Blocks {
         )
     }
 
-    // From a shape (which is assumed to be non-pathological, TODO: make checks for this)
+    // From a shape (which is assumed to be non-pathological, TODO: make checks for this: do via symmetry detection)
     // find the sequence of side lengths.
     // Goal: easy construction in minecraft (it's how i think of circles)
     pub fn get_build_sequence(&self) -> Vec<usize> {
@@ -247,47 +246,5 @@ impl Blocks {
         }
 
         output
-    }
-
-    pub fn get_strict_bounds(&self) -> [[f64; 2]; 2] {
-        let mut min_x = 0.0_f64;
-        let mut max_x = 0.0_f64;
-        let mut min_y = 0.0_f64;
-        let mut max_y = 0.0_f64;
-
-        for i in 0..self.grid_size.pow(2) {
-            let square = Square::new(
-                i,
-                self.grid_size,
-                Vec2::from([0.0, 0.0]),
-                self.origin_float,
-                Mat2::from([0.0, 0.0, 0.0, 0.0]),
-            );
-
-            if self.blocks[i] {
-                if square.lb.x <= min_x {
-                    min_x = square.lb.x
-                }
-                if square.lb.y <= min_y {
-                    min_y = square.lb.y
-                }
-                if square.rt.x >= max_x {
-                    max_x = square.rt.x
-                }
-                if square.lb.y <= max_y {
-                    max_y = square.rt.y
-                }
-            }
-        }
-
-        [[min_x, min_y], [max_x, max_y]]
-    }
-
-    pub fn get_padded_bounds(&self, pad: f64) -> [[f64; 2]; 2] {
-        let strict_bounds = self.get_strict_bounds();
-        [
-            [strict_bounds[0][0] - pad, strict_bounds[0][1] - pad],
-            [strict_bounds[1][0] + pad, strict_bounds[1][1] + pad],
-        ]
     }
 }

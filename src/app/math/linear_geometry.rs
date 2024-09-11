@@ -4,7 +4,7 @@ use crate::app::math::linear_algebra::Vec2;
 
 /// Return true if the closed line segments intersect, false otherwise.
 /// From http://www.dcs.gla.ac.uk/~pat/52233/slides/Geometry1x1.pdf p.6
-pub fn line_segments_intersect(line_one: [Vec2; 2], line_two: [Vec2; 2]) -> bool {
+pub fn intersect_segment_segment(line_one: [Vec2; 2], line_two: [Vec2; 2]) -> bool {
     let p_1 = line_one[0];
     let q_1 = line_one[1];
     let p_2 = line_two[0];
