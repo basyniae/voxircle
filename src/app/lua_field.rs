@@ -81,12 +81,8 @@ impl LuaField {
         // Only change the parameter if the code is valid and has changed
         if self.field_state == FieldState::Changed {
             *parameter = lua.load(self.code.clone()).eval().unwrap();
-        }
-    }
-
-    pub fn register_success(&mut self) {
-        if self.field_state != FieldState::Empty {
             self.field_state = FieldState::RunSuccess;
+            // Simplest to register success here
         }
     }
 }

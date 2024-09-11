@@ -69,7 +69,9 @@ pub struct App {
 
     // Generate new shape on this layer automatically from the provided parameters
     auto_generate_current_layer: bool,
+    generate_current_layer: bool,
     auto_generate_all_layers: bool,
+    generate_all_layers: bool,
     circle_mode: bool,
     layer_mode: bool,
     lua_mode: bool,
@@ -151,7 +153,9 @@ impl App {
 
             // Initialize on simplest working mode of operation
             auto_generate_current_layer: true,
+            generate_current_layer: true,
             auto_generate_all_layers: false,
+            generate_all_layers: false,
             circle_mode: true,
             layer_mode: false,
             lua_mode: false,
@@ -256,15 +260,27 @@ impl eframe::App for App {
 
                 ui.separator();
 
+                if self.layer_mode {
+                    ui.checkbox(
+                        &mut self.auto_generate_current_layer,
+                        "Auto-generate current layer",
+                    );
+                    ui.checkbox(
+                        &mut self.auto_generate_all_layers,
+                        "Auto-generate all layers",
+                    );
+                } else {
+                    ui.checkbox(&mut self.auto_generate_current_layer, "Auto-generate");
+                }
+
                 ui_generation::ui_generation(
                     ui,
-                    &mut self.auto_generate_current_layer,
-                    &mut self.auto_generate_all_layers,
+                    &mut self.generate_current_layer,
+                    &mut self.generate_all_layers,
                     self.circle_mode,
                     self.layer_mode,
                     self.lua_mode,
                     &mut self.stack_gen_config,
-                    &mut self.stack_blocks,
                     &mut self.lua,
                     &mut self.lua_field_radius_a,
                     &mut self.lua_field_radius_b,
@@ -275,10 +291,37 @@ impl eframe::App for App {
                     self.layer_lowest,
                     self.layer_highest,
                     self.current_layer,
-                    &mut self.recompute_metrics,
                 )
             });
         });
+
+        // TODO: Only auto generate if the values have changed
+        if self.generate_current_layer || self.auto_generate_current_layer {
+            self.generate_current_layer = false;
+            self.stack_blocks.set(
+                self.current_layer,
+                self.stack_gen_config
+                    .get_mut(self.current_layer)
+                    .unwrap()
+                    .generate(),
+            );
+
+            self.recompute_metrics = true;
+        }
+
+        if self.generate_all_layers || self.auto_generate_all_layers {
+            self.generate_all_layers = false;
+            self.stack_blocks = ZVec::new(
+                self.stack_gen_config
+                    .data
+                    .iter()
+                    .map(|config| config.generate())
+                    .collect(),
+                self.layer_lowest,
+            );
+
+            self.recompute_metrics = true;
+        }
 
         if self.recompute_metrics {
             self.recompute_metrics = false;
