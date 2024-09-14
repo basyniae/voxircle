@@ -253,15 +253,10 @@ impl eframe::App for App {
                     false,
                 )
                 .show_header(ui, |ui| {
-                    if ui
-                        .checkbox(
-                            &mut self.layers_enabled,
-                            egui::RichText::new("Layers").strong().size(15.0),
-                        )
-                        .changed()
-                    {
-                        self.code_enabled &= self.layers_enabled; //  if layer mode is turned off, also turn off code mode
-                    };
+                    ui.checkbox(
+                        &mut self.layers_enabled,
+                        egui::RichText::new("Layers").strong().size(15.0),
+                    );
                 })
                 .body(|ui| {
                     ui.add_enabled(
