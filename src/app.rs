@@ -55,6 +55,9 @@ pub struct App {
 
     recompute_metrics: bool, // If the current layer has changed, recompute the metrics. By update order, this needs to be a global variable
 
+    // Sampling
+    sampling_enabled: bool,
+
     // Metrics
     nr_blocks_total: u64,
     nr_blocks_interior: u64,
@@ -72,7 +75,7 @@ pub struct App {
     generate_current_layer: bool,
     auto_generate_all_layers: bool,
     generate_all_layers: bool,
-    circle_mode: bool,
+    circle_mode: bool, // todo: replace with a 'link radii' button
     layer_mode: bool,
     lua_mode: bool,
 
@@ -139,6 +142,9 @@ impl App {
             // Compute the metrics on the first update
             recompute_metrics: true,
 
+            // Sampling
+            sampling_enabled: false,
+
             // Initialize empty metrics
             nr_blocks_total: Default::default(),
             nr_blocks_interior: Default::default(),
@@ -191,42 +197,7 @@ impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Options panel
         egui::SidePanel::right("options-panel").show(ctx, |ui| {
-            // viewport options
-            egui::TopBottomPanel::bottom("viewport-panel").show_inside(ui, |ui| {
-                ui.heading("View");
-
-                ui.columns(2, |columns| {
-                    columns[0].checkbox(&mut self.view_blocks, "Blocks");
-                    columns[0].checkbox(&mut self.view_complement, "Complement");
-                    columns[0].checkbox(&mut self.view_convex_hull, "Convex hull");
-                    columns[0].checkbox(&mut self.view_outer_corners, "Outer corners");
-                    columns[1].checkbox(&mut self.view_boundary_2d, "Layer Boundary");
-                    columns[1].checkbox(&mut self.view_interior_2d, "Layer Interior");
-                    columns[1].add_enabled(
-                        self.layer_mode,
-                        egui::Checkbox::new(&mut self.view_boundary_3d, "3D Boundary"),
-                    );
-                    columns[1].add_enabled(
-                        self.layer_mode,
-                        egui::Checkbox::new(&mut self.view_interior_3d, "3D Interior"),
-                    );
-                });
-
-                ui.allocate_ui_with_layout(
-                    egui::Vec2::from([100.0, 200.0]),
-                    Layout::left_to_right(Align::Min),
-                    |ui| {
-                        ui.add_enabled(
-                            self.circle_mode,
-                            egui::Checkbox::new(&mut self.view_intersect_area, "Intersect area"),
-                        );
-                    },
-                );
-            });
-
             egui::ScrollArea::vertical().show(ui, |ui| {
-                ui.heading("Options");
-
                 ui.allocate_ui_with_layout(
                     egui::Vec2::from([100.0, 200.0]),
                     Layout::left_to_right(Align::Min),
@@ -242,21 +213,91 @@ impl eframe::App for App {
                     },
                 );
 
-                ui_options::ui_options(
-                    ui,
-                    self.stack_gen_config.get_mut(self.current_layer).unwrap(),
-                    self.circle_mode,
-                    self.lua_mode,
-                    &mut self.lua,
-                    &mut self.lua_field_radius_a,
-                    &mut self.lua_field_radius_b,
-                    &mut self.lua_field_tilt,
-                    &mut self.lua_field_center_offset_x,
-                    &mut self.lua_field_center_offset_y,
-                    &mut self.lua_field_squircle_parameter,
-                    self.layer_lowest,
-                    self.layer_highest,
-                );
+                let id = ui.make_persistent_id("parameters_collapsable");
+                egui::collapsing_header::CollapsingState::load_with_default_open(
+                    ui.ctx(),
+                    id,
+                    true,
+                )
+                .show_header(ui, |ui| {
+                    ui.label(egui::RichText::new("Parameters").strong().size(15.0));
+                })
+                .body(|ui| {
+                    ui_options::ui_options(
+                        ui,
+                        self.stack_gen_config.get_mut(self.current_layer).unwrap(),
+                        self.circle_mode,
+                        self.lua_mode,
+                        &mut self.lua,
+                        &mut self.lua_field_radius_a,
+                        &mut self.lua_field_radius_b,
+                        &mut self.lua_field_tilt,
+                        &mut self.lua_field_center_offset_x,
+                        &mut self.lua_field_center_offset_y,
+                        &mut self.lua_field_squircle_parameter,
+                        self.layer_lowest,
+                        self.layer_highest,
+                    );
+                });
+
+                // let id = ui.make_persistent_id("sampling_collapsable");
+                // egui::collapsing_header::CollapsingState::load_with_default_open(
+                //     ui.ctx(),
+                //     id,
+                //     false,
+                // )
+                // .show_header(ui, |ui| {
+                //     ui.checkbox(
+                //         &mut self.sampling_enabled,
+                //         egui::RichText::new("Sampling").strong().size(15.0),
+                //     );
+                // })
+                // .body(|ui| {
+                //     ui.add_enabled(self.sampling_enabled, egui::Label::new("dummy"));
+                // });
+
+                let id = ui.make_persistent_id("viewport_options_collapsable");
+                egui::collapsing_header::CollapsingState::load_with_default_open(
+                    ui.ctx(),
+                    id,
+                    true,
+                )
+                .show_header(ui, |ui| {
+                    ui.label(egui::RichText::new("Viewport").strong().size(15.0));
+                    // you can put checkboxes or whatever here
+                })
+                .body(|ui| {
+                    ui.columns(2, |columns| {
+                        columns[0].checkbox(&mut self.view_blocks, "Blocks");
+                        columns[0].checkbox(&mut self.view_complement, "Complement");
+                        columns[0].checkbox(&mut self.view_convex_hull, "Convex hull");
+                        columns[0].checkbox(&mut self.view_outer_corners, "Outer corners");
+                        columns[1].checkbox(&mut self.view_boundary_2d, "Layer Boundary");
+                        columns[1].checkbox(&mut self.view_interior_2d, "Layer Interior");
+                        columns[1].add_enabled(
+                            self.layer_mode,
+                            egui::Checkbox::new(&mut self.view_boundary_3d, "3D Boundary"),
+                        );
+                        columns[1].add_enabled(
+                            self.layer_mode,
+                            egui::Checkbox::new(&mut self.view_interior_3d, "3D Interior"),
+                        );
+                    });
+
+                    ui.allocate_ui_with_layout(
+                        egui::Vec2::from([100.0, 200.0]),
+                        Layout::left_to_right(Align::Min),
+                        |ui| {
+                            ui.add_enabled(
+                                self.circle_mode,
+                                egui::Checkbox::new(
+                                    &mut self.view_intersect_area,
+                                    "Intersect area",
+                                ),
+                            );
+                        },
+                    );
+                });
 
                 ui.separator();
 
