@@ -7,7 +7,7 @@ use eframe::egui::{Direction, Layout};
 use eframe::emath::Align;
 use eframe::epaint::{Color32, Stroke};
 use egui_plot::{
-    HLine, Line, Plot, PlotBounds, PlotPoint, PlotPoints, Points, Text, uniform_grid_spacer, VLine,
+    uniform_grid_spacer, HLine, Line, Plot, PlotBounds, PlotPoint, PlotPoints, Points, Text, VLine,
 };
 use mlua::Lua;
 
@@ -75,9 +75,11 @@ pub struct App {
     generate_current_layer: bool,
     auto_generate_all_layers: bool,
     generate_all_layers: bool,
-    link_radii: bool,
-    layer_mode: bool,
-    lua_mode: bool,
+    single_radius: bool,
+    layers_enabled: bool,
+    lock_stack_size: bool,
+
+    code_enabled: bool,
 
     // Viewport options
     view_blocks: bool,
@@ -96,6 +98,7 @@ pub struct App {
 
     // Lua fields
     lua: Lua, // Lua instance (only initialized once)
+    //todo: for easily adding more shapes with potentially variable inputs, make this attached to the algorithm?
     lua_field_radius_a: LuaField,
     lua_field_radius_b: LuaField,
     lua_field_tilt: LuaField,
@@ -162,9 +165,11 @@ impl App {
             generate_current_layer: true,
             auto_generate_all_layers: false,
             generate_all_layers: false,
-            link_radii: true,
-            layer_mode: false,
-            lua_mode: false,
+            single_radius: true,
+            layers_enabled: false,
+            lock_stack_size: false,
+
+            code_enabled: false,
 
             // ""
             view_blocks: true,
@@ -198,20 +203,6 @@ impl eframe::App for App {
         // Options panel
         egui::SidePanel::right("options-panel").show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
-                ui.allocate_ui_with_layout(
-                    egui::Vec2::from([100.0, 200.0]),
-                    Layout::left_to_right(Align::Min),
-                    |ui| {
-                        if ui.checkbox(&mut self.layer_mode, "Layer mode").changed() {
-                            self.lua_mode &= self.layer_mode; //  if layer mode is turned off, also turn off code mode
-                        };
-                        ui.add_enabled(
-                            self.layer_mode,
-                            egui::Checkbox::new(&mut self.lua_mode, "Code mode"),
-                        );
-                    },
-                );
-
                 let id = ui.make_persistent_id("parameters_collapsable");
                 egui::collapsing_header::CollapsingState::load_with_default_open(
                     ui.ctx(),
@@ -225,8 +216,8 @@ impl eframe::App for App {
                     ui_options::ui_options(
                         ui,
                         self.stack_gen_config.get_mut(self.current_layer).unwrap(),
-                        &mut self.link_radii,
-                        self.lua_mode,
+                        &mut self.single_radius,
+                        self.code_enabled,
                         &mut self.lua,
                         &mut self.lua_field_radius_a,
                         &mut self.lua_field_radius_b,
@@ -255,6 +246,46 @@ impl eframe::App for App {
                 //     ui.add_enabled(self.sampling_enabled, egui::Label::new("dummy"));
                 // });
 
+                let id = ui.make_persistent_id("layers_collapsable");
+                egui::collapsing_header::CollapsingState::load_with_default_open(
+                    ui.ctx(),
+                    id,
+                    false,
+                )
+                .show_header(ui, |ui| {
+                    if ui
+                        .checkbox(
+                            &mut self.layers_enabled,
+                            egui::RichText::new("Layers").strong().size(15.0),
+                        )
+                        .changed()
+                    {
+                        self.code_enabled &= self.layers_enabled; //  if layer mode is turned off, also turn off code mode
+                    };
+                })
+                .body(|ui| {
+                    ui.add_enabled(
+                        self.layers_enabled,
+                        egui::Checkbox::new(&mut self.lock_stack_size, "Lock stack size"),
+                    );
+                });
+
+                let id = ui.make_persistent_id("code_collapsable");
+                egui::collapsing_header::CollapsingState::load_with_default_open(
+                    ui.ctx(),
+                    id,
+                    false,
+                )
+                .show_header(ui, |ui| {
+                    ui.checkbox(
+                        &mut self.code_enabled,
+                        egui::RichText::new("Code").strong().size(15.0),
+                    );
+                })
+                .body(|ui| {
+                    ui.add_enabled(self.layers_enabled, egui::Label::new("No options here yet"));
+                });
+
                 let id = ui.make_persistent_id("viewport_options_collapsable");
                 egui::collapsing_header::CollapsingState::load_with_default_open(
                     ui.ctx(),
@@ -274,33 +305,23 @@ impl eframe::App for App {
                         columns[1].checkbox(&mut self.view_boundary_2d, "Layer Boundary");
                         columns[1].checkbox(&mut self.view_interior_2d, "Layer Interior");
                         columns[1].add_enabled(
-                            self.layer_mode,
+                            self.layers_enabled,
                             egui::Checkbox::new(&mut self.view_boundary_3d, "3D Boundary"),
                         );
                         columns[1].add_enabled(
-                            self.layer_mode,
+                            self.layers_enabled,
                             egui::Checkbox::new(&mut self.view_interior_3d, "3D Interior"),
                         );
                     });
-
-                    ui.allocate_ui_with_layout(
-                        egui::Vec2::from([100.0, 200.0]),
-                        Layout::left_to_right(Align::Min),
-                        |ui| {
-                            ui.add_enabled(
-                                self.link_radii,
-                                egui::Checkbox::new(
-                                    &mut self.view_intersect_area,
-                                    "Intersect area",
-                                ),
-                            );
-                        },
+                    ui.add_enabled(
+                        self.single_radius,
+                        egui::Checkbox::new(&mut self.view_intersect_area, "Intersect area"),
                     );
                 });
 
                 ui.separator();
 
-                if self.layer_mode {
+                if self.layers_enabled {
                     ui.checkbox(
                         &mut self.auto_generate_current_layer,
                         "Auto-generate current layer",
@@ -317,9 +338,9 @@ impl eframe::App for App {
                     ui,
                     &mut self.generate_current_layer,
                     &mut self.generate_all_layers,
-                    self.link_radii,
-                    self.layer_mode,
-                    self.lua_mode,
+                    self.single_radius,
+                    self.layers_enabled,
+                    self.code_enabled,
                     &mut self.stack_gen_config,
                     &mut self.lua,
                     &mut self.lua_field_radius_a,
@@ -461,15 +482,13 @@ impl eframe::App for App {
         });
 
         // Layer navigation bar (top)
-        if self.layer_mode {
+        if self.layers_enabled {
             egui::TopBottomPanel::top("layer-navigation").show(ctx, |ui| {
                 ui.centered_and_justified(|ui| {
                     // bookkeeping for updating the configuration
                     let old_layer = self.current_layer;
                     let prev_layer_lowest = self.layer_lowest;
                     let prev_layer_highest = self.layer_highest;
-                    // todo: implement 'lock' which freezes the lowest and highest layer and doesn't allow current layer to be outside that
-                    //  for projects in which these bounds are known
 
                     // Finicky due to not being able to know the size of the widget in advance
                     // so do a pretty good prediction
@@ -488,7 +507,10 @@ impl eframe::App for App {
                     );
                     ui.put(rect, |ui: &mut egui::Ui| {
                         ui.horizontal(|ui| {
-                            ui.add(egui::DragValue::new(&mut self.layer_lowest).speed(0.05));
+                            ui.add_enabled(
+                                !self.lock_stack_size,
+                                egui::DragValue::new(&mut self.layer_lowest).speed(0.05),
+                            );
                             if ui
                                 .add(
                                     egui::Button::new("|<")
@@ -505,9 +527,21 @@ impl eframe::App for App {
                                 )
                                 .clicked()
                             {
-                                self.current_layer = self.current_layer - 1;
+                                if !self.lock_stack_size
+                                    || self.current_layer - 1 >= self.layer_lowest
+                                {
+                                    self.current_layer = self.current_layer - 1;
+                                }
                             }
-                            ui.add(egui::DragValue::new(&mut self.current_layer).speed(0.05));
+                            if self.lock_stack_size {
+                                ui.add(
+                                    egui::DragValue::new(&mut self.current_layer)
+                                        .speed(0.05)
+                                        .clamp_range(self.layer_lowest..=self.layer_highest),
+                                );
+                            } else {
+                                ui.add(egui::DragValue::new(&mut self.current_layer).speed(0.05));
+                            }
 
                             if ui
                                 .add(
@@ -516,7 +550,11 @@ impl eframe::App for App {
                                 )
                                 .clicked()
                             {
-                                self.current_layer = self.current_layer + 1;
+                                if !self.lock_stack_size
+                                    || self.current_layer + 1 <= self.layer_highest
+                                {
+                                    self.current_layer = self.current_layer + 1;
+                                }
                             }
                             if ui
                                 .add(
@@ -527,7 +565,10 @@ impl eframe::App for App {
                             {
                                 self.current_layer = self.layer_highest;
                             }
-                            ui.add(egui::DragValue::new(&mut self.layer_highest).speed(0.05));
+                            ui.add_enabled(
+                                !self.lock_stack_size,
+                                egui::DragValue::new(&mut self.layer_highest).speed(0.05),
+                            );
                         });
                         response
                     });
