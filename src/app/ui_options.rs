@@ -12,7 +12,7 @@ use crate::app::lua_field::LuaField;
 pub fn ui_options(
     ui: &mut Ui,
     current_layer_config: &mut GenConfig,
-    circle_mode: bool,
+    link_radii: &mut bool,
     lua_mode: bool,
     lua: &mut Lua,
     lua_field_radius_a: &mut LuaField,
@@ -91,13 +91,16 @@ pub fn ui_options(
     // Radius
     ui.separator();
 
-    if circle_mode {
+    ui.checkbox(link_radii, "Link radii");
+
+    if *link_radii {
         if ui
             .add(
                 egui::Slider::new(&mut current_layer_config.radius_a, 0.0..=30.0)
                     .text("Radius")
                     .clamp_to_range(false)
-                    .custom_formatter(|param, _| format!("{:.02}", param)),
+                    .custom_formatter(|param, _| format!("{:.02}", param))
+                    .drag_value_speed(0.03),
             )
             .changed()
         {
@@ -112,8 +115,6 @@ pub fn ui_options(
         }
 
         current_layer_config.radius_b = current_layer_config.radius_a;
-
-        current_layer_config.tilt = 0.0;
     } else {
         // radius a
         if ui
@@ -121,7 +122,8 @@ pub fn ui_options(
                 egui::Slider::new(&mut current_layer_config.radius_a, 0.0..=30.0)
                     .text("Radius A")
                     .clamp_to_range(false)
-                    .custom_formatter(|param, _| format!("{:.02}", param)),
+                    .custom_formatter(|param, _| format!("{:.02}", param))
+                    .drag_value_speed(0.03),
             )
             .changed()
         {
@@ -137,7 +139,8 @@ pub fn ui_options(
                 egui::Slider::new(&mut current_layer_config.radius_b, 0.0..=30.0)
                     .text("Radius B")
                     .clamp_to_range(false)
-                    .custom_formatter(|param, _| format!("{:.02}", param)),
+                    .custom_formatter(|param, _| format!("{:.02}", param))
+                    .drag_value_speed(0.03),
             )
             .changed()
         {
@@ -147,57 +150,59 @@ pub fn ui_options(
             lua_field_radius_b.show(ui, lua, layer_lowest, layer_highest);
         }
 
-        if ui
-            .add(
-                egui::Slider::new(&mut current_layer_config.tilt, -6.28..=6.28)
-                    .text("Tilt (radians)")
-                    .fixed_decimals(2),
-            )
-            .changed()
-        {
-            lua_field_tilt.update_field_state(lua, layer_lowest, layer_highest);
-        };
-
-        // Particular values
-        ui.allocate_ui_with_layout(
-            egui::Vec2::from([100.0, 200.0]),
-            Layout::left_to_right(Align::Min),
-            |ui| {
-                if ui.button("0°").clicked() {
-                    current_layer_config.tilt = 0.0;
-                    lua_field_tilt.update_field_state(lua, layer_lowest, layer_highest);
-                }
-                if ui.button("30°").clicked() {
-                    current_layer_config.tilt = PI / 6.0;
-                    lua_field_tilt.update_field_state(lua, layer_lowest, layer_highest);
-                }
-                if ui.button("45°").clicked() {
-                    current_layer_config.tilt = PI / 4.0;
-                    lua_field_tilt.update_field_state(lua, layer_lowest, layer_highest);
-                }
-                if ui.button("1:2").clicked() {
-                    current_layer_config.tilt = 0.5_f64.atan();
-                    lua_field_tilt.update_field_state(lua, layer_lowest, layer_highest);
-                }
-                if ui.button("1:3").clicked() {
-                    current_layer_config.tilt = 0.333333333333_f64.atan();
-                    lua_field_tilt.update_field_state(lua, layer_lowest, layer_highest);
-                }
-                if ui.button("2:3").clicked() {
-                    current_layer_config.tilt = 0.666666666666_f64.atan();
-                    lua_field_tilt.update_field_state(lua, layer_lowest, layer_highest);
-                }
-                if ui.button("1:4").clicked() {
-                    current_layer_config.tilt = 0.25_f64.atan();
-                    lua_field_tilt.update_field_state(lua, layer_lowest, layer_highest);
-                }
-            },
-        );
-        if lua_mode {
-            lua_field_tilt.show(ui, lua, layer_lowest, layer_highest);
-        }
-
         //TODO: Make circular slider for more intuitive controls (need to build this myapp probably)
+    }
+
+    //tilt
+    if ui
+        .add(
+            egui::Slider::new(&mut current_layer_config.tilt, -6.28..=6.28)
+                .text("Tilt (radians)")
+                .fixed_decimals(2)
+                .drag_value_speed(0.01),
+        )
+        .changed()
+    {
+        lua_field_tilt.update_field_state(lua, layer_lowest, layer_highest);
+    };
+
+    // Particular values
+    ui.allocate_ui_with_layout(
+        egui::Vec2::from([100.0, 200.0]),
+        Layout::left_to_right(Align::Min),
+        |ui| {
+            if ui.button("0°").clicked() {
+                current_layer_config.tilt = 0.0;
+                lua_field_tilt.update_field_state(lua, layer_lowest, layer_highest);
+            }
+            if ui.button("30°").clicked() {
+                current_layer_config.tilt = PI / 6.0;
+                lua_field_tilt.update_field_state(lua, layer_lowest, layer_highest);
+            }
+            if ui.button("45°").clicked() {
+                current_layer_config.tilt = PI / 4.0;
+                lua_field_tilt.update_field_state(lua, layer_lowest, layer_highest);
+            }
+            if ui.button("1:2").clicked() {
+                current_layer_config.tilt = 0.5_f64.atan();
+                lua_field_tilt.update_field_state(lua, layer_lowest, layer_highest);
+            }
+            if ui.button("1:3").clicked() {
+                current_layer_config.tilt = 0.333333333333_f64.atan();
+                lua_field_tilt.update_field_state(lua, layer_lowest, layer_highest);
+            }
+            if ui.button("2:3").clicked() {
+                current_layer_config.tilt = 0.666666666666_f64.atan();
+                lua_field_tilt.update_field_state(lua, layer_lowest, layer_highest);
+            }
+            if ui.button("1:4").clicked() {
+                current_layer_config.tilt = 0.25_f64.atan();
+                lua_field_tilt.update_field_state(lua, layer_lowest, layer_highest);
+            }
+        },
+    );
+    if lua_mode {
+        lua_field_tilt.show(ui, lua, layer_lowest, layer_highest);
     }
 
     // Squircle parameter
