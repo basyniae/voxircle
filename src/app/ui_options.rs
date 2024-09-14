@@ -12,7 +12,7 @@ use crate::app::lua_field::LuaField;
 pub fn ui_options(
     ui: &mut Ui,
     current_layer_config: &mut GenConfig,
-    link_radii: &mut bool,
+    single_radius: &mut bool,
     lua_mode: bool,
     lua: &mut Lua,
     lua_field_radius_a: &mut LuaField,
@@ -91,9 +91,9 @@ pub fn ui_options(
     // Radius
     ui.separator();
 
-    ui.checkbox(link_radii, "Link radii");
+    ui.checkbox(single_radius, "Single radius");
 
-    if *link_radii {
+    if *single_radius {
         if ui
             .add(
                 egui::Slider::new(&mut current_layer_config.radius_a, 0.0..=30.0)
