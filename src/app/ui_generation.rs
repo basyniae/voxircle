@@ -9,7 +9,7 @@ pub fn ui_generation(
     ui: &mut Ui,
     generate_current_layer: &mut bool,
     generate_all_layers: &mut bool,
-    circle_mode: bool,
+    link_radii: bool,
     layer_mode: bool,
     lua_mode: bool,
     stack_gen_config: &mut ZVec<GenConfig>,
@@ -39,7 +39,7 @@ pub fn ui_generation(
                     lua_field_center_offset_x,
                     lua_field_center_offset_y,
                     lua_field_squircle_parameter,
-                    circle_mode,
+                    link_radii,
                     current_layer,
                 );
             }
@@ -61,7 +61,7 @@ pub fn ui_generation(
                         lua_field_center_offset_x,
                         lua_field_center_offset_y,
                         lua_field_squircle_parameter,
-                        circle_mode,
+                        link_radii,
                         layer,
                     )
                 }
@@ -98,7 +98,7 @@ fn set_parameters_for_layer(
     lua_field_center_offset_x: &mut LuaField,
     lua_field_center_offset_y: &mut LuaField,
     lua_field_squircle_parameter: &mut LuaField,
-    circle_mode: bool,
+    link_radii: bool,
     layer: isize,
 ) {
     lua.globals().set("layer", layer).unwrap();
@@ -106,7 +106,7 @@ fn set_parameters_for_layer(
 
     lua_field_radius_a.eval(lua, &mut gen_config.radius_a);
 
-    if circle_mode {
+    if link_radii {
         lua_field_radius_a.eval(lua, &mut gen_config.radius_b);
     } else {
         lua_field_radius_b.eval(lua, &mut gen_config.radius_b);

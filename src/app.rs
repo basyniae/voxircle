@@ -75,7 +75,7 @@ pub struct App {
     generate_current_layer: bool,
     auto_generate_all_layers: bool,
     generate_all_layers: bool,
-    circle_mode: bool, // todo: replace with a 'link radii' button
+    link_radii: bool,
     layer_mode: bool,
     lua_mode: bool,
 
@@ -162,7 +162,7 @@ impl App {
             generate_current_layer: true,
             auto_generate_all_layers: false,
             generate_all_layers: false,
-            circle_mode: true,
+            link_radii: true,
             layer_mode: false,
             lua_mode: false,
 
@@ -202,7 +202,6 @@ impl eframe::App for App {
                     egui::Vec2::from([100.0, 200.0]),
                     Layout::left_to_right(Align::Min),
                     |ui| {
-                        ui.checkbox(&mut self.circle_mode, "Circle mode");
                         if ui.checkbox(&mut self.layer_mode, "Layer mode").changed() {
                             self.lua_mode &= self.layer_mode; //  if layer mode is turned off, also turn off code mode
                         };
@@ -226,7 +225,7 @@ impl eframe::App for App {
                     ui_options::ui_options(
                         ui,
                         self.stack_gen_config.get_mut(self.current_layer).unwrap(),
-                        self.circle_mode,
+                        &mut self.link_radii,
                         self.lua_mode,
                         &mut self.lua,
                         &mut self.lua_field_radius_a,
@@ -289,7 +288,7 @@ impl eframe::App for App {
                         Layout::left_to_right(Align::Min),
                         |ui| {
                             ui.add_enabled(
-                                self.circle_mode,
+                                self.link_radii,
                                 egui::Checkbox::new(
                                     &mut self.view_intersect_area,
                                     "Intersect area",
@@ -318,7 +317,7 @@ impl eframe::App for App {
                     ui,
                     &mut self.generate_current_layer,
                     &mut self.generate_all_layers,
-                    self.circle_mode,
+                    self.link_radii,
                     self.layer_mode,
                     self.lua_mode,
                     &mut self.stack_gen_config,
