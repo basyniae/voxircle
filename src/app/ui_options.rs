@@ -32,7 +32,7 @@ pub fn ui_options(
             ui.selectable_value(
                 &mut current_layer_config.algorithm,
                 Algorithm::CenterPoint,
-                "Center point",
+                "Centerpoint",
             );
             ui.selectable_value(
                 &mut current_layer_config.algorithm,
@@ -73,15 +73,19 @@ pub fn ui_options(
                 )
             );
             let mut perc_slider = percentage.clone();
-            ui.add(
-                egui::Slider::new(&mut perc_slider, 0.0..=1.0)
-                    .text("")
-                    .fixed_decimals(2)
-                    .custom_formatter(|n, _| {
-                        format!("{:.0}%", n * 100.0) //  formatting of percentage slider
-                    }),
-            );
-            current_layer_config.algorithm = Algorithm::Percentage(perc_slider);
+            if ui
+                .add(
+                    egui::Slider::new(&mut perc_slider, 0.0..=1.0)
+                        .text("")
+                        .fixed_decimals(2)
+                        .custom_formatter(|n, _| {
+                            format!("{:.0}%", n * 100.0) //  formatting of percentage slider
+                        }),
+                )
+                .changed()
+            {
+                current_layer_config.algorithm = Algorithm::Percentage(perc_slider);
+            };
         }
         Algorithm::Empty => {
             ui.label("Include no blocks in the voxelization");

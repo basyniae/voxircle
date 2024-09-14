@@ -11,6 +11,7 @@ use egui_plot::{
 };
 use mlua::Lua;
 
+use crate::app::sampling::SamplingMethod;
 use data_structures::blocks::Blocks;
 use data_structures::gen_config::GenConfig;
 use data_structures::zvec::ZVec;
@@ -27,6 +28,7 @@ mod lua_field;
 mod math;
 mod metrics;
 mod plotting;
+mod sampling;
 mod ui_generation;
 mod ui_options;
 
@@ -55,9 +57,6 @@ pub struct App {
 
     recompute_metrics: bool, // If the current layer has changed, recompute the metrics. By update order, this needs to be a global variable
 
-    // Sampling
-    sampling_enabled: bool,
-
     // Metrics
     nr_blocks_total: u64,
     nr_blocks_interior: u64,
@@ -80,6 +79,13 @@ pub struct App {
     lock_stack_size: bool,
 
     code_enabled: bool,
+
+    // Sampling
+    sampling_enabled: bool,
+    only_sample_half_of_bottom_layer: bool,
+    only_sample_half_of_top_layer: bool,
+    nr_samples_per_layer: usize,
+    sampling_method: SamplingMethod,
 
     // Viewport options
     view_blocks: bool,
@@ -145,9 +151,6 @@ impl App {
             // Compute the metrics on the first update
             recompute_metrics: true,
 
-            // Sampling
-            sampling_enabled: false,
-
             // Initialize empty metrics
             nr_blocks_total: Default::default(),
             nr_blocks_interior: Default::default(),
@@ -166,10 +169,17 @@ impl App {
             auto_generate_all_layers: false,
             generate_all_layers: false,
             single_radius: true,
-            layers_enabled: false,
+            layers_enabled: true, // debug: make default false
             lock_stack_size: false,
 
-            code_enabled: false,
+            code_enabled: true, // debug: make default false
+
+            // Sampling
+            sampling_enabled: true, // debug: make default false
+            only_sample_half_of_bottom_layer: false, // todo: think about defaults
+            only_sample_half_of_top_layer: false,
+            nr_samples_per_layer: 1,
+            sampling_method: SamplingMethod::AnySamples,
 
             // ""
             view_blocks: true,
@@ -230,22 +240,6 @@ impl eframe::App for App {
                     );
                 });
 
-                // let id = ui.make_persistent_id("sampling_collapsable");
-                // egui::collapsing_header::CollapsingState::load_with_default_open(
-                //     ui.ctx(),
-                //     id,
-                //     false,
-                // )
-                // .show_header(ui, |ui| {
-                //     ui.checkbox(
-                //         &mut self.sampling_enabled,
-                //         egui::RichText::new("Sampling").strong().size(15.0),
-                //     );
-                // })
-                // .body(|ui| {
-                //     ui.add_enabled(self.sampling_enabled, egui::Label::new("dummy"));
-                // });
-
                 let id = ui.make_persistent_id("layers_collapsable");
                 egui::collapsing_header::CollapsingState::load_with_default_open(
                     ui.ctx(),
@@ -279,6 +273,83 @@ impl eframe::App for App {
                 })
                 .body(|ui| {
                     ui.add_enabled(self.layers_enabled, egui::Label::new("No options here yet"));
+                });
+
+                let id = ui.make_persistent_id("sampling_collapsable");
+                egui::collapsing_header::CollapsingState::load_with_default_open(
+                    ui.ctx(),
+                    id,
+                    true, //debug: set default to false (this is for testing)
+                )
+                .show_header(ui, |ui| {
+                    ui.checkbox(
+                        &mut self.sampling_enabled,
+                        egui::RichText::new("Sampling").strong().size(15.0),
+                    );
+                })
+                .body(|ui| {
+                    ui.label("Requires both layer and code mode to be on.");
+                    //todo: but potentially we can do it without layer mode
+
+                    ui.add_enabled_ui(self.sampling_enabled, |ui| {
+                        egui::ComboBox::from_label("Sampling method")
+                            .selected_text(format!("{:?}", self.sampling_method))
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(
+                                    &mut self.sampling_method,
+                                    SamplingMethod::AnySamples,
+                                    "Any samples",
+                                );
+                                ui.selectable_value(
+                                    &mut self.sampling_method,
+                                    SamplingMethod::AllSamples,
+                                    "All samples",
+                                );
+                                ui.selectable_value(
+                                    &mut self.sampling_method,
+                                    SamplingMethod::Percentage(0.5),
+                                    "Given number of percentage of all samples",
+                                );
+                            });
+                        match self.sampling_method {
+                            SamplingMethod::Percentage(percentage) => {
+                                let mut perc_slider = percentage.clone();
+                                if ui
+                                    .add(
+                                        egui::Slider::new(&mut perc_slider, 0.0..=1.0)
+                                            .text("")
+                                            .fixed_decimals(2)
+                                            .custom_formatter(|n, _| {
+                                                format!("{:.0}%", n * 100.0) //  formatting of percentage slider
+                                            }),
+                                    )
+                                    .changed()
+                                {
+                                    self.sampling_method = SamplingMethod::Percentage(perc_slider);
+                                };
+                            }
+                            _ => {}
+                        }
+
+                        ui.checkbox(
+                            &mut self.only_sample_half_of_bottom_layer,
+                            "Only sample the top half of the bottom layer",
+                        );
+                        ui.checkbox(
+                            &mut self.only_sample_half_of_top_layer,
+                            "Only sample the bottom half of the top layer",
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut self.nr_samples_per_layer, 1..=20)
+                                .text("Nr. samples per layer"),
+                        );
+
+                        ui.label(format!(
+                            "Total number of samples for all layers: {}",
+                            self.nr_samples_per_layer
+                                * (self.layer_highest - self.layer_lowest + 1).abs() as usize
+                        ))
+                    })
                 });
 
                 let id = ui.make_persistent_id("viewport_options_collapsable");
