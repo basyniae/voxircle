@@ -1,3 +1,4 @@
+use eframe::egui;
 use eframe::egui::Ui;
 use mlua::Lua;
 
@@ -24,12 +25,21 @@ pub fn ui_generation(
     layer_highest: isize,
     current_layer: isize,
 ) {
-    if lua_mode {
-        ui.columns(2, |columns| {
-            if columns[0]
-                .button("Set parameters for current layer by code")
-                .clicked()
-            {
+    egui::Grid::new("generation_grid").show(ui, |ui| {
+        if lua_mode {
+            let response = ui.add_sized(
+                [150.0, 50.0],
+                egui::Button::new({
+                    if layer_mode {
+                        "Set parameters for current layer by code"
+                    } else {
+                        "Set parameters by code"
+                    }
+                })
+                .wrap(true),
+            );
+
+            if response.clicked() {
                 set_parameters_for_layer(
                     &mut stack_gen_config.get_mut(current_layer).unwrap(),
                     lua,
@@ -43,14 +53,15 @@ pub fn ui_generation(
                     current_layer,
                 );
             }
-            columns[0].centered_and_justified(|ui| {
-                *generate_current_layer = ui.button("Generate current layer").clicked();
-            });
+        }
 
-            if columns[1]
-                .button("Set parameters for all layers by code")
-                .clicked()
-            {
+        if lua_mode && layer_mode {
+            let response = ui.add_sized(
+                [150.0, 50.0],
+                egui::Button::new("Set parameters for all layers by code").wrap(true),
+            );
+
+            if response.clicked() {
                 for layer in layer_lowest..=layer_highest {
                     set_parameters_for_layer(
                         &mut stack_gen_config.get_mut(layer).unwrap(),
@@ -66,27 +77,33 @@ pub fn ui_generation(
                     )
                 }
             }
-            columns[1].centered_and_justified(|ui| {
-                *generate_all_layers = ui.button("Generate all layers").clicked();
-            });
-        });
-    } else {
-        if layer_mode {
-            ui.columns(2, |columns| {
-                columns[0].centered_and_justified(|ui| {
-                    *generate_current_layer = ui.button("Generate current layer").clicked();
-                });
-
-                columns[1].centered_and_justified(|ui| {
-                    *generate_all_layers = ui.button("Generate all layers").clicked();
-                });
-            })
-        } else {
-            ui.centered_and_justified(|ui| {
-                *generate_current_layer = ui.button("Generate").clicked();
-            });
         }
-    }
+
+        if lua_mode {
+            ui.end_row();
+        }
+
+        let response = ui.add_sized(
+            [150.0, 50.0],
+            egui::Button::new({
+                if layer_mode {
+                    "Generate current layer"
+                } else {
+                    "Generate"
+                }
+            })
+            .wrap(true),
+        );
+        *generate_current_layer = response.clicked();
+
+        if layer_mode {
+            let response = ui.add_sized(
+                [150.0, 50.0],
+                egui::Button::new("Generate all layers").wrap(true),
+            );
+            *generate_all_layers = response.clicked();
+        };
+    });
 }
 
 fn set_parameters_for_layer(
