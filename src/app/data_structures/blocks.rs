@@ -14,6 +14,7 @@ pub struct Blocks {
 }
 
 // TODO: make intersect and complement methods for easier computation
+// TODO: make everything use is_block_on_global_coord
 impl Blocks {
     pub fn new(blocks: Vec<bool>, grid_size: usize) -> Self {
         Blocks {
@@ -112,6 +113,7 @@ impl Blocks {
         )
     }
 
+    // todo: make direct methods for layer boundary and interior
     /// Complement of blocks (for interiors)
     pub fn get_complement(&self) -> Blocks {
         Blocks::new(
@@ -246,5 +248,90 @@ impl Blocks {
         }
 
         output
+    }
+}
+
+/// Methods for combining different Blocks
+impl Blocks {
+    /// A block is in the output iff there is a block at the same global position for any layer in
+    ///  the input.
+    pub fn combine_any(stack: Vec<Self>) -> Self {
+        // determine largest grid size
+        let grid_size = stack.iter().map(|b| b.grid_size).max().unwrap();
+        // throws an error only if the vector above is empty
+        let origin_usize = [grid_size / 2, grid_size / 2];
+
+        Blocks::new(
+            (0..grid_size.pow(2))
+                .map(|i| {
+                    let global_coord = [
+                        (i % grid_size) as isize - (origin_usize[0] as isize),
+                        (i / grid_size) as isize - (origin_usize[1] as isize),
+                    ];
+
+                    stack
+                        .iter()
+                        .map(|b| b.is_block_on_global_coord(global_coord))
+                        .fold(false, |a, b| a || b)
+                })
+                .collect(),
+            grid_size,
+        )
+    }
+
+    /// A block is in the output iff for every layer in the input, there is a block at the same
+    ///  global position
+    pub fn combine_all(stack: Vec<Self>) -> Self {
+        // determine largest grid size
+        let grid_size = stack.iter().map(|b| b.grid_size).max().unwrap();
+        // throws an error only if the vector above is empty
+        let origin_usize = [grid_size / 2, grid_size / 2];
+
+        Blocks::new(
+            (0..grid_size.pow(2))
+                .map(|i| {
+                    let global_coord = [
+                        (i % grid_size) as isize - (origin_usize[0] as isize),
+                        (i / grid_size) as isize - (origin_usize[1] as isize),
+                    ];
+
+                    stack
+                        .iter()
+                        .map(|b| b.is_block_on_global_coord(global_coord))
+                        .fold(true, |a, b| a && b)
+                })
+                .collect(),
+            grid_size,
+        )
+    }
+
+    /// A block is in the output iff there is a block at the same global position for more than the
+    ///  given percentage of layers
+    pub fn combine_percentage(stack: Vec<Self>, percentage: f64) -> Self {
+        // determine the largest grid size & associated origin
+        // throws an error only if the vector above is empty
+        let grid_size = stack.iter().map(|b| b.grid_size).max().unwrap();
+        let origin_usize = [grid_size / 2, grid_size / 2];
+        // determine target number of layers (we specifically allow any f64 for percentage, but
+        //  the output will be trivial for it not between zero and one.
+        let target_nr_layers = stack.len() as f64 * percentage;
+
+        Blocks::new(
+            (0..grid_size.pow(2))
+                .map(|i| {
+                    let global_coord = [
+                        (i % grid_size) as isize - (origin_usize[0] as isize),
+                        (i / grid_size) as isize - (origin_usize[1] as isize),
+                    ];
+
+                    stack
+                        .iter()
+                        .map(|b| b.is_block_on_global_coord(global_coord))
+                        .fold(0.0, |a, b| a + (b as usize) as f64)
+                        >= target_nr_layers
+                })
+                .collect(),
+            grid_size,
+        )
     }
 }
