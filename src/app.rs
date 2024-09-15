@@ -87,6 +87,7 @@ pub struct App {
     nr_samples_per_layer: usize,
     sample_combine_method: SampleCombineMethod,
     sample_distribute_method: SampleDistributeMethod,
+    sampling_points: ZVec<Vec<f64>>,
 
     // Viewport options
     view_blocks: bool,
@@ -182,8 +183,10 @@ impl App {
             nr_samples_per_layer: 1,
             sample_combine_method: SampleCombineMethod::AnySamples,
             sample_distribute_method: SampleDistributeMethod::IncludeEndpoints,
+            // fixme: change in layer should also change sampling points!
+            sampling_points: ZVec::new(VecDeque::from([vec![0.0]]), 0), // start with middle sample
 
-            // ""
+            // Simplest working configuration
             view_blocks: true,
             view_boundary_2d: false,
             view_interior_2d: false,
@@ -219,7 +222,7 @@ impl eframe::App for App {
                 egui::collapsing_header::CollapsingState::load_with_default_open(
                     ui.ctx(),
                     id,
-                    true,
+                    false, //debug: default true
                 )
                 .show_header(ui, |ui| {
                     ui.label(egui::RichText::new("Parameters").strong().size(15.0));
@@ -284,17 +287,24 @@ impl eframe::App for App {
                     true, //debug: set default to false (this is for testing)
                 )
                 .show_header(ui, |ui| {
-                    ui.checkbox(
-                        &mut self.sampling_enabled,
-                        egui::RichText::new("Sampling").strong().size(15.0),
-                    );
+                    if ui
+                        .checkbox(
+                            &mut self.sampling_enabled,
+                            egui::RichText::new("Sampling").strong().size(15.0),
+                        )
+                        .changed()
+                        & !self.sampling_enabled
+                    {
+                        self.nr_samples_per_layer = 1; // set number of samples to 1 if sampling is off
+                    };
                 })
                 .body(|ui| {
-                    ui.label("Requires both layer and code mode to be on.");
-                    //todo: but potentially we can do it without layer mode
+                    ui.label("Vertical sampling of the code. Requires code mode to be on.");
+
+                    let mut recompute_sampling_points = false;
 
                     ui.add_enabled_ui(self.sampling_enabled, |ui| {
-                        egui::ComboBox::from_label("Sample combination method")
+                        if egui::ComboBox::from_label("Sample combination method")
                             .selected_text(format!("{:?}", self.sample_combine_method))
                             .show_ui(ui, |ui| {
                                 ui.selectable_value(
@@ -312,7 +322,13 @@ impl eframe::App for App {
                                     SampleCombineMethod::Percentage(0.5),
                                     "Given number of percentage of all samples",
                                 );
-                            });
+                            })
+                            .response
+                            .changed()
+                        {
+                            recompute_sampling_points = true;
+                        };
+
                         match self.sample_combine_method {
                             SampleCombineMethod::Percentage(percentage) => {
                                 let mut perc_slider = percentage.clone();
@@ -329,12 +345,13 @@ impl eframe::App for App {
                                 {
                                     self.sample_combine_method =
                                         SampleCombineMethod::Percentage(perc_slider);
+                                    recompute_sampling_points = true;
                                 };
                             }
                             _ => {}
                         }
 
-                        egui::ComboBox::from_label("Sample distribution method")
+                        if egui::ComboBox::from_label("Sample distribution method")
                             .selected_text(format!("{:?}", self.sample_distribute_method))
                             .show_ui(ui, |ui| {
                                 ui.selectable_value(
@@ -347,27 +364,73 @@ impl eframe::App for App {
                                     SampleDistributeMethod::ExcludeEndpoints,
                                     "Include endpoints",
                                 );
-                            });
+                            })
+                            .response
+                            .changed()
+                        {
+                            recompute_sampling_points = true;
+                        };
 
-                        ui.checkbox(
-                            &mut self.only_sample_half_of_bottom_layer,
-                            "Only sample the top half of the bottom layer",
-                        );
-                        ui.checkbox(
-                            &mut self.only_sample_half_of_top_layer,
-                            "Only sample the bottom half of the top layer",
-                        );
-                        ui.add(
-                            egui::Slider::new(&mut self.nr_samples_per_layer, 1..=20)
-                                .text("Nr. samples per layer"),
-                        );
+                        if ui
+                            .checkbox(
+                                &mut self.only_sample_half_of_bottom_layer,
+                                "Only sample the top half of the bottom layer",
+                            )
+                            .changed()
+                        {
+                            recompute_sampling_points = true;
+                        };
 
-                        ui.label(format!(
-                            "Total number of samples for all layers: {}",
-                            self.nr_samples_per_layer
-                                * (self.layer_highest - self.layer_lowest + 1).abs() as usize
-                        )) // do computation of sampling point distribution first
-                    })
+                        if ui
+                            .checkbox(
+                                &mut self.only_sample_half_of_top_layer,
+                                "Only sample the bottom half of the top layer",
+                            )
+                            .changed()
+                        {
+                            recompute_sampling_points = true;
+                        };
+
+                        if ui
+                            .add(
+                                egui::Slider::new(&mut self.nr_samples_per_layer, 1..=20)
+                                    .text("Nr. samples per layer"),
+                            )
+                            .changed()
+                        {
+                            if self.sampling_enabled {
+                                recompute_sampling_points = true;
+                            } else {
+                                self.nr_samples_per_layer = 1; // if sampling is off, don't allow changing this value}
+                            }
+                        };
+                    });
+
+                    if recompute_sampling_points {
+                        //todo: only recompute if any of the sampling options have changed
+                        // if any of the sampling options changed, recompute the sampling
+                        self.sampling_points = sampling::determine_sampling_points(
+                            self.sample_distribute_method,
+                            self.layer_lowest,
+                            self.layer_highest,
+                            self.nr_samples_per_layer,
+                            self.only_sample_half_of_bottom_layer,
+                            self.only_sample_half_of_top_layer,
+                        );
+                    }
+
+                    ui.label(format!(
+                        "Total number of samples for all layers: {}",
+                        self.sampling_points.data.iter().fold(
+                            0,
+                            |acc, samples_for_single_layer| {
+                                acc + samples_for_single_layer.len()
+                            }
+                        )
+                    ));
+
+                    // debug: remove label
+                    ui.label(format!("Sampling points: {:?}", self.sampling_points))
                 });
 
                 let id = ui.make_persistent_id("viewport_options_collapsable");
@@ -786,6 +849,7 @@ impl eframe::App for App {
                     // 3. 2d boundary
                     // 4. 2d interior
                     // 5. 3d interior
+                    // then geometric overlays like the target shape, center, etc.
                     if self.view_blocks {
                         for coord in self
                             .stack_blocks
