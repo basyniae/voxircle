@@ -1,3 +1,4 @@
+use crate::app::data_structures::zvec::ZVec;
 use eframe::egui;
 use eframe::egui::{Color32, Ui};
 use mlua::Lua;
@@ -27,7 +28,7 @@ impl LuaField {
         }
     }
 
-    pub fn show(&mut self, ui: &mut Ui, lua: &mut Lua, layer_min: isize, layer_max: isize) {
+    pub fn show(&mut self, ui: &mut Ui, lua: &mut Lua, sampling_points: &ZVec<Vec<f64>>) {
         let original_style = ui.style().clone();
 
         match self.field_state {
@@ -48,33 +49,46 @@ impl LuaField {
 
         let response = ui.add(egui::TextEdit::singleline(&mut self.code).code_editor());
         if response.changed() {
-            self.update_field_state(lua, layer_min, layer_max);
+            self.update_field_state(lua, sampling_points);
         }
 
         ui.set_style(original_style);
     }
 
-    pub fn update_field_state(&mut self, lua: &mut Lua, layer_min: isize, layer_max: isize) {
+    pub fn update_field_state(&mut self, lua: &mut Lua, sampling_points: &ZVec<Vec<f64>>) {
         if self.code.is_empty() {
             self.field_state = FieldState::Empty
-        } else if !self.is_valid_expression(lua, layer_min, layer_max) {
+        } else if !self.is_valid_expression(lua, sampling_points) {
             self.field_state = FieldState::Invalid
         } else {
             self.field_state = FieldState::Changed
         }
     }
 
-    pub fn is_valid_expression(&self, lua: &mut Lua, layer_min: isize, layer_max: isize) -> bool {
-        let mut running = true;
-        for layer in layer_min..=layer_max {
-            lua.globals().set("layer", layer).unwrap();
-            running &= lua.load(self.code.clone()).eval::<f64>().is_ok_and(|x| {
-                !x.is_nan()
-                    && (!self.req_finite || x.is_finite())
-                    && (!self.req_nonnegative || x >= 0.0)
-            });
-        }
-        running
+    pub fn is_valid_expression(&self, lua: &mut Lua, sampling_points: &ZVec<Vec<f64>>) -> bool {
+        // Check if the expression is valid at all sampling points. First unpack layers, then unpack
+        // sampling points
+        sampling_points
+            .data
+            .iter()
+            .map(|layer| {
+                layer
+                    .iter()
+                    .map(|sample| {
+                        // is the expression valid for this sample?
+                        lua.globals().set("layer", *sample).unwrap();
+                        lua.globals().set("l", *sample).unwrap();
+                        lua.load(self.code.clone()).eval::<f64>().is_ok_and(|x| {
+                            !x.is_nan()
+                                && (!self.req_finite || x.is_finite())
+                                && (!self.req_nonnegative || x >= 0.0)
+                        })
+                    })
+                    // is the expression valid for this particular layer
+                    .fold(true, |a, b| a && b)
+            })
+            // is the expression valid for all layers?
+            .fold(true, |a, b| a && b)
     }
 
     pub fn eval(&mut self, lua: &mut Lua, parameter: &mut f64) {

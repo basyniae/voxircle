@@ -506,6 +506,8 @@ impl eframe::App for App {
         // TODO: Only auto generate if the values have changed
         if self.generate_current_layer || self.auto_generate_current_layer {
             self.generate_current_layer = false;
+            //todo: clean up... don't want to case on sampling being on (just generate at the sample points right)
+
             self.stack_blocks.set(
                 self.current_layer,
                 self.stack_gen_config
@@ -742,36 +744,18 @@ impl eframe::App for App {
                     if prev_layer_lowest > self.layer_lowest
                         || prev_layer_highest < self.layer_highest
                     {
-                        self.lua_field_radius_a.update_field_state(
-                            &mut self.lua,
-                            self.layer_lowest,
-                            self.layer_highest,
-                        );
-                        self.lua_field_radius_b.update_field_state(
-                            &mut self.lua,
-                            self.layer_lowest,
-                            self.layer_highest,
-                        );
-                        self.lua_field_tilt.update_field_state(
-                            &mut self.lua,
-                            self.layer_lowest,
-                            self.layer_highest,
-                        );
-                        self.lua_field_center_offset_x.update_field_state(
-                            &mut self.lua,
-                            self.layer_lowest,
-                            self.layer_highest,
-                        );
-                        self.lua_field_center_offset_y.update_field_state(
-                            &mut self.lua,
-                            self.layer_lowest,
-                            self.layer_highest,
-                        );
-                        self.lua_field_squircle_parameter.update_field_state(
-                            &mut self.lua,
-                            self.layer_lowest,
-                            self.layer_highest,
-                        );
+                        self.lua_field_radius_a
+                            .update_field_state(&mut self.lua, &self.sampling_points);
+                        self.lua_field_radius_b
+                            .update_field_state(&mut self.lua, &self.sampling_points);
+                        self.lua_field_tilt
+                            .update_field_state(&mut self.lua, &self.sampling_points);
+                        self.lua_field_center_offset_x
+                            .update_field_state(&mut self.lua, &self.sampling_points);
+                        self.lua_field_center_offset_y
+                            .update_field_state(&mut self.lua, &self.sampling_points);
+                        self.lua_field_squircle_parameter
+                            .update_field_state(&mut self.lua, &self.sampling_points);
                     }
                 })
             });
