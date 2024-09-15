@@ -1,20 +1,23 @@
 use crate::app::data_structures::zvec::ZVec;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Default, Clone, Copy)]
 pub enum SampleCombineMethod {
+    #[default]
     AllSamples,
     AnySamples,
     Percentage(f64),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Default, Clone, Copy)]
 pub enum SampleDistributeMethod {
+    #[default]
     IncludeEndpoints,
     ExcludeEndpoints,
 }
 
 /// The ZVec corresponds to the layers. Each float in the Vec for a particular layer corresponds to
 ///  a sample that that layer has
+/// Note! The layer number is the middle!
 pub fn determine_sampling_points(
     sample_distribute_method: SampleDistributeMethod,
     layer_lowest: isize,
@@ -28,7 +31,7 @@ pub fn determine_sampling_points(
     if nr_samples_per_layer == 1 {
         ZVec::new(
             (layer_lowest..=layer_highest)
-                .map(|layer| vec![layer as f64 + 0.5])
+                .map(|layer| vec![layer as f64])
                 .collect(),
             layer_lowest,
         )
@@ -41,7 +44,7 @@ pub fn determine_sampling_points(
                     (layer_lowest..=layer_highest)
                         .map(|layer| {
                             (0..nr_samples_per_layer)
-                                .map(|sample| layer as f64 + sample_size * (sample as f64))
+                                .map(|sample| layer as f64 + sample_size * (sample as f64) - 0.5)
                                 .collect()
                         })
                         .collect(),
@@ -49,13 +52,17 @@ pub fn determine_sampling_points(
                 )
             }
             SampleDistributeMethod::ExcludeEndpoints => {
-                let sample_size = 1.0 / (nr_samples_per_layer + 1) as f64;
+                let sample_size = 1.0 / (nr_samples_per_layer) as f64;
 
                 ZVec::new(
                     (layer_lowest..=layer_highest)
                         .map(|layer| {
                             (1..=nr_samples_per_layer)
-                                .map(|sample| layer as f64 + sample_size * (sample as f64))
+                                .map(|sample| {
+                                    layer as f64 + sample_size * (sample as f64)
+                                        - 0.5
+                                        - 0.5 * sample_size
+                                })
                                 .collect()
                         })
                         .collect(),
