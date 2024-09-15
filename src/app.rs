@@ -11,7 +11,7 @@ use egui_plot::{
 };
 use mlua::Lua;
 
-use crate::app::sampling::SamplingMethod;
+use crate::app::sampling::{SampleCombineMethod, SampleDistributeMethod};
 use data_structures::blocks::Blocks;
 use data_structures::gen_config::GenConfig;
 use data_structures::zvec::ZVec;
@@ -85,7 +85,8 @@ pub struct App {
     only_sample_half_of_bottom_layer: bool,
     only_sample_half_of_top_layer: bool,
     nr_samples_per_layer: usize,
-    sampling_method: SamplingMethod,
+    sample_combine_method: SampleCombineMethod,
+    sample_distribute_method: SampleDistributeMethod,
 
     // Viewport options
     view_blocks: bool,
@@ -179,7 +180,8 @@ impl App {
             only_sample_half_of_bottom_layer: false, // todo: think about defaults
             only_sample_half_of_top_layer: false,
             nr_samples_per_layer: 1,
-            sampling_method: SamplingMethod::AnySamples,
+            sample_combine_method: SampleCombineMethod::AnySamples,
+            sample_distribute_method: SampleDistributeMethod::IncludeEndpoints,
 
             // ""
             view_blocks: true,
@@ -292,27 +294,27 @@ impl eframe::App for App {
                     //todo: but potentially we can do it without layer mode
 
                     ui.add_enabled_ui(self.sampling_enabled, |ui| {
-                        egui::ComboBox::from_label("Sampling method")
-                            .selected_text(format!("{:?}", self.sampling_method))
+                        egui::ComboBox::from_label("Sample combination method")
+                            .selected_text(format!("{:?}", self.sample_combine_method))
                             .show_ui(ui, |ui| {
                                 ui.selectable_value(
-                                    &mut self.sampling_method,
-                                    SamplingMethod::AnySamples,
-                                    "Any samples",
+                                    &mut self.sample_combine_method,
+                                    SampleCombineMethod::AnySamples,
+                                    "Any samples (for Contained)",
                                 );
                                 ui.selectable_value(
-                                    &mut self.sampling_method,
-                                    SamplingMethod::AllSamples,
-                                    "All samples",
+                                    &mut self.sample_combine_method,
+                                    SampleCombineMethod::AllSamples,
+                                    "All samples (for Conservative)",
                                 );
                                 ui.selectable_value(
-                                    &mut self.sampling_method,
-                                    SamplingMethod::Percentage(0.5),
+                                    &mut self.sample_combine_method,
+                                    SampleCombineMethod::Percentage(0.5),
                                     "Given number of percentage of all samples",
                                 );
                             });
-                        match self.sampling_method {
-                            SamplingMethod::Percentage(percentage) => {
+                        match self.sample_combine_method {
+                            SampleCombineMethod::Percentage(percentage) => {
                                 let mut perc_slider = percentage.clone();
                                 if ui
                                     .add(
@@ -325,11 +327,27 @@ impl eframe::App for App {
                                     )
                                     .changed()
                                 {
-                                    self.sampling_method = SamplingMethod::Percentage(perc_slider);
+                                    self.sample_combine_method =
+                                        SampleCombineMethod::Percentage(perc_slider);
                                 };
                             }
                             _ => {}
                         }
+
+                        egui::ComboBox::from_label("Sample distribution method")
+                            .selected_text(format!("{:?}", self.sample_distribute_method))
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(
+                                    &mut self.sample_distribute_method,
+                                    SampleDistributeMethod::IncludeEndpoints,
+                                    "Include endpoints",
+                                );
+                                ui.selectable_value(
+                                    &mut self.sample_distribute_method,
+                                    SampleDistributeMethod::ExcludeEndpoints,
+                                    "Include endpoints",
+                                );
+                            });
 
                         ui.checkbox(
                             &mut self.only_sample_half_of_bottom_layer,
@@ -348,7 +366,7 @@ impl eframe::App for App {
                             "Total number of samples for all layers: {}",
                             self.nr_samples_per_layer
                                 * (self.layer_highest - self.layer_lowest + 1).abs() as usize
-                        ))
+                        )) // do computation of sampling point distribution first
                     })
                 });
 
