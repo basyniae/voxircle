@@ -28,6 +28,7 @@ pub fn ui_options(
     egui::ComboBox::from_label("Algorithm")
         .selected_text(format!("{:?}", current_layer_config.algorithm))
         // TODO: change formatting to text
+        // TODO: easily change algorithm for all layers
         .show_ui(ui, |ui| {
             ui.selectable_value(
                 &mut current_layer_config.algorithm,
