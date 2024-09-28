@@ -251,8 +251,7 @@ impl eframe::App for App {
                         &mut self.lua_field_center_offset_x,
                         &mut self.lua_field_center_offset_y,
                         &mut self.lua_field_squircle_parameter,
-                        self.layer_lowest,
-                        self.layer_highest,
+                        &self.stack_sampling_points,
                     );
                 });
 

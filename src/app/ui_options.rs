@@ -5,6 +5,7 @@ use eframe::egui::{Align, Layout, Ui};
 use mlua::Lua;
 
 use crate::app::data_structures::layer_config::LayerConfig;
+use crate::app::data_structures::zvec::ZVec;
 use crate::app::generation::Algorithm;
 use crate::app::lua_field::LuaField;
 
@@ -21,9 +22,7 @@ pub fn ui_options(
     lua_field_center_offset_x: &mut LuaField,
     lua_field_center_offset_y: &mut LuaField,
     lua_field_squircle_parameter: &mut LuaField,
-    layer_lowest: isize,
-    layer_highest: isize,
-    sampling_points: Vec<f64>, // Flattened vector!
+    sampling_points: &ZVec<Vec<f64>>, // Flattened vector!
 ) {
     // Select algorithm
     egui::ComboBox::from_label("Algorithm")
@@ -111,13 +110,13 @@ pub fn ui_options(
             .changed()
         {
             // the code is now invalid
-            lua_field_radius_a.update_field_state(lua, self.sampling_points);
-            lua_field_radius_b.update_field_state(lua, layer_lowest, layer_highest);
+            lua_field_radius_a.update_field_state(lua, sampling_points);
+            lua_field_radius_b.update_field_state(lua, sampling_points);
         };
 
         // lua
         if lua_mode {
-            lua_field_radius_a.show(ui, lua, layer_lowest, layer_highest);
+            lua_field_radius_a.show(ui, lua, sampling_points);
         }
 
         current_layer_config.radius_b = current_layer_config.radius_a;
@@ -133,10 +132,10 @@ pub fn ui_options(
             )
             .changed()
         {
-            lua_field_radius_a.update_field_state(lua, layer_lowest, layer_highest);
+            lua_field_radius_a.update_field_state(lua, sampling_points);
         }
         if lua_mode {
-            lua_field_radius_a.show(ui, lua, layer_lowest, layer_highest);
+            lua_field_radius_a.show(ui, lua, sampling_points);
         }
 
         // radius b
@@ -150,10 +149,10 @@ pub fn ui_options(
             )
             .changed()
         {
-            lua_field_radius_b.update_field_state(lua, layer_lowest, layer_highest);
+            lua_field_radius_b.update_field_state(lua, sampling_points);
         }
         if lua_mode {
-            lua_field_radius_b.show(ui, lua, layer_lowest, layer_highest);
+            lua_field_radius_b.show(ui, lua, sampling_points);
         }
 
         //TODO: Make circular slider for more intuitive controls (need to build this myapp probably)
@@ -169,7 +168,7 @@ pub fn ui_options(
         )
         .changed()
     {
-        lua_field_tilt.update_field_state(lua, layer_lowest, layer_highest);
+        lua_field_tilt.update_field_state(lua, sampling_points);
     };
 
     // Particular values
@@ -179,36 +178,36 @@ pub fn ui_options(
         |ui| {
             if ui.button("0°").clicked() {
                 current_layer_config.tilt = 0.0;
-                lua_field_tilt.update_field_state(lua, layer_lowest, layer_highest);
+                lua_field_tilt.update_field_state(lua, sampling_points);
             }
             if ui.button("30°").clicked() {
                 current_layer_config.tilt = PI / 6.0;
-                lua_field_tilt.update_field_state(lua, layer_lowest, layer_highest);
+                lua_field_tilt.update_field_state(lua, sampling_points);
             }
             if ui.button("45°").clicked() {
                 current_layer_config.tilt = PI / 4.0;
-                lua_field_tilt.update_field_state(lua, layer_lowest, layer_highest);
+                lua_field_tilt.update_field_state(lua, sampling_points);
             }
             if ui.button("1:2").clicked() {
                 current_layer_config.tilt = 0.5_f64.atan();
-                lua_field_tilt.update_field_state(lua, layer_lowest, layer_highest);
+                lua_field_tilt.update_field_state(lua, sampling_points);
             }
             if ui.button("1:3").clicked() {
                 current_layer_config.tilt = 0.333333333333_f64.atan();
-                lua_field_tilt.update_field_state(lua, layer_lowest, layer_highest);
+                lua_field_tilt.update_field_state(lua, sampling_points);
             }
             if ui.button("2:3").clicked() {
                 current_layer_config.tilt = 0.666666666666_f64.atan();
-                lua_field_tilt.update_field_state(lua, layer_lowest, layer_highest);
+                lua_field_tilt.update_field_state(lua, sampling_points);
             }
             if ui.button("1:4").clicked() {
                 current_layer_config.tilt = 0.25_f64.atan();
-                lua_field_tilt.update_field_state(lua, layer_lowest, layer_highest);
+                lua_field_tilt.update_field_state(lua, sampling_points);
             }
         },
     );
     if lua_mode {
-        lua_field_tilt.show(ui, lua, layer_lowest, layer_highest);
+        lua_field_tilt.show(ui, lua, sampling_points);
     }
 
     // Squircle parameter
@@ -225,7 +224,7 @@ pub fn ui_options(
             )
             .changed()
         {
-            lua_field_squircle_parameter.update_field_state(lua, layer_lowest, layer_highest);
+            lua_field_squircle_parameter.update_field_state(lua, sampling_points);
         };
 
         // Default values
@@ -237,27 +236,15 @@ pub fn ui_options(
             |ui| {
                 if ui.button("Circle").clicked() {
                     squircle_ui_parameter = 0.666666666666666;
-                    lua_field_squircle_parameter.update_field_state(
-                        lua,
-                        layer_lowest,
-                        layer_highest,
-                    );
+                    lua_field_squircle_parameter.update_field_state(lua, sampling_points);
                 }
                 if ui.button("Diamond").clicked() {
                     squircle_ui_parameter = 0.5;
-                    lua_field_squircle_parameter.update_field_state(
-                        lua,
-                        layer_lowest,
-                        layer_highest,
-                    );
+                    lua_field_squircle_parameter.update_field_state(lua, sampling_points);
                 }
                 if ui.button("Square").clicked() {
                     squircle_ui_parameter = 1.0;
-                    lua_field_squircle_parameter.update_field_state(
-                        lua,
-                        layer_lowest,
-                        layer_highest,
-                    );
+                    lua_field_squircle_parameter.update_field_state(lua, sampling_points);
                 }
             },
         );
@@ -266,7 +253,7 @@ pub fn ui_options(
     // now kill the temporary variable
 
     if lua_mode {
-        lua_field_squircle_parameter.show(ui, lua, layer_lowest, layer_highest);
+        lua_field_squircle_parameter.show(ui, lua, sampling_points);
     }
 
     // Centerpoint
@@ -278,10 +265,10 @@ pub fn ui_options(
         )
         .changed()
     {
-        lua_field_center_offset_x.update_field_state(lua, layer_lowest, layer_highest);
+        lua_field_center_offset_x.update_field_state(lua, sampling_points);
     }
     if lua_mode {
-        lua_field_center_offset_x.show(ui, lua, layer_lowest, layer_highest);
+        lua_field_center_offset_x.show(ui, lua, sampling_points);
     }
     if ui
         .add(
@@ -290,10 +277,10 @@ pub fn ui_options(
         )
         .changed()
     {
-        lua_field_center_offset_y.update_field_state(lua, layer_lowest, layer_highest);
+        lua_field_center_offset_y.update_field_state(lua, sampling_points);
     };
     if lua_mode {
-        lua_field_center_offset_y.show(ui, lua, layer_lowest, layer_highest);
+        lua_field_center_offset_y.show(ui, lua, sampling_points);
     }
 
     // Add odd and even buttons (also good so people understand what the abstraction "offset center" actually means)
@@ -304,14 +291,14 @@ pub fn ui_options(
             if ui.button("Even center").clicked() {
                 current_layer_config.center_offset_x = 0.0;
                 current_layer_config.center_offset_y = 0.0;
-                lua_field_center_offset_x.update_field_state(lua, layer_lowest, layer_highest);
-                lua_field_center_offset_y.update_field_state(lua, layer_lowest, layer_highest);
+                lua_field_center_offset_x.update_field_state(lua, sampling_points);
+                lua_field_center_offset_y.update_field_state(lua, sampling_points);
             }
             if ui.button("Odd center").clicked() {
                 current_layer_config.center_offset_x = 0.5;
                 current_layer_config.center_offset_y = 0.5;
-                lua_field_center_offset_x.update_field_state(lua, layer_lowest, layer_highest);
-                lua_field_center_offset_y.update_field_state(lua, layer_lowest, layer_highest);
+                lua_field_center_offset_x.update_field_state(lua, sampling_points);
+                lua_field_center_offset_y.update_field_state(lua, sampling_points);
             }
         },
     );
