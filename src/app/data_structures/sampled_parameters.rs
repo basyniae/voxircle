@@ -1,0 +1,128 @@
+use crate::app::data_structures::blocks::Blocks;
+use crate::app::generation::{generate_all_blocks, Algorithm};
+use crate::app::math::linear_algebra::{Mat2, Vec2};
+use crate::app::sampling::SampleCombineMethod;
+use itertools::izip;
+
+/// Sampled parameters belonging to a single layer
+#[derive(Debug, Clone)]
+pub struct SampledParameters {
+    pub nr_samples: usize,
+
+    pub algorithm: Algorithm,
+
+    pub sampled_radius_a: Vec<f64>,
+    pub sampled_radius_b: Vec<f64>,
+
+    pub sampled_tilt: Vec<f64>,
+
+    pub sampled_center_offset_x: Vec<f64>,
+    pub sampled_center_offset_y: Vec<f64>,
+
+    pub sampled_squircle_parameter: Vec<f64>,
+}
+
+impl Default for SampledParameters {
+    fn default() -> Self {
+        SampledParameters {
+            nr_samples: 1,
+            algorithm: Default::default(),
+
+            sampled_radius_a: vec![5.0],
+            sampled_radius_b: vec![5.0],
+
+            sampled_tilt: vec![0.0],
+
+            sampled_center_offset_x: vec![0.0],
+            sampled_center_offset_y: vec![0.0],
+
+            sampled_squircle_parameter: vec![2.0],
+        }
+    }
+}
+
+impl SampledParameters {
+    /// Run the generation algorithm for the configuration `self`, the output is a `Blocks` object.
+    pub fn generate(&self, sample_combine_method: SampleCombineMethod) -> Blocks {
+        // Determine grid size
+        // The major radius should be included, for some metrics we need at least one layer of padding
+        //  around the generated figure. Assuming a square figure (squircle parameter infinity), we
+        //  need an x side length of 2.0 * sqrt(2) * radius_major. Add 4 for a padding of at least 2
+        //  on each side.
+        let largest_radius_a = self
+            .sampled_radius_a
+            .iter()
+            .fold(f64::NEG_INFINITY, |a, &b| a.max(b));
+        let largest_radius_b = self
+            .sampled_radius_b
+            .iter()
+            .fold(f64::NEG_INFINITY, |a, &b| a.max(b));
+
+        let grid_size =
+            (2.0 * 1.42 * f64::max(largest_radius_a, largest_radius_b)).ceil() as usize + 4;
+
+        // Generate from circle with selected algorithm
+        Blocks::combine(
+            sample_combine_method,
+            izip!(
+                self.sampled_radius_a.iter(),
+                self.sampled_radius_b.iter(),
+                self.sampled_tilt.iter(),
+                self.sampled_squircle_parameter.iter(),
+                self.sampled_center_offset_x.iter(),
+                self.sampled_center_offset_y.iter()
+            )
+            .map(
+                |(
+                    radius_a,
+                    radius_b,
+                    tilt,
+                    squircle_parameter,
+                    center_offset_x,
+                    center_offset_y,
+                )| {
+                    let c = tilt.cos();
+                    let s = tilt.sin();
+                    let sqrt_quad_form = Mat2::from_rows(
+                        1.0 / radius_a * Vec2::from([c, s]),
+                        1.0 / radius_b * Vec2::from([-s, c]),
+                    );
+
+                    generate_all_blocks(
+                        &self.algorithm,
+                        Vec2::from([*center_offset_x, *center_offset_y]),
+                        sqrt_quad_form,
+                        *squircle_parameter,
+                        *radius_a,
+                        *radius_b,
+                        grid_size,
+                    )
+                },
+            )
+            .collect(),
+        )
+    }
+
+    // TODO: think about where sqrt_quad_form is stored, maybe better to precompute it if we're
+    //  using it multiple times (for this function whose purpose is display, and for the actual
+    //  generation of the shape
+    /// Compute the sqrt_quad_form for the sampled parameters `self`
+    pub fn get_sampled_sqrt_quad_form(&self) -> Vec<Mat2> {
+        // Compute a square root of the PSD symmetric quadratic form X defining the ellipse:
+        //  (x,y)^TX(x,y)=1.
+        izip!(
+            self.sampled_tilt.iter(),
+            self.sampled_radius_a.iter(),
+            self.sampled_radius_b.iter()
+        )
+        .map(|(tilt, radius_a, radius_b)| {
+            let c = tilt.cos();
+            let s = tilt.sin();
+            Mat2::from_rows(
+                1.0 / radius_a * Vec2::from([c, s]),
+                1.0 / radius_b * Vec2::from([-s, c]),
+            )
+        })
+        .collect()
+    }
+}

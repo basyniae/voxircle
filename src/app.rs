@@ -11,6 +11,7 @@ use egui_plot::{
 };
 use mlua::Lua;
 
+use crate::app::data_structures::sampled_parameters::SampledParameters;
 use crate::app::sampling::{SampleCombineMethod, SampleDistributeMethod};
 use data_structures::blocks::Blocks;
 use data_structures::layer_config::LayerConfig;
@@ -53,7 +54,8 @@ pub struct App {
     layer_highest: isize,
 
     stack_layer_config: ZVec<LayerConfig>, // Store the configuration for each layer, handily indexed by integers
-    stack_blocks: ZVec<Blocks>,            // Store the blocks for each layer
+    stack_sampled_parameters: ZVec<SampledParameters>, // Store the configuration for each layer, handily indexed by integers
+    stack_blocks: ZVec<Blocks>,                        // Store the blocks for each layer
 
     recompute_metrics: bool, // If the current layer has changed, recompute the metrics. By update order, this needs to be a global variable
 
@@ -148,6 +150,10 @@ impl App {
 
             // Initialize for single layer (it will get overridden on the first update)
             stack_layer_config: ZVec::new(VecDeque::from(vec![LayerConfig::default()]), 0),
+            stack_sampled_parameters: ZVec::new(
+                VecDeque::from(vec![SampledParameters::default()]),
+                0,
+            ),
             stack_blocks: ZVec::new(VecDeque::from(vec![Blocks::default()]), 0),
 
             // Compute the metrics on the first update
