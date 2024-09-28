@@ -91,12 +91,15 @@ impl LuaField {
             .fold(true, |a, b| a && b)
     }
 
-    pub fn eval(&mut self, lua: &mut Lua, parameter: &mut f64) {
+    pub fn eval(&mut self, lua: &mut Lua) -> Option<f64> {
         // Only change the parameter if the code is valid and has changed
         if self.field_state == FieldState::Changed {
-            *parameter = lua.load(self.code.clone()).eval().unwrap();
+            let parameter = lua.load(self.code.clone()).eval().unwrap();
             self.field_state = FieldState::RunSuccess;
             // Simplest to register success here
+            Some(parameter)
+        } else {
+            None
         }
     }
 }

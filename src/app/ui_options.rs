@@ -23,6 +23,7 @@ pub fn ui_options(
     lua_field_squircle_parameter: &mut LuaField,
     layer_lowest: isize,
     layer_highest: isize,
+    sampling_points: Vec<f64>, // Flattened vector!
 ) {
     // Select algorithm
     egui::ComboBox::from_label("Algorithm")
@@ -110,7 +111,7 @@ pub fn ui_options(
             .changed()
         {
             // the code is now invalid
-            lua_field_radius_a.update_field_state(lua, layer_lowest, layer_highest);
+            lua_field_radius_a.update_field_state(lua, self.sampling_points);
             lua_field_radius_b.update_field_state(lua, layer_lowest, layer_highest);
         };
 
