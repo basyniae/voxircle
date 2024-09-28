@@ -22,7 +22,7 @@ pub fn ui_options(
     lua_field_center_offset_x: &mut LuaField,
     lua_field_center_offset_y: &mut LuaField,
     lua_field_squircle_parameter: &mut LuaField,
-    sampling_points: &ZVec<Vec<f64>>, // Flattened vector!
+    sampling_points: &ZVec<Vec<f64>>,
 ) {
     // Select algorithm
     egui::ComboBox::from_label("Algorithm")

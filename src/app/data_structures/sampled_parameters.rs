@@ -63,9 +63,9 @@ impl SampledParameters {
                     radius_a,
                     radius_b,
                     tilt,
-                    squircle_parameter,
                     center_offset_x,
                     center_offset_y,
+                 squircle_parameter,
                 ]| {
                     let c = tilt.cos();
                     let s = tilt.sin();
