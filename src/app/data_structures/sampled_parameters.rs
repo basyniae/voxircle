@@ -12,12 +12,12 @@ pub struct SampledParameters {
     pub algorithm: Algorithm,
 
     // in the order
-    //  radius_a
-    //  radius_b
-    //  tilt
-    //  center_offset_x
-    //  center_offset_y
-    //  squircle parameter
+    // [0] radius_a
+    // [1] radius_b
+    // [2] tilt
+    // [3] center_offset_x
+    // [4] center_offset_y
+    // [5] squircle parameter
     pub parameters: Vec<[f64; 6]>,
 }
 
@@ -65,7 +65,7 @@ impl SampledParameters {
                     tilt,
                     center_offset_x,
                     center_offset_y,
-                 squircle_parameter,
+                    squircle_parameter,
                 ]| {
                     let c = tilt.cos();
                     let s = tilt.sin();

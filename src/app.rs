@@ -39,6 +39,7 @@ const COLOR_BACKGROUND: Color32 = Color32::from_rgb(28, 28, 28); // middle backg
 const COLOR_WIRE: Color32 = Color32::from_rgb(33, 33, 33); // "Wire" color (gray)
 const COLOR_FACE: Color32 = Color32::from_rgb(161, 163, 164); // Face color (light gray)
 const COLOR_LIME: Color32 = Color32::from_rgb(0, 255, 47); // "Active object" color (lime)
+const COLOR_DARK_GREEN: Color32 = Color32::from_rgb(6, 137, 30); // Slightly decreased HSL saturation, decreased saturation from Lime
 const COLOR_LIGHT_BLUE: Color32 = Color32::from_rgb(0, 217, 255); // "Object selected" color (light blue)
 const COLOR_ORANGE: Color32 = Color32::from_rgb(255, 133, 0); // "Grease Pencil Vertex Select" color (orange)
 const COLOR_DARK_ORANGE: Color32 = Color32::from_rgb(204, 106, 0); // Darker shade of orange
@@ -565,7 +566,6 @@ impl eframe::App for App {
         // TODO: Only auto generate if the values have changed
         if self.generate_current_layer || self.auto_generate_current_layer {
             self.generate_current_layer = false;
-            //todo: clean up... don't want to case on sampling being on (just generate at the sample points right)
 
             self.stack_blocks.set(
                 self.current_layer,
@@ -574,9 +574,6 @@ impl eframe::App for App {
                     .unwrap()
                     .generate(self.sample_combine_method),
             );
-
-            // // debug
-            // println!("{:?}", self.stack_blocks);
 
             self.recompute_metrics = true;
         }
@@ -1013,6 +1010,28 @@ impl eframe::App for App {
                         }
                     }
 
+                    if self.sampling_enabled {
+                        for sampled_parameter in self
+                            .stack_sampled_parameters
+                            .get(self.current_layer)
+                            .unwrap()
+                            .parameters
+                            .iter()
+                        {
+                            plot_ui.line(
+                                plotting::superellipse_at_coords(
+                                    sampled_parameter[0],
+                                    sampled_parameter[1],
+                                    sampled_parameter[2],
+                                    sampled_parameter[3],
+                                    sampled_parameter[4],
+                                    sampled_parameter[5],
+                                )
+                                .color(COLOR_DARK_GREEN),
+                            );
+                        }
+                    }
+
                     // Plot center
                     plot_ui.points(
                         Points::new(vec![[
@@ -1026,20 +1045,12 @@ impl eframe::App for App {
                                 .center_offset_y,
                         ]])
                         .radius(5.0)
-                        .color(COLOR_LIME),
+                        .color(COLOR_DARK_GREEN),
                     );
 
                     // Plot target shape
                     plot_ui.line(
                         plotting::superellipse_at_coords(
-                            self.stack_layer_config
-                                .get_mut(self.current_layer)
-                                .unwrap()
-                                .center_offset_x,
-                            self.stack_layer_config
-                                .get_mut(self.current_layer)
-                                .unwrap()
-                                .center_offset_y,
                             self.stack_layer_config
                                 .get_mut(self.current_layer)
                                 .unwrap()
@@ -1052,6 +1063,14 @@ impl eframe::App for App {
                                 .get_mut(self.current_layer)
                                 .unwrap()
                                 .tilt,
+                            self.stack_layer_config
+                                .get_mut(self.current_layer)
+                                .unwrap()
+                                .center_offset_x,
+                            self.stack_layer_config
+                                .get_mut(self.current_layer)
+                                .unwrap()
+                                .center_offset_y,
                             self.stack_layer_config
                                 .get_mut(self.current_layer)
                                 .unwrap()
