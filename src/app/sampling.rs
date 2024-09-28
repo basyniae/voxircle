@@ -29,18 +29,12 @@ pub fn determine_sampling_points(
     // Need to handle this case separately (IncludeEndpoints is unable to cover both endpoints in
     //  one point, ExcludeEndpoints would give the right answer)
     if nr_samples_per_layer == 1 {
-        // debug
-
-        let x = ZVec::new(
+        ZVec::new(
             (layer_lowest..=layer_highest)
                 .map(|layer| vec![layer as f64])
                 .collect(),
             layer_lowest,
-        );
-
-        println!("{:?}", x);
-
-        x
+        )
     } else {
         match sample_distribute_method {
             SampleDistributeMethod::IncludeEndpoints => {

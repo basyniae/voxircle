@@ -13,7 +13,7 @@ use mlua::Lua;
 
 use crate::app::data_structures::sampled_parameters::SampledParameters;
 use crate::app::sampling::{SampleCombineMethod, SampleDistributeMethod};
-use crate::app::ui_generation::set_parameters;
+use crate::app::ui_generation::{set_parameters, update_control_parameters};
 use data_structures::blocks::Blocks;
 use data_structures::layer_config::LayerConfig;
 use data_structures::zvec::ZVec;
@@ -60,6 +60,7 @@ pub struct App {
     stack_blocks: ZVec<Blocks>,                        // Store the blocks for each layer
 
     recompute_metrics: bool, // If the current layer has changed, recompute the metrics. By update order, this needs to be a global variable
+    // there is no need for auto_recompute_metrics right now... though it might be good to implement if recomputing metrics gets slow later on
 
     // Metrics
     nr_blocks_total: u64,
@@ -74,15 +75,24 @@ pub struct App {
     outer_corners: Vec<[f64; 2]>,
 
     // Generate new shape on this layer automatically from the provided parameters
-    auto_generate_current_layer: bool,
     generate_current_layer: bool,
-    auto_generate_all_layers: bool,
+    auto_generate_current_layer: bool,
+    can_generate_current_layer: bool,
     generate_all_layers: bool,
+    auto_generate_all_layers: bool,
+    can_generate_all_layers: bool,
     single_radius: bool,
     layers_enabled: bool,
     lock_stack_size: bool,
 
+    // Code mode
     code_enabled: bool,
+    generate_current_layer_parameters: bool,
+    auto_generate_current_layer_parameters: bool,
+    can_generate_current_layer_parameters: bool,
+    generate_all_layer_parameters: bool,
+    auto_generate_all_layer_parameters: bool, // todo: implement
+    can_update_all_layer_parameters: bool,    // todo: implement
 
     // Sampling
     sampling_enabled: bool,
@@ -92,9 +102,9 @@ pub struct App {
     sample_combine_method: SampleCombineMethod,
     sample_distribute_method: SampleDistributeMethod,
     stack_sampling_points: ZVec<Vec<f64>>,
-    generate_current_layer_parameters: bool,
-    generate_all_layer_parameters: bool,
     recompute_sampling_points: bool,
+    auto_recompute_sampling_points: bool, // todo: implement
+    can_recompute_sampling_points: bool,  // todo: implement
 
     // Viewport options
     view_blocks: bool,
@@ -179,13 +189,22 @@ impl App {
             // Initialize on simplest working mode of operation
             auto_generate_current_layer: true,
             generate_current_layer: true,
+            can_generate_current_layer: true,
             auto_generate_all_layers: false,
             generate_all_layers: false,
+            can_generate_all_layers: false,
             single_radius: true,
             layers_enabled: true, // debug: make default false
             lock_stack_size: false,
 
+            // Code mode
             code_enabled: true, // debug: make default false
+            generate_current_layer_parameters: true,
+            auto_generate_current_layer_parameters: false,
+            can_generate_current_layer_parameters: false,
+            generate_all_layer_parameters: false,
+            auto_generate_all_layer_parameters: false,
+            can_update_all_layer_parameters: false,
 
             // Sampling
             sampling_enabled: true, // debug: make default false
@@ -194,11 +213,10 @@ impl App {
             nr_samples_per_layer: 1,
             sample_combine_method: SampleCombineMethod::AnySamples,
             sample_distribute_method: SampleDistributeMethod::IncludeEndpoints,
-            // fixme: change in layer should also change sampling points!
             stack_sampling_points: ZVec::new(VecDeque::from([vec![0.0]]), 0), // start with middle sample
-            generate_current_layer_parameters: true,
-            generate_all_layer_parameters: true,
             recompute_sampling_points: true,
+            auto_recompute_sampling_points: true,
+            can_recompute_sampling_points: false,
 
             // Simplest working configuration
             view_blocks: true,
@@ -255,6 +273,8 @@ impl eframe::App for App {
                         &mut self.lua_field_center_offset_y,
                         &mut self.lua_field_squircle_parameter,
                         &self.stack_sampling_points,
+                        &mut self.can_generate_current_layer_parameters,
+                        &mut self.can_update_all_layer_parameters,
                     );
                 });
 
@@ -337,7 +357,7 @@ impl eframe::App for App {
                             .response
                             .changed()
                         {
-                            self.recompute_sampling_points = true;
+                            self.can_recompute_sampling_points = true;
                         };
 
                         match self.sample_combine_method {
@@ -356,7 +376,7 @@ impl eframe::App for App {
                                 {
                                     self.sample_combine_method =
                                         SampleCombineMethod::Percentage(perc_slider);
-                                    self.recompute_sampling_points = true;
+                                    self.can_recompute_sampling_points = true;
                                 };
                             }
                             _ => {}
@@ -379,7 +399,7 @@ impl eframe::App for App {
                             .response
                             .changed()
                         {
-                            self.recompute_sampling_points = true;
+                            self.can_recompute_sampling_points = true;
                         };
 
                         if ui
@@ -389,7 +409,7 @@ impl eframe::App for App {
                             )
                             .changed()
                         {
-                            self.recompute_sampling_points = true;
+                            self.can_recompute_sampling_points = true;
                         };
 
                         if ui
@@ -399,8 +419,16 @@ impl eframe::App for App {
                             )
                             .changed()
                         {
-                            self.recompute_sampling_points = true;
+                            self.can_recompute_sampling_points = true;
                         };
+
+                        ui.checkbox(
+                            &mut self.auto_recompute_sampling_points,
+                            "Auto recompute sampling points",
+                        );
+                        if ui.button("Recompute sampling points").clicked() {
+                            self.can_recompute_sampling_points = true
+                        }
 
                         if ui
                             .add(
@@ -409,9 +437,8 @@ impl eframe::App for App {
                             )
                             .changed()
                         {
-                            if self.sampling_enabled {
-                                self.recompute_sampling_points = true;
-                            } else {
+                            self.can_recompute_sampling_points = true;
+                            if !self.sampling_enabled {
                                 self.nr_samples_per_layer = 1; // if sampling is off, don't allow changing this value
                             }
                         };
@@ -435,7 +462,7 @@ impl eframe::App for App {
                 egui::collapsing_header::CollapsingState::load_with_default_open(
                     ui.ctx(),
                     id,
-                    true,
+                    false, //debug: true
                 )
                 .show_header(ui, |ui| {
                     ui.label(egui::RichText::new("Viewport").strong().size(15.0));
@@ -478,6 +505,14 @@ impl eframe::App for App {
                 } else {
                     ui.checkbox(&mut self.auto_generate_current_layer, "Auto-generate");
                 }
+                ui.checkbox(
+                    &mut self.auto_generate_current_layer_parameters,
+                    "Auto-generate sample parameters current layer",
+                );
+                ui.checkbox(
+                    &mut self.auto_generate_all_layer_parameters,
+                    "Auto-generate sample parameters all layers",
+                );
 
                 ui_generation::ui_generation(
                     ui,
@@ -491,9 +526,15 @@ impl eframe::App for App {
             });
         });
 
-        if self.recompute_sampling_points {
-            //todo: only recompute if any of the sampling options have changed
-            // if any of the sampling options changed, recompute the sampling
+        // Activates if the sampling options have changed (this update) or if the stack grows
+        //  (previous update). The points may also have to be recomputed if the stack shrinks,
+        //  when half_of_bottom or half_of_top layer options are implemented. Fixme.
+        if (self.recompute_sampling_points || self.auto_recompute_sampling_points)
+            && self.can_recompute_sampling_points
+        {
+            self.recompute_sampling_points = false;
+            self.can_recompute_sampling_points = false;
+
             self.stack_sampling_points = sampling::determine_sampling_points(
                 self.sample_distribute_method,
                 self.layer_lowest,
@@ -502,51 +543,81 @@ impl eframe::App for App {
                 self.only_sample_half_of_bottom_layer,
                 self.only_sample_half_of_top_layer,
             );
-
-            self.recompute_sampling_points = false;
         }
 
+        // todo: generate all layer parameters (not sure what this means yet)
+        // todo: only update on change of code or sliders
+        // todo: update from sliders if the code field is empty
         // Generate parameters to be sampled
-        // debug
-        if self.generate_current_layer_parameters || true {
-            set_parameters(
-                &mut self
-                    .stack_sampled_parameters
-                    .get_mut(self.current_layer)
-                    .unwrap(),
-                self.stack_sampling_points
-                    .get_mut(self.current_layer)
-                    .unwrap(),
-                [
+        if (self.generate_current_layer_parameters || self.auto_generate_current_layer_parameters)
+            && (self.can_generate_current_layer_parameters
+                || self.lua_field_radius_a.has_changed()
+                || self.lua_field_radius_b.has_changed()
+                || self.lua_field_tilt.has_changed()
+                || self.lua_field_center_offset_x.has_changed()
+                || self.lua_field_center_offset_y.has_changed()
+                || self.lua_field_squircle_parameter.has_changed())
+        {
+            self.generate_current_layer_parameters = false;
+            self.can_generate_current_layer_parameters = false;
+
+            self.can_generate_current_layer = true;
+
+            // Update parameters for the sampling
+            {
+                set_parameters(
+                    &mut self
+                        .stack_sampled_parameters
+                        .get_mut(self.current_layer)
+                        .unwrap(),
+                    self.stack_sampling_points
+                        .get_mut(self.current_layer)
+                        .unwrap(),
+                    [
+                        self.stack_layer_config
+                            .get(self.current_layer)
+                            .unwrap()
+                            .radius_a,
+                        self.stack_layer_config
+                            .get(self.current_layer)
+                            .unwrap()
+                            .radius_b,
+                        self.stack_layer_config
+                            .get(self.current_layer)
+                            .unwrap()
+                            .tilt,
+                        self.stack_layer_config
+                            .get(self.current_layer)
+                            .unwrap()
+                            .center_offset_x,
+                        self.stack_layer_config
+                            .get(self.current_layer)
+                            .unwrap()
+                            .center_offset_y,
+                        self.stack_layer_config
+                            .get(self.current_layer)
+                            .unwrap()
+                            .squircle_parameter,
+                    ],
                     self.stack_layer_config
                         .get(self.current_layer)
                         .unwrap()
-                        .radius_a,
-                    self.stack_layer_config
-                        .get(self.current_layer)
-                        .unwrap()
-                        .radius_b,
-                    self.stack_layer_config
-                        .get(self.current_layer)
-                        .unwrap()
-                        .tilt,
-                    self.stack_layer_config
-                        .get(self.current_layer)
-                        .unwrap()
-                        .center_offset_x,
-                    self.stack_layer_config
-                        .get(self.current_layer)
-                        .unwrap()
-                        .center_offset_y,
-                    self.stack_layer_config
-                        .get(self.current_layer)
-                        .unwrap()
-                        .squircle_parameter,
-                ],
-                self.stack_layer_config
-                    .get(self.current_layer)
-                    .unwrap()
-                    .algorithm,
+                        .algorithm,
+                    &mut self.lua,
+                    &mut self.lua_field_radius_a,
+                    &mut self.lua_field_radius_b,
+                    &mut self.lua_field_tilt,
+                    &mut self.lua_field_center_offset_x,
+                    &mut self.lua_field_center_offset_y,
+                    &mut self.lua_field_squircle_parameter,
+                    self.single_radius,
+                );
+            }
+
+            // Update parameters for the sliders
+            update_control_parameters(
+                &mut self.stack_layer_config.get_mut(self.current_layer).unwrap(),
+                self.current_layer,
                 &mut self.lua,
                 &mut self.lua_field_radius_a,
                 &mut self.lua_field_radius_b,
@@ -555,17 +626,16 @@ impl eframe::App for App {
                 &mut self.lua_field_center_offset_y,
                 &mut self.lua_field_squircle_parameter,
                 self.single_radius,
-            );
-
-            // debug
-            println!("{:?}", self.stack_sampled_parameters)
+            )
         }
 
-        //todo: update slider values if the code is run to set parameters
-
         // TODO: Only auto generate if the values have changed
-        if self.generate_current_layer || self.auto_generate_current_layer {
+        if (self.generate_current_layer || self.auto_generate_current_layer)
+            && self.can_generate_current_layer
+        {
             self.generate_current_layer = false;
+            self.can_generate_current_layer = false;
+            self.recompute_metrics = true;
 
             self.stack_blocks.set(
                 self.current_layer,
@@ -574,12 +644,16 @@ impl eframe::App for App {
                     .unwrap()
                     .generate(self.sample_combine_method),
             );
-
-            self.recompute_metrics = true;
         }
 
-        if self.generate_all_layers || self.auto_generate_all_layers {
+        // fixme: not sure where to set can_generate_all_layers
+        if (self.generate_all_layers || self.auto_generate_all_layers)
+            && (self.can_generate_all_layers || self.can_generate_current_layer)
+        {
             self.generate_all_layers = false;
+            self.can_generate_all_layers = false;
+            self.recompute_metrics = true;
+
             self.stack_blocks = ZVec::new(
                 self.stack_sampled_parameters
                     .data
@@ -588,8 +662,6 @@ impl eframe::App for App {
                     .collect(),
                 self.layer_lowest,
             );
-
-            self.recompute_metrics = true;
         }
 
         if self.recompute_metrics {
@@ -813,8 +885,6 @@ impl eframe::App for App {
                         self.stack_sampling_points.get(old_layer).unwrap().clone(),
                     );
 
-                    self.recompute_metrics = true;
-
                     // update field state when the bounds increase
                     if prev_layer_lowest > self.layer_lowest
                         || prev_layer_highest < self.layer_highest
@@ -832,7 +902,8 @@ impl eframe::App for App {
                         self.lua_field_squircle_parameter
                             .update_field_state(&mut self.lua, &self.stack_sampling_points);
 
-                        self.recompute_sampling_points = true;
+                        self.can_recompute_sampling_points = true;
+                        self.recompute_metrics = true; // todo: check...
                     }
                 })
             });

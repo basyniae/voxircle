@@ -23,6 +23,8 @@ pub fn ui_options(
     lua_field_center_offset_y: &mut LuaField,
     lua_field_squircle_parameter: &mut LuaField,
     sampling_points: &ZVec<Vec<f64>>,
+    can_update_current_layer_parameters: &mut bool,
+    can_update_all_layer_parameters: &mut bool,
 ) {
     // Select algorithm
     egui::ComboBox::from_label("Algorithm")
@@ -112,6 +114,8 @@ pub fn ui_options(
             // the code is now invalid
             lua_field_radius_a.update_field_state(lua, sampling_points);
             lua_field_radius_b.update_field_state(lua, sampling_points);
+
+            *can_update_current_layer_parameters = true;
         };
 
         // lua
@@ -133,6 +137,7 @@ pub fn ui_options(
             .changed()
         {
             lua_field_radius_a.update_field_state(lua, sampling_points);
+            *can_update_current_layer_parameters = true;
         }
         if lua_mode {
             lua_field_radius_a.show(ui, lua, sampling_points);
@@ -150,6 +155,7 @@ pub fn ui_options(
             .changed()
         {
             lua_field_radius_b.update_field_state(lua, sampling_points);
+            *can_update_current_layer_parameters = true;
         }
         if lua_mode {
             lua_field_radius_b.show(ui, lua, sampling_points);
@@ -169,6 +175,7 @@ pub fn ui_options(
         .changed()
     {
         lua_field_tilt.update_field_state(lua, sampling_points);
+        *can_update_current_layer_parameters = true;
     };
 
     // Particular values
@@ -179,30 +186,37 @@ pub fn ui_options(
             if ui.button("0°").clicked() {
                 current_layer_config.tilt = 0.0;
                 lua_field_tilt.update_field_state(lua, sampling_points);
+                *can_update_current_layer_parameters = true;
             }
             if ui.button("30°").clicked() {
                 current_layer_config.tilt = PI / 6.0;
                 lua_field_tilt.update_field_state(lua, sampling_points);
+                *can_update_current_layer_parameters = true;
             }
             if ui.button("45°").clicked() {
                 current_layer_config.tilt = PI / 4.0;
                 lua_field_tilt.update_field_state(lua, sampling_points);
+                *can_update_current_layer_parameters = true;
             }
             if ui.button("1:2").clicked() {
                 current_layer_config.tilt = 0.5_f64.atan();
                 lua_field_tilt.update_field_state(lua, sampling_points);
+                *can_update_current_layer_parameters = true;
             }
             if ui.button("1:3").clicked() {
                 current_layer_config.tilt = 0.333333333333_f64.atan();
                 lua_field_tilt.update_field_state(lua, sampling_points);
+                *can_update_current_layer_parameters = true;
             }
             if ui.button("2:3").clicked() {
                 current_layer_config.tilt = 0.666666666666_f64.atan();
                 lua_field_tilt.update_field_state(lua, sampling_points);
+                *can_update_current_layer_parameters = true;
             }
             if ui.button("1:4").clicked() {
                 current_layer_config.tilt = 0.25_f64.atan();
                 lua_field_tilt.update_field_state(lua, sampling_points);
+                *can_update_current_layer_parameters = true;
             }
         },
     );
@@ -225,6 +239,7 @@ pub fn ui_options(
             .changed()
         {
             lua_field_squircle_parameter.update_field_state(lua, sampling_points);
+            *can_update_current_layer_parameters = true;
         };
 
         // Default values
@@ -237,14 +252,17 @@ pub fn ui_options(
                 if ui.button("Circle").clicked() {
                     squircle_ui_parameter = 0.666666666666666;
                     lua_field_squircle_parameter.update_field_state(lua, sampling_points);
+                    *can_update_current_layer_parameters = true;
                 }
                 if ui.button("Diamond").clicked() {
                     squircle_ui_parameter = 0.5;
                     lua_field_squircle_parameter.update_field_state(lua, sampling_points);
+                    *can_update_current_layer_parameters = true;
                 }
                 if ui.button("Square").clicked() {
                     squircle_ui_parameter = 1.0;
                     lua_field_squircle_parameter.update_field_state(lua, sampling_points);
+                    *can_update_current_layer_parameters = true;
                 }
             },
         );
@@ -266,6 +284,7 @@ pub fn ui_options(
         .changed()
     {
         lua_field_center_offset_x.update_field_state(lua, sampling_points);
+        *can_update_current_layer_parameters = true;
     }
     if lua_mode {
         lua_field_center_offset_x.show(ui, lua, sampling_points);
@@ -278,6 +297,7 @@ pub fn ui_options(
         .changed()
     {
         lua_field_center_offset_y.update_field_state(lua, sampling_points);
+        *can_update_current_layer_parameters = true;
     };
     if lua_mode {
         lua_field_center_offset_y.show(ui, lua, sampling_points);
@@ -293,12 +313,14 @@ pub fn ui_options(
                 current_layer_config.center_offset_y = 0.0;
                 lua_field_center_offset_x.update_field_state(lua, sampling_points);
                 lua_field_center_offset_y.update_field_state(lua, sampling_points);
+                *can_update_current_layer_parameters = true;
             }
             if ui.button("Odd center").clicked() {
                 current_layer_config.center_offset_x = 0.5;
                 current_layer_config.center_offset_y = 0.5;
                 lua_field_center_offset_x.update_field_state(lua, sampling_points);
                 lua_field_center_offset_y.update_field_state(lua, sampling_points);
+                *can_update_current_layer_parameters = true;
             }
         },
     );
