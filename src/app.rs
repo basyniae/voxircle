@@ -13,7 +13,7 @@ use mlua::Lua;
 
 use crate::app::sampling::{SampleCombineMethod, SampleDistributeMethod};
 use data_structures::blocks::Blocks;
-use data_structures::gen_config::GenConfig;
+use data_structures::layer_config::LayerConfig;
 use data_structures::zvec::ZVec;
 use lua_field::LuaField;
 use math::convex_hull::{get_convex_hull, line_segments_from_conv_hull};
@@ -52,8 +52,8 @@ pub struct App {
     layer_lowest: isize,
     layer_highest: isize,
 
-    stack_gen_config: ZVec<GenConfig>, // Store the configuration for each layer, handily indexed by integers
-    stack_blocks: ZVec<Blocks>,        // Store the blocks for each layer
+    stack_layer_config: ZVec<LayerConfig>, // Store the configuration for each layer, handily indexed by integers
+    stack_blocks: ZVec<Blocks>,            // Store the blocks for each layer
 
     recompute_metrics: bool, // If the current layer has changed, recompute the metrics. By update order, this needs to be a global variable
 
@@ -147,7 +147,7 @@ impl App {
             layer_highest: 0,
 
             // Initialize for single layer (it will get overridden on the first update)
-            stack_gen_config: ZVec::new(VecDeque::from(vec![GenConfig::default()]), 0),
+            stack_layer_config: ZVec::new(VecDeque::from(vec![LayerConfig::default()]), 0),
             stack_blocks: ZVec::new(VecDeque::from(vec![Blocks::default()]), 0),
 
             // Compute the metrics on the first update
@@ -230,7 +230,7 @@ impl eframe::App for App {
                 .body(|ui| {
                     ui_options::ui_options(
                         ui,
-                        self.stack_gen_config.get_mut(self.current_layer).unwrap(),
+                        self.stack_layer_config.get_mut(self.current_layer).unwrap(),
                         &mut self.single_radius,
                         self.code_enabled,
                         &mut self.lua,
@@ -401,7 +401,7 @@ impl eframe::App for App {
                             if self.sampling_enabled {
                                 recompute_sampling_points = true;
                             } else {
-                                self.nr_samples_per_layer = 1; // if sampling is off, don't allow changing this value}
+                                self.nr_samples_per_layer = 1; // if sampling is off, don't allow changing this value
                             }
                         };
                     });
@@ -488,7 +488,7 @@ impl eframe::App for App {
                     self.single_radius,
                     self.layers_enabled,
                     self.code_enabled,
-                    &mut self.stack_gen_config,
+                    &mut self.stack_layer_config,
                     &mut self.lua,
                     &mut self.lua_field_radius_a,
                     &mut self.lua_field_radius_b,
@@ -510,7 +510,7 @@ impl eframe::App for App {
 
             self.stack_blocks.set(
                 self.current_layer,
-                self.stack_gen_config
+                self.stack_layer_config
                     .get_mut(self.current_layer)
                     .unwrap()
                     .generate(),
@@ -522,7 +522,7 @@ impl eframe::App for App {
         if self.generate_all_layers || self.auto_generate_all_layers {
             self.generate_all_layers = false;
             self.stack_blocks = ZVec::new(
-                self.stack_gen_config
+                self.stack_layer_config
                     .data
                     .iter()
                     .map(|config| config.generate())
@@ -726,10 +726,10 @@ impl eframe::App for App {
                     self.layer_lowest = self.layer_lowest.min(self.current_layer);
                     self.layer_highest = self.layer_highest.max(self.current_layer);
 
-                    self.stack_gen_config.resize(
+                    self.stack_layer_config.resize(
                         self.layer_lowest,
                         self.layer_highest,
-                        self.stack_gen_config.get(old_layer).unwrap().clone(),
+                        self.stack_layer_config.get(old_layer).unwrap().clone(),
                     );
 
                     self.stack_blocks.resize(
@@ -791,7 +791,7 @@ impl eframe::App for App {
                     // Reset zoom (approximates default behaviour, but we get to specify the action of automatic zooming
                     if self.reset_zoom_once || self.reset_zoom_continuous {
                         let mut global_bounding_box = self
-                            .stack_gen_config
+                            .stack_layer_config
                             .data
                             .iter()
                             .map(|g_c| exact_squircle_bounds(g_c, 1.1))
@@ -806,7 +806,7 @@ impl eframe::App for App {
                         global_bounding_box = square_max(
                             global_bounding_box,
                             exact_squircle_bounds(
-                                &self.stack_gen_config.get(self.current_layer).unwrap(),
+                                &self.stack_layer_config.get(self.current_layer).unwrap(),
                                 1.1,
                             ),
                         );
@@ -936,11 +936,11 @@ impl eframe::App for App {
                     // Plot center
                     plot_ui.points(
                         Points::new(vec![[
-                            self.stack_gen_config
+                            self.stack_layer_config
                                 .get_mut(self.current_layer)
                                 .unwrap()
                                 .center_offset_x,
-                            self.stack_gen_config
+                            self.stack_layer_config
                                 .get_mut(self.current_layer)
                                 .unwrap()
                                 .center_offset_y,
@@ -952,27 +952,27 @@ impl eframe::App for App {
                     // Plot target shape
                     plot_ui.line(
                         plotting::superellipse_at_coords(
-                            self.stack_gen_config
+                            self.stack_layer_config
                                 .get_mut(self.current_layer)
                                 .unwrap()
                                 .center_offset_x,
-                            self.stack_gen_config
+                            self.stack_layer_config
                                 .get_mut(self.current_layer)
                                 .unwrap()
                                 .center_offset_y,
-                            self.stack_gen_config
+                            self.stack_layer_config
                                 .get_mut(self.current_layer)
                                 .unwrap()
                                 .radius_a,
-                            self.stack_gen_config
+                            self.stack_layer_config
                                 .get_mut(self.current_layer)
                                 .unwrap()
                                 .radius_b,
-                            self.stack_gen_config
+                            self.stack_layer_config
                                 .get_mut(self.current_layer)
                                 .unwrap()
                                 .tilt,
-                            self.stack_gen_config
+                            self.stack_layer_config
                                 .get_mut(self.current_layer)
                                 .unwrap()
                                 .squircle_parameter,
@@ -983,7 +983,7 @@ impl eframe::App for App {
                     // Plot x and y axes through the center of the shape
                     plot_ui.hline(
                         HLine::new(
-                            self.stack_gen_config
+                            self.stack_layer_config
                                 .get_mut(self.current_layer)
                                 .unwrap()
                                 .center_offset_y,
@@ -993,7 +993,7 @@ impl eframe::App for App {
                     );
                     plot_ui.vline(
                         VLine::new(
-                            self.stack_gen_config
+                            self.stack_layer_config
                                 .get_mut(self.current_layer)
                                 .unwrap()
                                 .center_offset_x,
@@ -1004,7 +1004,7 @@ impl eframe::App for App {
 
                     // Plot rotated x and y axes for nonzero tilt (dark orange and purple)
                     if self
-                        .stack_gen_config
+                        .stack_layer_config
                         .get_mut(self.current_layer)
                         .unwrap()
                         .tilt
@@ -1014,15 +1014,15 @@ impl eframe::App for App {
                         plot_ui.line(
                             plotting::tilted_line_in_bounds(
                                 bounds,
-                                self.stack_gen_config
+                                self.stack_layer_config
                                     .get_mut(self.current_layer)
                                     .unwrap()
                                     .tilt,
-                                self.stack_gen_config
+                                self.stack_layer_config
                                     .get_mut(self.current_layer)
                                     .unwrap()
                                     .center_offset_x,
-                                self.stack_gen_config
+                                self.stack_layer_config
                                     .get_mut(self.current_layer)
                                     .unwrap()
                                     .center_offset_y,
@@ -1032,16 +1032,16 @@ impl eframe::App for App {
                         plot_ui.line(
                             plotting::tilted_line_in_bounds(
                                 bounds,
-                                self.stack_gen_config
+                                self.stack_layer_config
                                     .get_mut(self.current_layer)
                                     .unwrap()
                                     .tilt
                                     + PI / 2.0,
-                                self.stack_gen_config
+                                self.stack_layer_config
                                     .get_mut(self.current_layer)
                                     .unwrap()
                                     .center_offset_x,
-                                self.stack_gen_config
+                                self.stack_layer_config
                                     .get_mut(self.current_layer)
                                     .unwrap()
                                     .center_offset_y,
@@ -1054,11 +1054,11 @@ impl eframe::App for App {
                         let grid_size = (2.0
                             * 1.42
                             * f64::max(
-                                self.stack_gen_config
+                                self.stack_layer_config
                                     .get_mut(self.current_layer)
                                     .unwrap()
                                     .radius_a,
-                                self.stack_gen_config
+                                self.stack_layer_config
                                     .get_mut(self.current_layer)
                                     .unwrap()
                                     .radius_b,
@@ -1073,13 +1073,13 @@ impl eframe::App for App {
                             let cell_center = [coord[0] + 0.5, coord[1] + 0.5];
                             let mut x_center = cell_center[0]
                                 - self
-                                    .stack_gen_config
+                                    .stack_layer_config
                                     .get_mut(self.current_layer)
                                     .unwrap()
                                     .center_offset_x;
                             let mut y_center = cell_center[1]
                                 - self
-                                    .stack_gen_config
+                                    .stack_layer_config
                                     .get_mut(self.current_layer)
                                     .unwrap()
                                     .center_offset_y;
@@ -1097,12 +1097,12 @@ impl eframe::App for App {
 
                             plot_ui.text(Text::new(PlotPoint::from(cell_center), {
                                 let value = generation::percentage::cell_disk_intersection_area(
-                                    self.stack_gen_config
+                                    self.stack_layer_config
                                         .get_mut(self.current_layer)
                                         .unwrap()
                                         .radius_a
                                         .max(
-                                            self.stack_gen_config
+                                            self.stack_layer_config
                                                 .get_mut(self.current_layer)
                                                 .unwrap()
                                                 .radius_b,

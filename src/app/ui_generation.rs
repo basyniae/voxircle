@@ -2,7 +2,7 @@ use eframe::egui;
 use eframe::egui::Ui;
 use mlua::Lua;
 
-use crate::app::data_structures::gen_config::GenConfig;
+use crate::app::data_structures::layer_config::LayerConfig;
 use crate::app::data_structures::zvec::ZVec;
 use crate::app::lua_field::LuaField;
 
@@ -13,7 +13,7 @@ pub fn ui_generation(
     single_radius: bool,
     layer_mode: bool,
     lua_mode: bool,
-    stack_gen_config: &mut ZVec<GenConfig>,
+    stack_gen_config: &mut ZVec<LayerConfig>,
     lua: &mut Lua,
     lua_field_radius_a: &mut LuaField,
     lua_field_radius_b: &mut LuaField,
@@ -107,7 +107,7 @@ pub fn ui_generation(
 }
 
 fn set_parameters_for_layer(
-    gen_config: &mut GenConfig,
+    gen_config: &mut LayerConfig,
     lua: &mut Lua,
     lua_field_radius_a: &mut LuaField,
     lua_field_radius_b: &mut LuaField,
