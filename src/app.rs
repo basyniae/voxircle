@@ -93,6 +93,7 @@ pub struct App {
     stack_sampling_points: ZVec<Vec<f64>>,
     generate_current_layer_parameters: bool,
     generate_all_layer_parameters: bool,
+    recompute_sampling_points: bool,
 
     // Viewport options
     view_blocks: bool,
@@ -196,6 +197,7 @@ impl App {
             stack_sampling_points: ZVec::new(VecDeque::from([vec![0.0]]), 0), // start with middle sample
             generate_current_layer_parameters: true,
             generate_all_layer_parameters: true,
+            recompute_sampling_points: true,
 
             // Simplest working configuration
             view_blocks: true,
@@ -311,8 +313,6 @@ impl eframe::App for App {
                 .body(|ui| {
                     ui.label("Vertical sampling of the code. Requires code mode to be on.");
 
-                    let mut recompute_sampling_points = false;
-
                     ui.add_enabled_ui(self.sampling_enabled, |ui| {
                         if egui::ComboBox::from_label("Sample combination method")
                             .selected_text(format!("{:?}", self.sample_combine_method))
@@ -336,7 +336,7 @@ impl eframe::App for App {
                             .response
                             .changed()
                         {
-                            recompute_sampling_points = true;
+                            self.recompute_sampling_points = true;
                         };
 
                         match self.sample_combine_method {
@@ -355,7 +355,7 @@ impl eframe::App for App {
                                 {
                                     self.sample_combine_method =
                                         SampleCombineMethod::Percentage(perc_slider);
-                                    recompute_sampling_points = true;
+                                    self.recompute_sampling_points = true;
                                 };
                             }
                             _ => {}
@@ -378,7 +378,7 @@ impl eframe::App for App {
                             .response
                             .changed()
                         {
-                            recompute_sampling_points = true;
+                            self.recompute_sampling_points = true;
                         };
 
                         if ui
@@ -388,7 +388,7 @@ impl eframe::App for App {
                             )
                             .changed()
                         {
-                            recompute_sampling_points = true;
+                            self.recompute_sampling_points = true;
                         };
 
                         if ui
@@ -398,7 +398,7 @@ impl eframe::App for App {
                             )
                             .changed()
                         {
-                            recompute_sampling_points = true;
+                            self.recompute_sampling_points = true;
                         };
 
                         if ui
@@ -409,25 +409,12 @@ impl eframe::App for App {
                             .changed()
                         {
                             if self.sampling_enabled {
-                                recompute_sampling_points = true;
+                                self.recompute_sampling_points = true;
                             } else {
                                 self.nr_samples_per_layer = 1; // if sampling is off, don't allow changing this value
                             }
                         };
                     });
-
-                    if recompute_sampling_points {
-                        //todo: only recompute if any of the sampling options have changed
-                        // if any of the sampling options changed, recompute the sampling
-                        self.stack_sampling_points = sampling::determine_sampling_points(
-                            self.sample_distribute_method,
-                            self.layer_lowest,
-                            self.layer_highest,
-                            self.nr_samples_per_layer,
-                            self.only_sample_half_of_bottom_layer,
-                            self.only_sample_half_of_top_layer,
-                        );
-                    }
 
                     ui.label(format!(
                         "Total number of samples for all layers: {}",
@@ -503,6 +490,21 @@ impl eframe::App for App {
             });
         });
 
+        if self.recompute_sampling_points {
+            //todo: only recompute if any of the sampling options have changed
+            // if any of the sampling options changed, recompute the sampling
+            self.stack_sampling_points = sampling::determine_sampling_points(
+                self.sample_distribute_method,
+                self.layer_lowest,
+                self.layer_highest,
+                self.nr_samples_per_layer,
+                self.only_sample_half_of_bottom_layer,
+                self.only_sample_half_of_top_layer,
+            );
+
+            self.recompute_sampling_points = false;
+        }
+
         // Generate parameters to be sampled
         // debug
         if self.generate_current_layer_parameters || true {
@@ -555,13 +557,10 @@ impl eframe::App for App {
             );
 
             // debug
-            println!(
-                "{:?}",
-                self.stack_sampled_parameters
-                    .get(self.current_layer)
-                    .unwrap()
-            )
+            println!("{:?}", self.stack_sampled_parameters)
         }
+
+        //todo: update slider values if the code is run to set parameters
 
         // TODO: Only auto generate if the values have changed
         if self.generate_current_layer || self.auto_generate_current_layer {
@@ -576,8 +575,8 @@ impl eframe::App for App {
                     .generate(self.sample_combine_method),
             );
 
-            // debug
-            println!("{:?}", self.stack_blocks.get(self.current_layer).unwrap());
+            // // debug
+            // println!("{:?}", self.stack_blocks);
 
             self.recompute_metrics = true;
         }
@@ -801,6 +800,7 @@ impl eframe::App for App {
                         self.stack_blocks.get(old_layer).unwrap().clone(),
                     );
 
+                    //todo: is the following necessary?
                     self.stack_sampled_parameters.resize(
                         self.layer_lowest,
                         self.layer_highest,
@@ -834,6 +834,8 @@ impl eframe::App for App {
                             .update_field_state(&mut self.lua, &self.stack_sampling_points);
                         self.lua_field_squircle_parameter
                             .update_field_state(&mut self.lua, &self.stack_sampling_points);
+
+                        self.recompute_sampling_points = true;
                     }
                 })
             });
