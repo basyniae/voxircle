@@ -18,11 +18,11 @@ pub fn square_at_coords(coord: [f64; 2]) -> Polygon {
 }
 
 pub fn superellipse_at_coords(
-    center_x: f64,
-    center_y: f64,
     radius_a: f64,
     radius_b: f64,
     tilt: f64,
+    center_x: f64,
+    center_y: f64,
     squircle_parameter: f64,
 ) -> Line {
     let circlepts: PlotPoints = (0..=1005)

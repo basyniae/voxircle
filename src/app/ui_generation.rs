@@ -102,9 +102,9 @@ pub fn set_parameters(
                     }
                 },
                 lua_field_tilt.eval(lua),
-                lua_field_squircle_parameter.eval(lua),
                 lua_field_center_offset_x.eval(lua),
                 lua_field_center_offset_y.eval(lua),
+                lua_field_squircle_parameter.eval(lua),
             ]
         })
         .collect();
