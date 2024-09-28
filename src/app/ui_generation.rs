@@ -1,10 +1,10 @@
-use eframe::egui;
-use eframe::egui::Ui;
-use mlua::Lua;
-
+use crate::app::data_structures::layer_config::LayerConfig;
 use crate::app::data_structures::sampled_parameters::SampledParameters;
 use crate::app::generation::Algorithm;
 use crate::app::lua_field::LuaField;
+use eframe::egui;
+use eframe::egui::Ui;
+use mlua::Lua;
 
 pub fn ui_generation(
     ui: &mut Ui,
@@ -109,34 +109,67 @@ pub fn set_parameters(
         })
         .collect();
 
-    // Set the algorithm
+    // Set the algorithm & nr. of samples
     sampled_parameters.algorithm = algorithm;
+    sampled_parameters.nr_samples = sampling_points.len();
 
-    // If the number of samples did not change, we can use the old sampled_parameters as defaults for the new
-    if sampling_points.len() == sampled_parameters.nr_samples {
-        for i in 0..sampling_points.len() {
-            // loop over all parameters
-            for b in 0..6 {
-                if sampled_values[i][b].is_some() {
-                    sampled_parameters.parameters[i][b] = sampled_values[i][b].unwrap()
-                }
-            }
+    // If the code evaluation failed (returned None) resort to using the default_parameters (supplied by sliders)
+    sampled_parameters.parameters = (0..sampling_points.len())
+        .map(|i| {
+            [
+                sampled_values[i][0].unwrap_or(default_parameters[0]),
+                sampled_values[i][1].unwrap_or(default_parameters[1]),
+                sampled_values[i][2].unwrap_or(default_parameters[2]),
+                sampled_values[i][3].unwrap_or(default_parameters[3]),
+                sampled_values[i][4].unwrap_or(default_parameters[4]),
+                sampled_values[i][5].unwrap_or(default_parameters[5]),
+            ]
+        })
+        .collect()
+}
+
+pub fn update_control_parameters(
+    current_layer: &mut LayerConfig,
+    layer: isize,
+
+    lua: &mut Lua,
+    lua_field_radius_a: &mut LuaField,
+    lua_field_radius_b: &mut LuaField,
+    lua_field_tilt: &mut LuaField,
+    lua_field_center_offset_x: &mut LuaField,
+    lua_field_center_offset_y: &mut LuaField,
+    lua_field_squircle_parameter: &mut LuaField,
+    single_radius: bool,
+) {
+    lua.globals().set("layer", layer).unwrap();
+    lua.globals().set("l", layer).unwrap();
+
+    // evaluate the lua field at the layer
+    if let Some(radius_a) = lua_field_radius_a.eval(lua) {
+        current_layer.radius_a = radius_a
+    }
+
+    if single_radius {
+        if let Some(radius_a) = lua_field_radius_a.eval(lua) {
+            current_layer.radius_b = radius_a
         }
     } else {
-        sampled_parameters.nr_samples = sampling_points.len();
+        if let Some(radius_b) = lua_field_radius_b.eval(lua) {
+            current_layer.radius_b = radius_b
+        }
+    }
 
-        // resort to using the default_parameters
-        sampled_parameters.parameters = (0..sampling_points.len())
-            .map(|i| {
-                [
-                    sampled_values[i][0].unwrap_or(default_parameters[0]),
-                    sampled_values[i][1].unwrap_or(default_parameters[1]),
-                    sampled_values[i][2].unwrap_or(default_parameters[2]),
-                    sampled_values[i][3].unwrap_or(default_parameters[3]),
-                    sampled_values[i][4].unwrap_or(default_parameters[4]),
-                    sampled_values[i][5].unwrap_or(default_parameters[5]),
-                ]
-            })
-            .collect()
+    if let Some(tilt) = lua_field_tilt.eval(lua) {
+        current_layer.tilt = tilt
+    }
+    if let Some(center_offset_x) = lua_field_center_offset_x.eval(lua) {
+        current_layer.center_offset_x = center_offset_x
+    }
+    if let Some(center_offset_y) = lua_field_center_offset_y.eval(lua) {
+        current_layer.center_offset_y = center_offset_y
+    }
+
+    if let Some(squircle_parameter) = lua_field_squircle_parameter.eval(lua) {
+        current_layer.squircle_parameter = squircle_parameter
     }
 }

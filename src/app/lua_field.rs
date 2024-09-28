@@ -28,6 +28,7 @@ impl LuaField {
         }
     }
 
+    // TODO: button to clear the lua field
     pub fn show(&mut self, ui: &mut Ui, lua: &mut Lua, sampling_points: &ZVec<Vec<f64>>) {
         let original_style = ui.style().clone();
 
@@ -102,5 +103,10 @@ impl LuaField {
         } else {
             None
         }
+    }
+
+    /// Has the field changed (since the last time it was run) to a valid expression?
+    pub fn has_changed(&self) -> bool {
+        self.field_state == FieldState::Changed
     }
 }
