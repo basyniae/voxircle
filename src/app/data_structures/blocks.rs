@@ -1,6 +1,7 @@
 use std::ops::Not;
 
 use crate::app::math::linear_algebra::Vec2;
+use crate::app::sampling::SampleCombineMethod;
 
 /// Captures a bit matrix. The length of the vector should always be edge_length**2
 #[derive(Default, Debug, Clone)]
@@ -255,7 +256,7 @@ impl Blocks {
 impl Blocks {
     /// A block is in the output iff there is a block at the same global position for any layer in
     ///  the input.
-    pub fn combine_any(stack: Vec<Self>) -> Self {
+    fn combine_any(stack: Vec<Self>) -> Self {
         // determine largest grid size
         let grid_size = stack.iter().map(|b| b.grid_size).max().unwrap();
         // throws an error only if the vector above is empty
@@ -281,7 +282,7 @@ impl Blocks {
 
     /// A block is in the output iff for every layer in the input, there is a block at the same
     ///  global position
-    pub fn combine_all(stack: Vec<Self>) -> Self {
+    fn combine_all(stack: Vec<Self>) -> Self {
         // determine largest grid size
         let grid_size = stack.iter().map(|b| b.grid_size).max().unwrap();
         // throws an error only if the vector above is empty
@@ -307,13 +308,13 @@ impl Blocks {
 
     /// A block is in the output iff there is a block at the same global position for more than the
     ///  given percentage of layers
-    pub fn combine_percentage(stack: Vec<Self>, percentage: f64) -> Self {
+    fn combine_percentage(stack: Vec<Self>, percentage: f64) -> Self {
         // determine the largest grid size & associated origin
         // throws an error only if the vector above is empty
         let grid_size = stack.iter().map(|b| b.grid_size).max().unwrap();
         let origin_usize = [grid_size / 2, grid_size / 2];
         // determine target number of layers (we specifically allow any f64 for percentage, but
-        //  the output will be trivial for it not between zero and one.
+        //  the output will be trivial for it not between zero and one).
         let target_nr_layers = stack.len() as f64 * percentage;
 
         Blocks::new(
@@ -333,5 +334,15 @@ impl Blocks {
                 .collect(),
             grid_size,
         )
+    }
+
+    pub fn combine(sample_combine_method: SampleCombineMethod, stack: Vec<Self>) -> Self {
+        match sample_combine_method {
+            SampleCombineMethod::AllSamples => Self::combine_all(stack),
+            SampleCombineMethod::AnySamples => Self::combine_any(stack),
+            SampleCombineMethod::Percentage(percentage) => {
+                Self::combine_percentage(stack, percentage)
+            }
+        }
     }
 }

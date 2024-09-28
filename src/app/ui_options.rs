@@ -4,14 +4,14 @@ use eframe::egui;
 use eframe::egui::{Align, Layout, Ui};
 use mlua::Lua;
 
-use crate::app::data_structures::gen_config::GenConfig;
+use crate::app::data_structures::layer_config::LayerConfig;
 use crate::app::generation::Algorithm;
 use crate::app::lua_field::LuaField;
 
 /// document
 pub fn ui_options(
     ui: &mut Ui,
-    current_layer_config: &mut GenConfig,
+    current_layer_config: &mut LayerConfig,
     single_radius: &mut bool,
     lua_mode: bool,
     lua: &mut Lua,
