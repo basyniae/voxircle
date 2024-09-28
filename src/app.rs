@@ -504,7 +504,8 @@ impl eframe::App for App {
         });
 
         // Generate parameters to be sampled
-        if self.generate_current_layer_parameters {
+        // debug
+        if self.generate_current_layer_parameters || true {
             set_parameters(
                 &mut self
                     .stack_sampled_parameters
@@ -552,6 +553,14 @@ impl eframe::App for App {
                 &mut self.lua_field_squircle_parameter,
                 self.single_radius,
             );
+
+            // debug
+            println!(
+                "{:?}",
+                self.stack_sampled_parameters
+                    .get(self.current_layer)
+                    .unwrap()
+            )
         }
 
         // TODO: Only auto generate if the values have changed
@@ -566,6 +575,9 @@ impl eframe::App for App {
                     .unwrap()
                     .generate(self.sample_combine_method),
             );
+
+            // debug
+            println!("{:?}", self.stack_blocks.get(self.current_layer).unwrap());
 
             self.recompute_metrics = true;
         }
@@ -787,6 +799,21 @@ impl eframe::App for App {
                         self.layer_lowest,
                         self.layer_highest,
                         self.stack_blocks.get(old_layer).unwrap().clone(),
+                    );
+
+                    self.stack_sampled_parameters.resize(
+                        self.layer_lowest,
+                        self.layer_highest,
+                        self.stack_sampled_parameters
+                            .get(old_layer)
+                            .unwrap()
+                            .clone(),
+                    );
+
+                    self.stack_sampling_points.resize(
+                        self.layer_lowest,
+                        self.layer_highest,
+                        self.stack_sampling_points.get(old_layer).unwrap().clone(),
                     );
 
                     self.recompute_metrics = true;

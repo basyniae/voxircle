@@ -126,12 +126,17 @@ pub fn set_parameters(
         sampled_parameters.nr_samples = sampling_points.len();
 
         // resort to using the default_parameters
-        for i in 0..sampling_points.len() {
-            // loop over all parameters
-            for b in 0..6 {
-                sampled_parameters.parameters[i][b] =
-                    sampled_values[i][b].unwrap_or(default_parameters[b])
-            }
-        }
+        sampled_parameters.parameters = (0..sampling_points.len())
+            .map(|i| {
+                [
+                    sampled_values[i][0].unwrap_or(default_parameters[0]),
+                    sampled_values[i][1].unwrap_or(default_parameters[1]),
+                    sampled_values[i][2].unwrap_or(default_parameters[2]),
+                    sampled_values[i][3].unwrap_or(default_parameters[3]),
+                    sampled_values[i][4].unwrap_or(default_parameters[4]),
+                    sampled_values[i][5].unwrap_or(default_parameters[5]),
+                ]
+            })
+            .collect()
     }
 }
