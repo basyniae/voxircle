@@ -13,6 +13,7 @@ use mlua::Lua;
 
 use crate::app::data_structures::sampled_parameters::SampledParameters;
 use crate::app::sampling::{SampleCombineMethod, SampleDistributeMethod};
+use crate::app::ui_generation::set_parameters;
 use data_structures::blocks::Blocks;
 use data_structures::layer_config::LayerConfig;
 use data_structures::zvec::ZVec;
@@ -89,7 +90,9 @@ pub struct App {
     nr_samples_per_layer: usize,
     sample_combine_method: SampleCombineMethod,
     sample_distribute_method: SampleDistributeMethod,
-    sampling_points: ZVec<Vec<f64>>,
+    stack_sampling_points: ZVec<Vec<f64>>,
+    generate_current_layer_parameters: bool,
+    generate_all_layer_parameters: bool,
 
     // Viewport options
     view_blocks: bool,
@@ -190,7 +193,9 @@ impl App {
             sample_combine_method: SampleCombineMethod::AnySamples,
             sample_distribute_method: SampleDistributeMethod::IncludeEndpoints,
             // fixme: change in layer should also change sampling points!
-            sampling_points: ZVec::new(VecDeque::from([vec![0.0]]), 0), // start with middle sample
+            stack_sampling_points: ZVec::new(VecDeque::from([vec![0.0]]), 0), // start with middle sample
+            generate_current_layer_parameters: true,
+            generate_all_layer_parameters: true,
 
             // Simplest working configuration
             view_blocks: true,
@@ -415,7 +420,7 @@ impl eframe::App for App {
                     if recompute_sampling_points {
                         //todo: only recompute if any of the sampling options have changed
                         // if any of the sampling options changed, recompute the sampling
-                        self.sampling_points = sampling::determine_sampling_points(
+                        self.stack_sampling_points = sampling::determine_sampling_points(
                             self.sample_distribute_method,
                             self.layer_lowest,
                             self.layer_highest,
@@ -427,7 +432,7 @@ impl eframe::App for App {
 
                     ui.label(format!(
                         "Total number of samples for all layers: {}",
-                        self.sampling_points.data.iter().fold(
+                        self.stack_sampling_points.data.iter().fold(
                             0,
                             |acc, samples_for_single_layer| {
                                 acc + samples_for_single_layer.len()
@@ -436,7 +441,7 @@ impl eframe::App for App {
                     ));
 
                     // debug: remove label
-                    ui.label(format!("Sampling points: {:?}", self.sampling_points))
+                    ui.label(format!("Sampling points: {:?}", self.stack_sampling_points))
                 });
 
                 let id = ui.make_persistent_id("viewport_options_collapsable");
@@ -491,23 +496,64 @@ impl eframe::App for App {
                     ui,
                     &mut self.generate_current_layer,
                     &mut self.generate_all_layers,
-                    self.single_radius,
+                    &mut self.generate_current_layer_parameters,
+                    &mut self.generate_all_layer_parameters,
                     self.layers_enabled,
                     self.code_enabled,
-                    &mut self.stack_layer_config,
-                    &mut self.lua,
-                    &mut self.lua_field_radius_a,
-                    &mut self.lua_field_radius_b,
-                    &mut self.lua_field_tilt,
-                    &mut self.lua_field_center_offset_x,
-                    &mut self.lua_field_center_offset_y,
-                    &mut self.lua_field_squircle_parameter,
-                    self.layer_lowest,
-                    self.layer_highest,
-                    self.current_layer,
                 )
             });
         });
+
+        // Generate parameters to be sampled
+        if self.generate_current_layer_parameters {
+            set_parameters(
+                &mut self
+                    .stack_sampled_parameters
+                    .get_mut(self.current_layer)
+                    .unwrap(),
+                self.stack_sampling_points
+                    .get_mut(self.current_layer)
+                    .unwrap(),
+                [
+                    self.stack_layer_config
+                        .get(self.current_layer)
+                        .unwrap()
+                        .radius_a,
+                    self.stack_layer_config
+                        .get(self.current_layer)
+                        .unwrap()
+                        .radius_b,
+                    self.stack_layer_config
+                        .get(self.current_layer)
+                        .unwrap()
+                        .tilt,
+                    self.stack_layer_config
+                        .get(self.current_layer)
+                        .unwrap()
+                        .center_offset_x,
+                    self.stack_layer_config
+                        .get(self.current_layer)
+                        .unwrap()
+                        .center_offset_y,
+                    self.stack_layer_config
+                        .get(self.current_layer)
+                        .unwrap()
+                        .squircle_parameter,
+                ],
+                self.stack_layer_config
+                    .get(self.current_layer)
+                    .unwrap()
+                    .algorithm,
+                &mut self.lua,
+                &mut self.lua_field_radius_a,
+                &mut self.lua_field_radius_b,
+                &mut self.lua_field_tilt,
+                &mut self.lua_field_center_offset_x,
+                &mut self.lua_field_center_offset_y,
+                &mut self.lua_field_squircle_parameter,
+                self.single_radius,
+            );
+        }
 
         // TODO: Only auto generate if the values have changed
         if self.generate_current_layer || self.auto_generate_current_layer {
@@ -516,10 +562,10 @@ impl eframe::App for App {
 
             self.stack_blocks.set(
                 self.current_layer,
-                self.stack_layer_config
+                self.stack_sampled_parameters
                     .get_mut(self.current_layer)
                     .unwrap()
-                    .generate(),
+                    .generate(self.sample_combine_method),
             );
 
             self.recompute_metrics = true;
@@ -528,10 +574,10 @@ impl eframe::App for App {
         if self.generate_all_layers || self.auto_generate_all_layers {
             self.generate_all_layers = false;
             self.stack_blocks = ZVec::new(
-                self.stack_layer_config
+                self.stack_sampled_parameters
                     .data
                     .iter()
-                    .map(|config| config.generate())
+                    .map(|config| config.generate(self.sample_combine_method))
                     .collect(),
                 self.layer_lowest,
             );
@@ -751,17 +797,17 @@ impl eframe::App for App {
                         || prev_layer_highest < self.layer_highest
                     {
                         self.lua_field_radius_a
-                            .update_field_state(&mut self.lua, &self.sampling_points);
+                            .update_field_state(&mut self.lua, &self.stack_sampling_points);
                         self.lua_field_radius_b
-                            .update_field_state(&mut self.lua, &self.sampling_points);
+                            .update_field_state(&mut self.lua, &self.stack_sampling_points);
                         self.lua_field_tilt
-                            .update_field_state(&mut self.lua, &self.sampling_points);
+                            .update_field_state(&mut self.lua, &self.stack_sampling_points);
                         self.lua_field_center_offset_x
-                            .update_field_state(&mut self.lua, &self.sampling_points);
+                            .update_field_state(&mut self.lua, &self.stack_sampling_points);
                         self.lua_field_center_offset_y
-                            .update_field_state(&mut self.lua, &self.sampling_points);
+                            .update_field_state(&mut self.lua, &self.stack_sampling_points);
                         self.lua_field_squircle_parameter
-                            .update_field_state(&mut self.lua, &self.sampling_points);
+                            .update_field_state(&mut self.lua, &self.stack_sampling_points);
                     }
                 })
             });
