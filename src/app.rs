@@ -13,7 +13,7 @@ use mlua::Lua;
 
 use crate::app::data_structures::sampled_parameters::SampledParameters;
 use crate::app::sampling::{SampleCombineMethod, SampleDistributeMethod};
-use crate::app::ui_generation::{set_parameters, update_control_parameters};
+use crate::app::ui_sampling::ui_sampling;
 use data_structures::blocks::Blocks;
 use data_structures::layer_config::LayerConfig;
 use data_structures::zvec::ZVec;
@@ -22,6 +22,7 @@ use math::convex_hull::{get_convex_hull, line_segments_from_conv_hull};
 use math::exact_squircle_bounds::exact_squircle_bounds;
 use math::square_max::square_max;
 use metrics::boundary_3d::boundary_3d;
+use sampling::{set_parameters, update_control_parameters};
 
 mod data_structures;
 mod formatting;
@@ -33,6 +34,7 @@ mod plotting;
 mod sampling;
 mod ui_generation;
 mod ui_options;
+mod ui_sampling;
 
 // Colors based on Blender Minimal Dark scheme, 3D Viewport
 const COLOR_BACKGROUND: Color32 = Color32::from_rgb(28, 28, 28); // middle background color (dark gray)
@@ -75,24 +77,28 @@ pub struct App {
     outer_corners: Vec<[f64; 2]>,
 
     // Generate new shape on this layer automatically from the provided parameters
-    generate_current_layer: bool,
-    auto_generate_current_layer: bool,
-    can_generate_current_layer: bool,
-    generate_all_layers: bool,
-    auto_generate_all_layers: bool,
-    can_generate_all_layers: bool,
+    blocks_current_layer_generate_once: bool,
+    blocks_current_layer_generate_auto: bool,
+    blocks_current_layer_is_outdated: bool,
+
+    blocks_all_layers_generate_once: bool,
+    blocks_all_layers_generate_auto: bool,
+    blocks_all_layers_is_outdated: bool,
+
     single_radius: bool,
     layers_enabled: bool,
     lock_stack_size: bool,
 
     // Code mode
     code_enabled: bool,
-    generate_current_layer_parameters: bool,
-    auto_generate_current_layer_parameters: bool,
-    can_generate_current_layer_parameters: bool,
-    generate_all_layer_parameters: bool,
-    auto_generate_all_layer_parameters: bool, // todo: implement
-    can_generate_all_layer_parameters: bool,  // todo: implement
+
+    parameters_current_layer_sample_once: bool,
+    parameters_current_layer_sample_auto: bool,
+    parameters_current_layer_is_outdated: bool,
+
+    parameters_all_layers_sample_once: bool,
+    parameters_all_layers_sample_auto: bool, // todo: implement
+    parameters_all_layers_is_outdated: bool, // todo: implement
 
     // Sampling
     sampling_enabled: bool,
@@ -102,9 +108,10 @@ pub struct App {
     sample_combine_method: SampleCombineMethod,
     sample_distribute_method: SampleDistributeMethod,
     stack_sampling_points: ZVec<Vec<f64>>,
-    recompute_sampling_points: bool,
-    auto_recompute_sampling_points: bool, // todo: implement
-    can_recompute_sampling_points: bool,  // todo: implement
+
+    sampling_points_compute_once: bool,
+    sampling_points_compute_auto: bool, // todo: implement
+    sampling_points_is_outdated: bool,  // todo: implement
 
     // Viewport options
     view_blocks: bool,
@@ -187,24 +194,25 @@ impl App {
             outer_corners: Default::default(),
 
             // Initialize on simplest working mode of operation
-            auto_generate_current_layer: true,
-            generate_current_layer: true,
-            can_generate_current_layer: true,
-            auto_generate_all_layers: false,
-            generate_all_layers: false,
-            can_generate_all_layers: false,
+            blocks_current_layer_generate_auto: true,
+            blocks_current_layer_generate_once: true,
+            blocks_current_layer_is_outdated: true,
+            blocks_all_layers_generate_auto: false,
+            blocks_all_layers_generate_once: false,
+            blocks_all_layers_is_outdated: false,
             single_radius: true,
             layers_enabled: true, // debug: make default false
             lock_stack_size: false,
 
             // Code mode
             code_enabled: true, // debug: make default false
-            generate_current_layer_parameters: true,
-            auto_generate_current_layer_parameters: false,
-            can_generate_current_layer_parameters: false,
-            generate_all_layer_parameters: false,
-            auto_generate_all_layer_parameters: false,
-            can_generate_all_layer_parameters: false,
+            parameters_current_layer_sample_once: true, // on startup, get the parameters from the current configuration
+            parameters_current_layer_sample_auto: false, // (Can only be turned off/on when sampling is enabled)
+            parameters_current_layer_is_outdated: false,
+            parameters_all_layers_sample_once: false,
+            parameters_all_layers_sample_auto: true, // (Can only be turned off when sampling is
+            // enabled, leave on to automatically get the parameters from the code/sliders)
+            parameters_all_layers_is_outdated: false,
 
             // Sampling
             sampling_enabled: true, // debug: make default false
@@ -214,9 +222,9 @@ impl App {
             sample_combine_method: SampleCombineMethod::AnySamples,
             sample_distribute_method: SampleDistributeMethod::IncludeEndpoints,
             stack_sampling_points: ZVec::new(VecDeque::from([vec![0.0]]), 0), // start with middle sample
-            recompute_sampling_points: true,
-            auto_recompute_sampling_points: true,
-            can_recompute_sampling_points: false,
+            sampling_points_compute_once: true,
+            sampling_points_compute_auto: true,
+            sampling_points_is_outdated: false,
 
             // Simplest working configuration
             view_blocks: true,
@@ -273,8 +281,8 @@ impl eframe::App for App {
                         &mut self.lua_field_center_offset_y,
                         &mut self.lua_field_squircle_parameter,
                         &self.stack_sampling_points,
-                        &mut self.can_generate_current_layer_parameters,
-                        &mut self.can_generate_all_layer_parameters,
+                        &mut self.parameters_current_layer_is_outdated,
+                        &mut self.parameters_all_layers_is_outdated,
                     );
                 });
 
@@ -332,117 +340,18 @@ impl eframe::App for App {
                     };
                 })
                 .body(|ui| {
-                    ui.label("Vertical sampling of the code. Requires code mode to be on.");
-
-                    ui.add_enabled_ui(self.sampling_enabled, |ui| {
-                        if egui::ComboBox::from_label("Sample combination method")
-                            .selected_text(format!("{:?}", self.sample_combine_method))
-                            .show_ui(ui, |ui| {
-                                ui.selectable_value(
-                                    &mut self.sample_combine_method,
-                                    SampleCombineMethod::AnySamples,
-                                    "Any samples (for Contained)",
-                                );
-                                ui.selectable_value(
-                                    &mut self.sample_combine_method,
-                                    SampleCombineMethod::AllSamples,
-                                    "All samples (for Conservative)",
-                                );
-                                ui.selectable_value(
-                                    &mut self.sample_combine_method,
-                                    SampleCombineMethod::Percentage(0.5),
-                                    "Given number of percentage of all samples",
-                                );
-                            })
-                            .response
-                            .changed()
-                        {
-                            self.can_recompute_sampling_points = true;
-                        };
-
-                        match self.sample_combine_method {
-                            SampleCombineMethod::Percentage(percentage) => {
-                                let mut perc_slider = percentage.clone();
-                                if ui
-                                    .add(
-                                        egui::Slider::new(&mut perc_slider, 0.0..=1.0)
-                                            .text("")
-                                            .fixed_decimals(2)
-                                            .custom_formatter(|n, _| {
-                                                format!("{:.0}%", n * 100.0) //  formatting of percentage slider
-                                            }),
-                                    )
-                                    .changed()
-                                {
-                                    self.sample_combine_method =
-                                        SampleCombineMethod::Percentage(perc_slider);
-                                    self.can_recompute_sampling_points = true;
-                                };
-                            }
-                            _ => {}
-                        }
-
-                        if egui::ComboBox::from_label("Sample distribution method")
-                            .selected_text(format!("{:?}", self.sample_distribute_method))
-                            .show_ui(ui, |ui| {
-                                ui.selectable_value(
-                                    &mut self.sample_distribute_method,
-                                    SampleDistributeMethod::IncludeEndpoints,
-                                    "Include endpoints",
-                                );
-                                ui.selectable_value(
-                                    &mut self.sample_distribute_method,
-                                    SampleDistributeMethod::ExcludeEndpoints,
-                                    "Include endpoints",
-                                );
-                            })
-                            .response
-                            .changed()
-                        {
-                            self.can_recompute_sampling_points = true;
-                        };
-
-                        if ui
-                            .checkbox(
-                                &mut self.only_sample_half_of_bottom_layer,
-                                "Only sample the top half of the bottom layer",
-                            )
-                            .changed()
-                        {
-                            self.can_recompute_sampling_points = true;
-                        };
-
-                        if ui
-                            .checkbox(
-                                &mut self.only_sample_half_of_top_layer,
-                                "Only sample the bottom half of the top layer",
-                            )
-                            .changed()
-                        {
-                            self.can_recompute_sampling_points = true;
-                        };
-
-                        ui.checkbox(
-                            &mut self.auto_recompute_sampling_points,
-                            "Auto recompute sampling points",
-                        );
-                        if ui.button("Recompute sampling points").clicked() {
-                            self.recompute_sampling_points = true
-                        }
-
-                        if ui
-                            .add(
-                                egui::Slider::new(&mut self.nr_samples_per_layer, 1..=20)
-                                    .text("Nr. samples per layer"),
-                            )
-                            .changed()
-                        {
-                            self.can_recompute_sampling_points = true;
-                            if !self.sampling_enabled {
-                                self.nr_samples_per_layer = 1; // if sampling is off, don't allow changing this value
-                            }
-                        };
-                    });
+                    ui_sampling(
+                        ui,
+                        self.sampling_enabled,
+                        &mut self.only_sample_half_of_top_layer,
+                        &mut self.only_sample_half_of_bottom_layer,
+                        &mut self.nr_samples_per_layer,
+                        &mut self.sample_combine_method,
+                        &mut self.sample_distribute_method,
+                        &mut self.sampling_points_compute_once,
+                        &mut self.sampling_points_compute_auto,
+                        &mut self.sampling_points_is_outdated,
+                    );
 
                     ui.label(format!(
                         "Total number of samples for all layers: {}",
@@ -495,31 +404,37 @@ impl eframe::App for App {
 
                 if self.layers_enabled {
                     ui.checkbox(
-                        &mut self.auto_generate_current_layer,
-                        "Auto-generate current layer",
+                        &mut self.blocks_current_layer_generate_auto,
+                        "Auto-generate blocks on current layer",
                     );
                     ui.checkbox(
-                        &mut self.auto_generate_all_layers,
-                        "Auto-generate all layers",
+                        &mut self.blocks_all_layers_generate_auto,
+                        "Auto-generate blocks on all layers",
                     );
                 } else {
-                    ui.checkbox(&mut self.auto_generate_current_layer, "Auto-generate");
+                    ui.checkbox(
+                        &mut self.blocks_current_layer_generate_auto,
+                        "Auto-generate blocks",
+                    );
                 }
-                ui.checkbox(
-                    &mut self.auto_generate_current_layer_parameters,
-                    "Auto-generate sample parameters current layer",
-                );
-                ui.checkbox(
-                    &mut self.auto_generate_all_layer_parameters,
-                    "Auto-generate sample parameters all layers",
-                );
+
+                if self.sampling_enabled {
+                    ui.checkbox(
+                        &mut self.parameters_current_layer_sample_auto,
+                        "Auto-sample parameters on current layer",
+                    );
+                    ui.checkbox(
+                        &mut self.parameters_all_layers_sample_auto,
+                        "Auto-sample parameters on all layers",
+                    );
+                }
 
                 ui_generation::ui_generation(
                     ui,
-                    &mut self.generate_current_layer,
-                    &mut self.generate_all_layers,
-                    &mut self.generate_current_layer_parameters,
-                    &mut self.generate_all_layer_parameters,
+                    &mut self.blocks_current_layer_generate_once,
+                    &mut self.blocks_all_layers_generate_once,
+                    &mut self.parameters_current_layer_sample_once,
+                    &mut self.parameters_all_layers_sample_once,
                     self.layers_enabled,
                     self.code_enabled,
                 );
@@ -529,11 +444,11 @@ impl eframe::App for App {
         // Activates if the sampling options have changed (this update) or if the stack grows
         //  (previous update). The points may also have to be recomputed if the stack shrinks,
         //  when half_of_bottom or half_of_top layer options are implemented. Fixme.
-        if (self.recompute_sampling_points || self.auto_recompute_sampling_points)
-            && self.can_recompute_sampling_points
+        if (self.sampling_points_compute_once || self.sampling_points_compute_auto)
+            && self.sampling_points_is_outdated
         {
-            self.recompute_sampling_points = false;
-            self.can_recompute_sampling_points = false;
+            self.sampling_points_compute_once = false;
+            self.sampling_points_is_outdated = false;
 
             self.stack_sampling_points = sampling::determine_sampling_points(
                 self.sample_distribute_method,
@@ -546,8 +461,8 @@ impl eframe::App for App {
         }
 
         // Generate parameters to be sampled
-        if (self.generate_current_layer_parameters || self.auto_generate_current_layer_parameters)
-            && (self.can_generate_current_layer_parameters
+        if (self.parameters_current_layer_sample_once || self.parameters_current_layer_sample_auto)
+            && (self.parameters_current_layer_is_outdated
                 || self.lua_field_radius_a.has_changed()
                 || self.lua_field_radius_b.has_changed()
                 || self.lua_field_tilt.has_changed()
@@ -555,10 +470,10 @@ impl eframe::App for App {
                 || self.lua_field_center_offset_y.has_changed()
                 || self.lua_field_squircle_parameter.has_changed())
         {
-            self.generate_current_layer_parameters = false;
-            self.can_generate_current_layer_parameters = false;
+            self.parameters_current_layer_sample_once = false;
+            self.parameters_current_layer_is_outdated = false;
 
-            self.can_generate_current_layer = true;
+            self.blocks_current_layer_is_outdated = true;
 
             // Update parameters for the sampling
             {
@@ -634,8 +549,8 @@ impl eframe::App for App {
         }
 
         // Generate parameters to be sampled
-        if (self.generate_all_layer_parameters || self.auto_generate_all_layer_parameters)
-            && (self.can_generate_all_layer_parameters
+        if (self.parameters_all_layers_sample_once || self.parameters_all_layers_sample_auto)
+            && (self.parameters_all_layers_is_outdated
                 || self.lua_field_radius_a.has_changed()
                 || self.lua_field_radius_b.has_changed()
                 || self.lua_field_tilt.has_changed()
@@ -643,10 +558,10 @@ impl eframe::App for App {
                 || self.lua_field_center_offset_y.has_changed()
                 || self.lua_field_squircle_parameter.has_changed())
         {
-            self.generate_all_layer_parameters = false;
-            self.can_generate_all_layer_parameters = false;
+            self.parameters_all_layers_sample_once = false;
+            self.parameters_all_layers_is_outdated = false;
 
-            self.can_generate_current_layer = true;
+            self.blocks_current_layer_is_outdated = true;
 
             // Update parameters for the sampling
             for layer in self.layer_lowest..=self.layer_highest {
@@ -698,11 +613,11 @@ impl eframe::App for App {
             self.lua_field_squircle_parameter.register_success();
         }
 
-        if (self.generate_current_layer || self.auto_generate_current_layer)
-            && self.can_generate_current_layer
+        if (self.blocks_current_layer_generate_once || self.blocks_current_layer_generate_auto)
+            && self.blocks_current_layer_is_outdated
         {
-            self.generate_current_layer = false;
-            self.can_generate_current_layer = false;
+            self.blocks_current_layer_generate_once = false;
+            self.blocks_current_layer_is_outdated = false;
             self.recompute_metrics = true;
 
             self.stack_blocks.set(
@@ -715,11 +630,11 @@ impl eframe::App for App {
         }
 
         // fixme: not sure where to set can_generate_all_layers
-        if (self.generate_all_layers || self.auto_generate_all_layers)
-            && (self.can_generate_all_layers || self.can_generate_current_layer)
+        if (self.blocks_all_layers_generate_once || self.blocks_all_layers_generate_auto)
+            && (self.blocks_all_layers_is_outdated || self.blocks_current_layer_is_outdated)
         {
-            self.generate_all_layers = false;
-            self.can_generate_all_layers = false;
+            self.blocks_all_layers_generate_once = false;
+            self.blocks_all_layers_is_outdated = false;
             self.recompute_metrics = true;
 
             self.stack_blocks = ZVec::new(
@@ -970,7 +885,7 @@ impl eframe::App for App {
                         self.lua_field_squircle_parameter
                             .update_field_state(&mut self.lua, &self.stack_sampling_points);
 
-                        self.can_recompute_sampling_points = true;
+                        self.sampling_points_is_outdated = true;
                         self.recompute_metrics = true; // todo: check...
                     }
                 })
