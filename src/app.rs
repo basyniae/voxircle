@@ -92,7 +92,7 @@ pub struct App {
     can_generate_current_layer_parameters: bool,
     generate_all_layer_parameters: bool,
     auto_generate_all_layer_parameters: bool, // todo: implement
-    can_update_all_layer_parameters: bool,    // todo: implement
+    can_generate_all_layer_parameters: bool,  // todo: implement
 
     // Sampling
     sampling_enabled: bool,
@@ -204,7 +204,7 @@ impl App {
             can_generate_current_layer_parameters: false,
             generate_all_layer_parameters: false,
             auto_generate_all_layer_parameters: false,
-            can_update_all_layer_parameters: false,
+            can_generate_all_layer_parameters: false,
 
             // Sampling
             sampling_enabled: true, // debug: make default false
@@ -274,7 +274,7 @@ impl eframe::App for App {
                         &mut self.lua_field_squircle_parameter,
                         &self.stack_sampling_points,
                         &mut self.can_generate_current_layer_parameters,
-                        &mut self.can_update_all_layer_parameters,
+                        &mut self.can_generate_all_layer_parameters,
                     );
                 });
 
@@ -427,7 +427,7 @@ impl eframe::App for App {
                             "Auto recompute sampling points",
                         );
                         if ui.button("Recompute sampling points").clicked() {
-                            self.can_recompute_sampling_points = true
+                            self.recompute_sampling_points = true
                         }
 
                         if ui
@@ -522,7 +522,7 @@ impl eframe::App for App {
                     &mut self.generate_all_layer_parameters,
                     self.layers_enabled,
                     self.code_enabled,
-                )
+                );
             });
         });
 
@@ -545,9 +545,6 @@ impl eframe::App for App {
             );
         }
 
-        // todo: generate all layer parameters (not sure what this means yet)
-        // todo: only update on change of code or sliders
-        // todo: update from sliders if the code field is empty
         // Generate parameters to be sampled
         if (self.generate_current_layer_parameters || self.auto_generate_current_layer_parameters)
             && (self.can_generate_current_layer_parameters
@@ -626,10 +623,81 @@ impl eframe::App for App {
                 &mut self.lua_field_center_offset_y,
                 &mut self.lua_field_squircle_parameter,
                 self.single_radius,
-            )
+            );
+
+            self.lua_field_radius_a.register_success();
+            self.lua_field_radius_b.register_success();
+            self.lua_field_tilt.register_success();
+            self.lua_field_center_offset_x.register_success();
+            self.lua_field_center_offset_y.register_success();
+            self.lua_field_squircle_parameter.register_success();
         }
 
-        // TODO: Only auto generate if the values have changed
+        // Generate parameters to be sampled
+        if (self.generate_all_layer_parameters || self.auto_generate_all_layer_parameters)
+            && (self.can_generate_all_layer_parameters
+                || self.lua_field_radius_a.has_changed()
+                || self.lua_field_radius_b.has_changed()
+                || self.lua_field_tilt.has_changed()
+                || self.lua_field_center_offset_x.has_changed()
+                || self.lua_field_center_offset_y.has_changed()
+                || self.lua_field_squircle_parameter.has_changed())
+        {
+            self.generate_all_layer_parameters = false;
+            self.can_generate_all_layer_parameters = false;
+
+            self.can_generate_current_layer = true;
+
+            // Update parameters for the sampling
+            for layer in self.layer_lowest..=self.layer_highest {
+                set_parameters(
+                    &mut self.stack_sampled_parameters.get_mut(layer).unwrap(),
+                    self.stack_sampling_points.get_mut(layer).unwrap(),
+                    [
+                        self.stack_layer_config.get(layer).unwrap().radius_a,
+                        self.stack_layer_config.get(layer).unwrap().radius_b,
+                        self.stack_layer_config.get(layer).unwrap().tilt,
+                        self.stack_layer_config.get(layer).unwrap().center_offset_x,
+                        self.stack_layer_config.get(layer).unwrap().center_offset_y,
+                        self.stack_layer_config
+                            .get(layer)
+                            .unwrap()
+                            .squircle_parameter,
+                    ],
+                    self.stack_layer_config.get(layer).unwrap().algorithm,
+                    &mut self.lua,
+                    &mut self.lua_field_radius_a,
+                    &mut self.lua_field_radius_b,
+                    &mut self.lua_field_tilt,
+                    &mut self.lua_field_center_offset_x,
+                    &mut self.lua_field_center_offset_y,
+                    &mut self.lua_field_squircle_parameter,
+                    self.single_radius,
+                );
+
+                // Update parameters for the sliders
+                update_control_parameters(
+                    &mut self.stack_layer_config.get_mut(layer).unwrap(),
+                    layer,
+                    &mut self.lua,
+                    &mut self.lua_field_radius_a,
+                    &mut self.lua_field_radius_b,
+                    &mut self.lua_field_tilt,
+                    &mut self.lua_field_center_offset_x,
+                    &mut self.lua_field_center_offset_y,
+                    &mut self.lua_field_squircle_parameter,
+                    self.single_radius,
+                )
+            }
+
+            self.lua_field_radius_a.register_success();
+            self.lua_field_radius_b.register_success();
+            self.lua_field_tilt.register_success();
+            self.lua_field_center_offset_x.register_success();
+            self.lua_field_center_offset_y.register_success();
+            self.lua_field_squircle_parameter.register_success();
+        }
+
         if (self.generate_current_layer || self.auto_generate_current_layer)
             && self.can_generate_current_layer
         {

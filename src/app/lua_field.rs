@@ -97,8 +97,6 @@ impl LuaField {
         // debug: should not rerun code if there has been a success (assuming layer hasn't changed)
         if self.field_state == FieldState::Changed || self.field_state == FieldState::RunSuccess {
             let parameter = lua.load(self.code.clone()).eval().unwrap();
-            self.field_state = FieldState::RunSuccess;
-            // Simplest to register success here
             Some(parameter)
         } else {
             None
@@ -108,5 +106,11 @@ impl LuaField {
     /// Has the field changed (since the last time it was run) to a valid expression?
     pub fn has_changed(&self) -> bool {
         self.field_state == FieldState::Changed
+    }
+
+    pub fn register_success(&mut self) {
+        if self.field_state == FieldState::Changed {
+            self.field_state = FieldState::RunSuccess;
+        }
     }
 }
