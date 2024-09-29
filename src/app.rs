@@ -14,6 +14,7 @@ use mlua::Lua;
 use crate::app::data_structures::sampled_parameters::SampledParameters;
 use crate::app::sampling::{SampleCombineMethod, SampleDistributeMethod};
 use crate::app::ui_sampling::ui_sampling;
+use crate::app::update_logic::{blocks_update, parameters_update, sampling_points_update};
 use data_structures::blocks::Blocks;
 use data_structures::layer_config::LayerConfig;
 use data_structures::zvec::ZVec;
@@ -22,7 +23,6 @@ use math::convex_hull::{get_convex_hull, line_segments_from_conv_hull};
 use math::exact_squircle_bounds::exact_squircle_bounds;
 use math::square_max::square_max;
 use metrics::boundary_3d::boundary_3d;
-use sampling::{set_parameters, update_control_parameters};
 
 mod data_structures;
 mod formatting;
@@ -35,6 +35,7 @@ mod sampling;
 mod ui_generation;
 mod ui_options;
 mod ui_sampling;
+mod update_logic;
 
 // Colors based on Blender Minimal Dark scheme, 3D Viewport
 const COLOR_BACKGROUND: Color32 = Color32::from_rgb(28, 28, 28); // middle background color (dark gray)
@@ -97,8 +98,8 @@ pub struct App {
     parameters_current_layer_is_outdated: bool,
 
     parameters_all_layers_sample_once: bool,
-    parameters_all_layers_sample_auto: bool, // todo: implement
-    parameters_all_layers_is_outdated: bool, // todo: implement
+    parameters_all_layers_sample_auto: bool,
+    parameters_all_layers_is_outdated: bool,
 
     // Sampling
     sampling_enabled: bool,
@@ -110,8 +111,8 @@ pub struct App {
     stack_sampling_points: ZVec<Vec<f64>>,
 
     sampling_points_compute_once: bool,
-    sampling_points_compute_auto: bool, // todo: implement
-    sampling_points_is_outdated: bool,  // todo: implement
+    sampling_points_compute_auto: bool,
+    sampling_points_is_outdated: bool,
 
     // Viewport options
     view_blocks: bool,
@@ -383,6 +384,7 @@ impl eframe::App for App {
                         columns[0].checkbox(&mut self.view_complement, "Complement");
                         columns[0].checkbox(&mut self.view_convex_hull, "Convex hull");
                         columns[0].checkbox(&mut self.view_outer_corners, "Outer corners");
+
                         columns[1].checkbox(&mut self.view_boundary_2d, "Layer Boundary");
                         columns[1].checkbox(&mut self.view_interior_2d, "Layer Interior");
                         columns[1].add_enabled(
@@ -402,41 +404,19 @@ impl eframe::App for App {
 
                 ui.separator();
 
-                if self.layers_enabled {
-                    ui.checkbox(
-                        &mut self.blocks_current_layer_generate_auto,
-                        "Auto-generate blocks on current layer",
-                    );
-                    ui.checkbox(
-                        &mut self.blocks_all_layers_generate_auto,
-                        "Auto-generate blocks on all layers",
-                    );
-                } else {
-                    ui.checkbox(
-                        &mut self.blocks_current_layer_generate_auto,
-                        "Auto-generate blocks",
-                    );
-                }
-
-                if self.sampling_enabled {
-                    ui.checkbox(
-                        &mut self.parameters_current_layer_sample_auto,
-                        "Auto-sample parameters on current layer",
-                    );
-                    ui.checkbox(
-                        &mut self.parameters_all_layers_sample_auto,
-                        "Auto-sample parameters on all layers",
-                    );
-                }
-
                 ui_generation::ui_generation(
                     ui,
                     &mut self.blocks_current_layer_generate_once,
+                    &mut self.blocks_current_layer_generate_auto,
                     &mut self.blocks_all_layers_generate_once,
+                    &mut self.blocks_all_layers_generate_auto,
                     &mut self.parameters_current_layer_sample_once,
+                    &mut self.parameters_current_layer_sample_auto,
                     &mut self.parameters_all_layers_sample_once,
+                    &mut self.parameters_all_layers_sample_auto,
                     self.layers_enabled,
                     self.code_enabled,
+                    self.sampling_enabled,
                 );
             });
         });
@@ -444,208 +424,58 @@ impl eframe::App for App {
         // Activates if the sampling options have changed (this update) or if the stack grows
         //  (previous update). The points may also have to be recomputed if the stack shrinks,
         //  when half_of_bottom or half_of_top layer options are implemented. Fixme.
-        if (self.sampling_points_compute_once || self.sampling_points_compute_auto)
-            && self.sampling_points_is_outdated
-        {
-            self.sampling_points_compute_once = false;
-            self.sampling_points_is_outdated = false;
+        sampling_points_update(
+            self.only_sample_half_of_bottom_layer,
+            self.only_sample_half_of_top_layer,
+            self.nr_samples_per_layer,
+            self.sample_distribute_method,
+            &mut self.stack_sampling_points,
+            &mut self.sampling_points_compute_once,
+            self.sampling_points_compute_auto,
+            &mut self.sampling_points_is_outdated,
+            self.layer_lowest,
+            self.layer_highest,
+        );
 
-            self.stack_sampling_points = sampling::determine_sampling_points(
-                self.sample_distribute_method,
-                self.layer_lowest,
-                self.layer_highest,
-                self.nr_samples_per_layer,
-                self.only_sample_half_of_bottom_layer,
-                self.only_sample_half_of_top_layer,
-            );
-        }
+        parameters_update(
+            &mut self.stack_layer_config,
+            &mut self.stack_sampled_parameters,
+            &self.stack_sampling_points,
+            &mut self.parameters_current_layer_sample_once,
+            self.parameters_current_layer_sample_auto,
+            &mut self.parameters_current_layer_is_outdated,
+            &mut self.parameters_all_layers_sample_once,
+            self.parameters_all_layers_sample_auto,
+            &mut self.parameters_all_layers_is_outdated,
+            &mut self.blocks_current_layer_is_outdated,
+            &mut self.blocks_all_layers_is_outdated,
+            self.current_layer,
+            self.layer_lowest,
+            self.layer_highest,
+            self.single_radius,
+            &mut self.lua,
+            &mut self.lua_field_radius_a,
+            &mut self.lua_field_radius_b,
+            &mut self.lua_field_tilt,
+            &mut self.lua_field_center_offset_x,
+            &mut self.lua_field_center_offset_y,
+            &mut self.lua_field_squircle_parameter,
+        );
 
-        // Generate parameters to be sampled
-        if (self.parameters_current_layer_sample_once || self.parameters_current_layer_sample_auto)
-            && (self.parameters_current_layer_is_outdated
-                || self.lua_field_radius_a.has_changed()
-                || self.lua_field_radius_b.has_changed()
-                || self.lua_field_tilt.has_changed()
-                || self.lua_field_center_offset_x.has_changed()
-                || self.lua_field_center_offset_y.has_changed()
-                || self.lua_field_squircle_parameter.has_changed())
-        {
-            self.parameters_current_layer_sample_once = false;
-            self.parameters_current_layer_is_outdated = false;
-
-            self.blocks_current_layer_is_outdated = true;
-
-            // Update parameters for the sampling
-            {
-                set_parameters(
-                    &mut self
-                        .stack_sampled_parameters
-                        .get_mut(self.current_layer)
-                        .unwrap(),
-                    self.stack_sampling_points
-                        .get_mut(self.current_layer)
-                        .unwrap(),
-                    [
-                        self.stack_layer_config
-                            .get(self.current_layer)
-                            .unwrap()
-                            .radius_a,
-                        self.stack_layer_config
-                            .get(self.current_layer)
-                            .unwrap()
-                            .radius_b,
-                        self.stack_layer_config
-                            .get(self.current_layer)
-                            .unwrap()
-                            .tilt,
-                        self.stack_layer_config
-                            .get(self.current_layer)
-                            .unwrap()
-                            .center_offset_x,
-                        self.stack_layer_config
-                            .get(self.current_layer)
-                            .unwrap()
-                            .center_offset_y,
-                        self.stack_layer_config
-                            .get(self.current_layer)
-                            .unwrap()
-                            .squircle_parameter,
-                    ],
-                    self.stack_layer_config
-                        .get(self.current_layer)
-                        .unwrap()
-                        .algorithm,
-                    &mut self.lua,
-                    &mut self.lua_field_radius_a,
-                    &mut self.lua_field_radius_b,
-                    &mut self.lua_field_tilt,
-                    &mut self.lua_field_center_offset_x,
-                    &mut self.lua_field_center_offset_y,
-                    &mut self.lua_field_squircle_parameter,
-                    self.single_radius,
-                );
-            }
-
-            // Update parameters for the sliders
-            update_control_parameters(
-                &mut self.stack_layer_config.get_mut(self.current_layer).unwrap(),
-                self.current_layer,
-                &mut self.lua,
-                &mut self.lua_field_radius_a,
-                &mut self.lua_field_radius_b,
-                &mut self.lua_field_tilt,
-                &mut self.lua_field_center_offset_x,
-                &mut self.lua_field_center_offset_y,
-                &mut self.lua_field_squircle_parameter,
-                self.single_radius,
-            );
-
-            self.lua_field_radius_a.register_success();
-            self.lua_field_radius_b.register_success();
-            self.lua_field_tilt.register_success();
-            self.lua_field_center_offset_x.register_success();
-            self.lua_field_center_offset_y.register_success();
-            self.lua_field_squircle_parameter.register_success();
-        }
-
-        // Generate parameters to be sampled
-        if (self.parameters_all_layers_sample_once || self.parameters_all_layers_sample_auto)
-            && (self.parameters_all_layers_is_outdated
-                || self.lua_field_radius_a.has_changed()
-                || self.lua_field_radius_b.has_changed()
-                || self.lua_field_tilt.has_changed()
-                || self.lua_field_center_offset_x.has_changed()
-                || self.lua_field_center_offset_y.has_changed()
-                || self.lua_field_squircle_parameter.has_changed())
-        {
-            self.parameters_all_layers_sample_once = false;
-            self.parameters_all_layers_is_outdated = false;
-
-            self.blocks_current_layer_is_outdated = true;
-
-            // Update parameters for the sampling
-            for layer in self.layer_lowest..=self.layer_highest {
-                set_parameters(
-                    &mut self.stack_sampled_parameters.get_mut(layer).unwrap(),
-                    self.stack_sampling_points.get_mut(layer).unwrap(),
-                    [
-                        self.stack_layer_config.get(layer).unwrap().radius_a,
-                        self.stack_layer_config.get(layer).unwrap().radius_b,
-                        self.stack_layer_config.get(layer).unwrap().tilt,
-                        self.stack_layer_config.get(layer).unwrap().center_offset_x,
-                        self.stack_layer_config.get(layer).unwrap().center_offset_y,
-                        self.stack_layer_config
-                            .get(layer)
-                            .unwrap()
-                            .squircle_parameter,
-                    ],
-                    self.stack_layer_config.get(layer).unwrap().algorithm,
-                    &mut self.lua,
-                    &mut self.lua_field_radius_a,
-                    &mut self.lua_field_radius_b,
-                    &mut self.lua_field_tilt,
-                    &mut self.lua_field_center_offset_x,
-                    &mut self.lua_field_center_offset_y,
-                    &mut self.lua_field_squircle_parameter,
-                    self.single_radius,
-                );
-
-                // Update parameters for the sliders
-                update_control_parameters(
-                    &mut self.stack_layer_config.get_mut(layer).unwrap(),
-                    layer,
-                    &mut self.lua,
-                    &mut self.lua_field_radius_a,
-                    &mut self.lua_field_radius_b,
-                    &mut self.lua_field_tilt,
-                    &mut self.lua_field_center_offset_x,
-                    &mut self.lua_field_center_offset_y,
-                    &mut self.lua_field_squircle_parameter,
-                    self.single_radius,
-                )
-            }
-
-            self.lua_field_radius_a.register_success();
-            self.lua_field_radius_b.register_success();
-            self.lua_field_tilt.register_success();
-            self.lua_field_center_offset_x.register_success();
-            self.lua_field_center_offset_y.register_success();
-            self.lua_field_squircle_parameter.register_success();
-        }
-
-        if (self.blocks_current_layer_generate_once || self.blocks_current_layer_generate_auto)
-            && self.blocks_current_layer_is_outdated
-        {
-            self.blocks_current_layer_generate_once = false;
-            self.blocks_current_layer_is_outdated = false;
-            self.recompute_metrics = true;
-
-            self.stack_blocks.set(
-                self.current_layer,
-                self.stack_sampled_parameters
-                    .get_mut(self.current_layer)
-                    .unwrap()
-                    .generate(self.sample_combine_method),
-            );
-        }
-
-        // fixme: not sure where to set can_generate_all_layers
-        if (self.blocks_all_layers_generate_once || self.blocks_all_layers_generate_auto)
-            && (self.blocks_all_layers_is_outdated || self.blocks_current_layer_is_outdated)
-        {
-            self.blocks_all_layers_generate_once = false;
-            self.blocks_all_layers_is_outdated = false;
-            self.recompute_metrics = true;
-
-            self.stack_blocks = ZVec::new(
-                self.stack_sampled_parameters
-                    .data
-                    .iter()
-                    .map(|config| config.generate(self.sample_combine_method))
-                    .collect(),
-                self.layer_lowest,
-            );
-        }
+        blocks_update(
+            &self.stack_sampled_parameters,
+            &mut self.stack_blocks,
+            &mut self.blocks_current_layer_generate_once,
+            self.blocks_current_layer_generate_auto,
+            &mut self.blocks_current_layer_is_outdated,
+            &mut self.blocks_all_layers_generate_once,
+            self.blocks_all_layers_generate_auto,
+            &mut self.blocks_all_layers_is_outdated,
+            &mut self.recompute_metrics,
+            self.current_layer,
+            self.layer_lowest,
+            self.sample_combine_method,
+        );
 
         if self.recompute_metrics {
             self.recompute_metrics = false;
