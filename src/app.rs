@@ -1,27 +1,22 @@
 use std::collections::VecDeque;
 use std::default::Default;
-use std::f64::consts::PI;
 
-use eframe::egui::{self, Vec2b};
+use eframe::egui::{self};
 use eframe::egui::{Direction, Layout};
 use eframe::emath::Align;
-use eframe::epaint::{Color32, Stroke};
-use egui_plot::{
-    uniform_grid_spacer, HLine, Line, Plot, PlotBounds, PlotPoint, PlotPoints, Points, Text, VLine,
-};
+use eframe::epaint::Color32;
 use mlua::Lua;
 
 use crate::app::data_structures::sampled_parameters::SampledParameters;
 use crate::app::sampling::{SampleCombineMethod, SampleDistributeMethod};
 use crate::app::ui_sampling::ui_sampling;
+use crate::app::ui_viewport::ui_viewport;
 use crate::app::update_logic::{blocks_update, parameters_update, sampling_points_update};
 use data_structures::blocks::Blocks;
 use data_structures::layer_config::LayerConfig;
 use data_structures::zvec::ZVec;
 use lua_field::LuaField;
-use math::convex_hull::{get_convex_hull, line_segments_from_conv_hull};
-use math::exact_squircle_bounds::exact_squircle_bounds;
-use math::square_max::square_max;
+use math::convex_hull::get_convex_hull;
 use metrics::boundary_3d::boundary_3d;
 
 mod data_structures;
@@ -35,6 +30,7 @@ mod sampling;
 mod ui_generation;
 mod ui_options;
 mod ui_sampling;
+mod ui_viewport;
 mod update_logic;
 
 // Colors based on Blender Minimal Dark scheme, 3D Viewport
@@ -724,405 +720,34 @@ impl eframe::App for App {
 
         // Viewport
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.visuals_mut().extreme_bg_color = COLOR_BACKGROUND;
-
-            Plot::new("my_plot")
-                .data_aspect(1.0) // so that squares in the rasterization always look square in the viewport
-                // Grid lines of increasing thickness at distance 1.0, 5.0, 10.0 for counting
-                .x_grid_spacer(uniform_grid_spacer(|_gridinput| [1.0, 5.0, 10.0]))
-                .y_grid_spacer(uniform_grid_spacer(|_gridinput| [1.0, 5.0, 10.0]))
-                .allow_boxed_zoom(false)
-                // We don't need this, there's a maximal reasonable zoom in level and the reasonable zoom out level is only as big as the circle we're generating
-                .auto_bounds(Vec2b::from([false, false]))
-                .allow_double_click_reset(false) // we have to implement this ourselves
-                .label_formatter(move |_name, mouse_coord| {
-                    // if !name.is_empty() {  // Can condition formatting only on name of object! So if we want to have different tooltips for different objects this is what we must do
-                    //     format!("{}: {:.*}%", name, 1, value.y)
-                    // } else {
-                    //     "".to_owned()
-                    // } // TODO: think about integer coords for odd & even circles (no +/- zero for even circles)... ideally have it dep. only on...
-                    format!(
-                        "{0:.0}, {1:.0}",
-                        mouse_coord.x.trunc(),
-                        mouse_coord.y.trunc()
-                    ) // Use trunc instead of floor for symmetry preservation around the axis! Nasty but works
-                })
-                .show_axes([false, false]) // Don't show number axes
-                .show(ui, |plot_ui| {
-                    // Reset zoom (approximates default behaviour, but we get to specify the action of automatic zooming
-                    if self.reset_zoom_once || self.reset_zoom_continuous {
-                        let mut global_bounding_box = self
-                            .stack_layer_config
-                            .data
-                            .iter()
-                            .map(|g_c| exact_squircle_bounds(g_c, 1.1))
-                            .fold(
-                                [
-                                    [f64::INFINITY, f64::INFINITY],
-                                    [f64::NEG_INFINITY, f64::NEG_INFINITY],
-                                ],
-                                |a, b| square_max(a, b),
-                            );
-
-                        global_bounding_box = square_max(
-                            global_bounding_box,
-                            exact_squircle_bounds(
-                                &self.stack_layer_config.get(self.current_layer).unwrap(),
-                                1.1,
-                            ),
-                        );
-
-                        plot_ui.set_plot_bounds(PlotBounds::from_min_max(
-                            global_bounding_box[0],
-                            global_bounding_box[1],
-                        ));
-                        self.reset_zoom_once = false
-                    }
-
-                    if plot_ui.response().clicked() || plot_ui.response().drag_started() {
-                        self.reset_zoom_continuous = false
-                    }
-
-                    if plot_ui.response().double_clicked() {
-                        self.reset_zoom_continuous = true // not sure if best to reset zoom once or reset zoom continuously
-                    }
-
-                    // * Viewport plotting * //
-                    // Draw order should be largest to smallest, so
-                    // 1. blocks + complement
-                    // 2. 3d boundary
-                    // 3. 2d boundary
-                    // 4. 2d interior
-                    // 5. 3d interior
-                    // then geometric overlays like the target shape, center, etc.
-                    if self.view_blocks {
-                        for coord in self
-                            .stack_blocks
-                            .get_mut(self.current_layer)
-                            .unwrap()
-                            .get_all_block_coords()
-                        {
-                            plot_ui.polygon(
-                                plotting::square_at_coords(coord)
-                                    .stroke(Stroke {
-                                        width: 1.0,
-                                        color: COLOR_WIRE,
-                                    })
-                                    .fill_color(COLOR_FACE),
-                            );
-                        }
-                    }
-
-                    if self.view_complement {
-                        for coord in self.complement_2d.get_all_block_coords() {
-                            plot_ui.polygon(
-                                plotting::square_at_coords(coord)
-                                    .stroke(Stroke {
-                                        width: 1.0,
-                                        color: COLOR_WIRE,
-                                    })
-                                    .fill_color(COLOR_ORANGE),
-                            );
-                        }
-                    }
-
-                    if self.view_boundary_3d {
-                        // need to check for this, because of update order the layer isn't generated yet
-                        if self.boundary_3d.get(self.current_layer).is_some() {
-                            for coord in self
-                                .boundary_3d
-                                .get(self.current_layer)
-                                .unwrap()
-                                .get_all_block_coords()
-                            {
-                                plot_ui.polygon(
-                                    plotting::square_at_coords(coord)
-                                        .stroke(Stroke {
-                                            width: 1.0,
-                                            color: COLOR_WIRE,
-                                        })
-                                        .fill_color(COLOR_PURPLE),
-                                );
-                            }
-                        }
-                    }
-
-                    if self.view_boundary_2d {
-                        for coord in self.boundary_2d.get_all_block_coords() {
-                            plot_ui.polygon(
-                                plotting::square_at_coords(coord)
-                                    .stroke(Stroke {
-                                        width: 1.0,
-                                        color: COLOR_WIRE,
-                                    })
-                                    .fill_color(COLOR_LIGHT_BLUE),
-                            );
-                        }
-                    }
-
-                    if self.view_interior_2d {
-                        for coord in self.interior_2d.get_all_block_coords() {
-                            plot_ui.polygon(
-                                plotting::square_at_coords(coord)
-                                    .stroke(Stroke {
-                                        width: 1.0,
-                                        color: COLOR_WIRE,
-                                    })
-                                    .fill_color(COLOR_YELLOW),
-                            );
-                        }
-                    }
-
-                    if self.view_interior_3d {
-                        // need to check for this, because of update order the layer isn't generated yet
-                        if self.interior_3d.get(self.current_layer).is_some() {
-                            for coord in self
-                                .interior_3d
-                                .get(self.current_layer)
-                                .unwrap()
-                                .get_all_block_coords()
-                            {
-                                plot_ui.polygon(
-                                    plotting::square_at_coords(coord)
-                                        .stroke(Stroke {
-                                            width: 1.0,
-                                            color: COLOR_WIRE,
-                                        })
-                                        .fill_color(COLOR_MUTED_ORANGE),
-                                );
-                            }
-                        }
-                    }
-
-                    if self.sampling_enabled {
-                        for sampled_parameter in self
-                            .stack_sampled_parameters
-                            .get(self.current_layer)
-                            .unwrap()
-                            .parameters
-                            .iter()
-                        {
-                            plot_ui.line(
-                                plotting::superellipse_at_coords(
-                                    sampled_parameter[0],
-                                    sampled_parameter[1],
-                                    sampled_parameter[2],
-                                    sampled_parameter[3],
-                                    sampled_parameter[4],
-                                    sampled_parameter[5],
-                                )
-                                .color(COLOR_DARK_GREEN),
-                            );
-                        }
-                    }
-
-                    // Plot center
-                    plot_ui.points(
-                        Points::new(vec![[
-                            self.stack_layer_config
-                                .get_mut(self.current_layer)
-                                .unwrap()
-                                .center_offset_x,
-                            self.stack_layer_config
-                                .get_mut(self.current_layer)
-                                .unwrap()
-                                .center_offset_y,
-                        ]])
-                        .radius(5.0)
-                        .color(COLOR_DARK_GREEN),
-                    );
-
-                    // Plot target shape
-                    plot_ui.line(
-                        plotting::superellipse_at_coords(
-                            self.stack_layer_config
-                                .get_mut(self.current_layer)
-                                .unwrap()
-                                .radius_a,
-                            self.stack_layer_config
-                                .get_mut(self.current_layer)
-                                .unwrap()
-                                .radius_b,
-                            self.stack_layer_config
-                                .get_mut(self.current_layer)
-                                .unwrap()
-                                .tilt,
-                            self.stack_layer_config
-                                .get_mut(self.current_layer)
-                                .unwrap()
-                                .center_offset_x,
-                            self.stack_layer_config
-                                .get_mut(self.current_layer)
-                                .unwrap()
-                                .center_offset_y,
-                            self.stack_layer_config
-                                .get_mut(self.current_layer)
-                                .unwrap()
-                                .squircle_parameter,
-                        )
-                        .color(COLOR_LIME),
-                    );
-
-                    // Plot x and y axes through the center of the shape
-                    plot_ui.hline(
-                        HLine::new(
-                            self.stack_layer_config
-                                .get_mut(self.current_layer)
-                                .unwrap()
-                                .center_offset_y,
-                        )
-                        .color(COLOR_X_AXIS)
-                        .width(2.0),
-                    );
-                    plot_ui.vline(
-                        VLine::new(
-                            self.stack_layer_config
-                                .get_mut(self.current_layer)
-                                .unwrap()
-                                .center_offset_x,
-                        )
-                        .color(COLOR_Y_AXIS)
-                        .width(2.0),
-                    );
-
-                    // Plot rotated x and y axes for nonzero tilt (dark orange and purple)
-                    if self
-                        .stack_layer_config
-                        .get_mut(self.current_layer)
-                        .unwrap()
-                        .tilt
-                        != 0.0
-                    {
-                        let bounds = plot_ui.plot_bounds();
-                        plot_ui.line(
-                            plotting::tilted_line_in_bounds(
-                                bounds,
-                                self.stack_layer_config
-                                    .get_mut(self.current_layer)
-                                    .unwrap()
-                                    .tilt,
-                                self.stack_layer_config
-                                    .get_mut(self.current_layer)
-                                    .unwrap()
-                                    .center_offset_x,
-                                self.stack_layer_config
-                                    .get_mut(self.current_layer)
-                                    .unwrap()
-                                    .center_offset_y,
-                            )
-                            .color(COLOR_DARK_ORANGE),
-                        );
-                        plot_ui.line(
-                            plotting::tilted_line_in_bounds(
-                                bounds,
-                                self.stack_layer_config
-                                    .get_mut(self.current_layer)
-                                    .unwrap()
-                                    .tilt
-                                    + PI / 2.0,
-                                self.stack_layer_config
-                                    .get_mut(self.current_layer)
-                                    .unwrap()
-                                    .center_offset_x,
-                                self.stack_layer_config
-                                    .get_mut(self.current_layer)
-                                    .unwrap()
-                                    .center_offset_y,
-                            )
-                            .color(COLOR_PURPLE),
-                        );
-                    }
-
-                    if self.view_intersect_area {
-                        let grid_size = (2.0
-                            * 1.42
-                            * f64::max(
-                                self.stack_layer_config
-                                    .get_mut(self.current_layer)
-                                    .unwrap()
-                                    .radius_a,
-                                self.stack_layer_config
-                                    .get_mut(self.current_layer)
-                                    .unwrap()
-                                    .radius_b,
-                            ))
-                        .ceil() as usize
-                            + 4;
-
-                        let square =
-                            Blocks::new((0..grid_size.pow(2)).map(|_| true).collect(), grid_size);
-
-                        for coord in square.get_all_block_coords() {
-                            let cell_center = [coord[0] + 0.5, coord[1] + 0.5];
-                            let mut x_center = cell_center[0]
-                                - self
-                                    .stack_layer_config
-                                    .get_mut(self.current_layer)
-                                    .unwrap()
-                                    .center_offset_x;
-                            let mut y_center = cell_center[1]
-                                - self
-                                    .stack_layer_config
-                                    .get_mut(self.current_layer)
-                                    .unwrap()
-                                    .center_offset_y;
-
-                            // Dihedral symmetry swaps (see percentage.rs for explanation)
-                            if x_center < 0.0 {
-                                x_center = -x_center;
-                            }
-                            if y_center < 0.0 {
-                                y_center = -y_center;
-                            }
-                            if x_center > y_center {
-                                (y_center, x_center) = (x_center, y_center);
-                            }
-
-                            plot_ui.text(Text::new(PlotPoint::from(cell_center), {
-                                let value = generation::percentage::cell_disk_intersection_area(
-                                    self.stack_layer_config
-                                        .get_mut(self.current_layer)
-                                        .unwrap()
-                                        .radius_a
-                                        .max(
-                                            self.stack_layer_config
-                                                .get_mut(self.current_layer)
-                                                .unwrap()
-                                                .radius_b,
-                                        ),
-                                    x_center,
-                                    y_center,
-                                );
-
-                                if value == 0.0 {
-                                    // Don't show zero intersect area
-                                    "".to_string()
-                                } else {
-                                    format!("{:.2}", value)
-                                }
-                            }));
-                        }
-                    }
-
-                    // Perhaps better to use the plot_ui.shape
-                    if self.view_convex_hull {
-                        for i in line_segments_from_conv_hull(self.convex_hull.clone()) {
-                            let pts: PlotPoints = (0..=1).map(|t| i[t]).collect();
-                            plot_ui.line(Line::new(pts).color(COLOR_ORANGE));
-                        }
-                    }
-
-                    // Plot outer corners of block
-                    if self.view_outer_corners {
-                        for [i, j] in &self.outer_corners {
-                            plot_ui.points(
-                                Points::new(vec![[*i, *j]])
-                                    .radius(3.0)
-                                    .color(COLOR_DARK_ORANGE),
-                            );
-                        }
-                    }
-                });
+            ui_viewport(
+                ui,
+                &self.stack_layer_config,
+                self.stack_layer_config.get(self.current_layer).unwrap(),
+                self.stack_sampled_parameters
+                    .get(self.current_layer)
+                    .unwrap(),
+                self.stack_blocks.get(self.current_layer).unwrap(),
+                self.sampling_enabled,
+                self.view_blocks,
+                self.view_boundary_2d,
+                self.view_interior_2d,
+                self.view_complement,
+                self.view_intersect_area,
+                self.view_boundary_3d,
+                self.view_interior_3d,
+                self.view_convex_hull,
+                self.view_outer_corners,
+                &mut self.reset_zoom_once,
+                &mut self.reset_zoom_continuous,
+                &self.boundary_2d,
+                &self.interior_2d,
+                &self.complement_2d,
+                self.boundary_3d.get(self.current_layer),
+                self.interior_3d.get(self.current_layer),
+                &self.convex_hull,
+                &self.outer_corners,
+            )
         });
     }
 }
