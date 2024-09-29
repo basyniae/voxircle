@@ -3,8 +3,8 @@
 
 use std::default::Default;
 
-use eframe::{HardwareAcceleration, Theme};
 use eframe::egui::ViewportBuilder;
+use eframe::{HardwareAcceleration, Theme};
 
 mod app;
 
