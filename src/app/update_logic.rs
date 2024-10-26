@@ -239,7 +239,6 @@ pub fn blocks_update(
         );
     }
 
-    // fixme: not sure where to set can_generate_all_layers
     if (*blocks_all_layers_generate_once || blocks_all_layers_generate_auto)
         && (*blocks_all_layers_is_outdated || *blocks_current_layer_is_outdated)
     {

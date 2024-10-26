@@ -1,5 +1,3 @@
-use std::ops::Not;
-
 use crate::app::math::linear_algebra::Vec2;
 use crate::app::sampling::SampleCombineMethod;
 
@@ -15,6 +13,7 @@ pub struct Blocks {
 }
 
 // TODO: make intersect and complement methods for easier computation
+// longterm: Symmetry type detection, then build sequences should be within reach
 // TODO: make everything use is_block_on_global_coord
 impl Blocks {
     pub fn new(blocks: Vec<bool>, grid_size: usize) -> Self {
@@ -119,7 +118,7 @@ impl Blocks {
     pub fn get_complement(&self) -> Blocks {
         Blocks::new(
             (0..self.grid_size.pow(2))
-                .map(|i| self.blocks[i].not())
+                .map(|i| !self.blocks[i])
                 .collect(),
             self.grid_size,
         )

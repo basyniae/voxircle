@@ -28,7 +28,7 @@ pub fn determine_sampling_points(
     layer_lowest: isize,
     layer_highest: isize,
     nr_samples_per_layer: usize,
-    only_sample_half_of_bottom_layer: bool, //todo: implement
+    only_sample_half_of_bottom_layer: bool, // implement
     only_sample_half_of_top_layer: bool,
 ) -> ZVec<Vec<f64>> {
     // Need to handle this case separately (IncludeEndpoints is unable to cover both endpoints in

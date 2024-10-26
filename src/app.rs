@@ -4,10 +4,11 @@ use std::default::Default;
 use eframe::egui::{self};
 use eframe::egui::{Direction, Layout};
 use eframe::emath::Align;
-use eframe::epaint::Color32;
 use mlua::Lua;
 
 use crate::app::data_structures::sampled_parameters::SampledParameters;
+use crate::app::math::exact_squircle_bounds::exact_squircle_bounds;
+use crate::app::math::square_max::square_max;
 use crate::app::sampling::{SampleCombineMethod, SampleDistributeMethod};
 use crate::app::ui_sampling::ui_sampling;
 use crate::app::ui_viewport::ui_viewport;
@@ -19,6 +20,7 @@ use lua_field::LuaField;
 use math::convex_hull::get_convex_hull;
 use metrics::boundary_3d::boundary_3d;
 
+mod colors;
 mod data_structures;
 mod formatting;
 mod generation;
@@ -33,21 +35,6 @@ mod ui_sampling;
 mod ui_viewport;
 mod update_logic;
 
-// Colors based on Blender Minimal Dark scheme, 3D Viewport
-const COLOR_BACKGROUND: Color32 = Color32::from_rgb(28, 28, 28); // middle background color (dark gray)
-const COLOR_WIRE: Color32 = Color32::from_rgb(33, 33, 33); // "Wire" color (gray)
-const COLOR_FACE: Color32 = Color32::from_rgb(161, 163, 164); // Face color (light gray)
-const COLOR_LIME: Color32 = Color32::from_rgb(0, 255, 47); // "Active object" color (lime)
-const COLOR_DARK_GREEN: Color32 = Color32::from_rgb(6, 137, 30); // Slightly decreased HSL saturation, decreased saturation from Lime
-const COLOR_LIGHT_BLUE: Color32 = Color32::from_rgb(0, 217, 255); // "Object selected" color (light blue)
-const COLOR_ORANGE: Color32 = Color32::from_rgb(255, 133, 0); // "Grease Pencil Vertex Select" color (orange)
-const COLOR_DARK_ORANGE: Color32 = Color32::from_rgb(204, 106, 0); // Darker shade of orange
-const COLOR_MUTED_ORANGE: Color32 = Color32::from_rgb(212, 148, 78); // Darker shade of orange
-const COLOR_PURPLE: Color32 = Color32::from_rgb(179, 104, 186); // Dark purple
-const COLOR_YELLOW: Color32 = Color32::from_rgb(255, 242, 0); // "Edge Angle Text" color (yellow)
-const COLOR_X_AXIS: Color32 = Color32::from_rgb(123, 34, 34); // x-axis color (red)
-const COLOR_Y_AXIS: Color32 = Color32::from_rgb(44, 107, 44); // y-axis color (green)
-
 pub struct App {
     // Layer management
     current_layer: isize,
@@ -59,7 +46,7 @@ pub struct App {
     stack_blocks: ZVec<Blocks>,                        // Store the blocks for each layer
 
     recompute_metrics: bool, // If the current layer has changed, recompute the metrics. By update order, this needs to be a global variable
-    // there is no need for auto_recompute_metrics right now... though it might be good to implement if recomputing metrics gets slow later on
+    // longterm: there is no need for auto_recompute_metrics right now... though it might be good if recomputing metrics gets slow later on
 
     // Metrics
     nr_blocks_total: u64,
@@ -70,7 +57,7 @@ pub struct App {
     complement_2d: Blocks,
     boundary_3d: ZVec<Blocks>,
     interior_3d: ZVec<Blocks>,
-    convex_hull: Vec<[f64; 2]>, //todo: check update orders and such
+    convex_hull: Vec<[f64; 2]>,
     outer_corners: Vec<[f64; 2]>,
 
     // Generate new shape on this layer automatically from the provided parameters
@@ -121,13 +108,17 @@ pub struct App {
     view_convex_hull: bool,
     view_outer_corners: bool,
 
+    global_bounding_box: [[f64; 2]; 2], // Is for viewport zoom. Update with metrics
+
     // Zoom options (used for double click to reset zoom)
     reset_zoom_once: bool,
     reset_zoom_continuous: bool,
 
     // Lua fields
     lua: Lua, // Lua instance (only initialized once)
-    //todo: for easily adding more shapes with potentially variable inputs, make this attached to the algorithm?
+    // Longterm: for easily adding more shapes with potentially variable inputs, make this attached to the algorithm?
+    // longterm: Option to run an external lua file
+    // longterm: sliders for "Dummy variables" that can be referenced in code (for easier visual tweaking)
     lua_field_radius_a: LuaField,
     lua_field_radius_b: LuaField,
     lua_field_tilt: LuaField,
@@ -136,6 +127,8 @@ pub struct App {
     lua_field_squircle_parameter: LuaField,
 }
 
+// longterm: save program state (with SERDE) as a JSON (for when working for multiple sessions on a single project)
+// longterm: Export schematics (there is a rust crate for this)
 impl App {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         cc.egui_ctx.style_mut(|style| {
@@ -234,6 +227,8 @@ impl App {
             view_convex_hull: false,
             view_outer_corners: false,
 
+            global_bounding_box: [[0.0; 2]; 2],
+
             // Start with continuously updating zoom
             reset_zoom_once: false,
             reset_zoom_continuous: true,
@@ -252,7 +247,7 @@ impl App {
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // Options panel
+        // Side panel
         egui::SidePanel::right("options-panel").show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 let id = ui.make_persistent_id("parameters_collapsable");
@@ -419,7 +414,7 @@ impl eframe::App for App {
 
         // Activates if the sampling options have changed (this update) or if the stack grows
         //  (previous update). The points may also have to be recomputed if the stack shrinks,
-        //  when half_of_bottom or half_of_top layer options are implemented. Fixme.
+        //  when half_of_bottom or half_of_top layer options are implemented. implement later
         sampling_points_update(
             self.only_sample_half_of_bottom_layer,
             self.only_sample_half_of_top_layer,
@@ -543,6 +538,27 @@ impl eframe::App for App {
                 .unwrap()
                 .get_outer_corners();
             self.convex_hull = get_convex_hull(&self.outer_corners);
+
+            self.global_bounding_box = self
+                .stack_layer_config
+                .data
+                .iter()
+                .map(|g_c| exact_squircle_bounds(g_c, 1.1))
+                .fold(
+                    [
+                        [f64::INFINITY, f64::INFINITY],
+                        [f64::NEG_INFINITY, f64::NEG_INFINITY],
+                    ],
+                    |a, b| square_max(a, b),
+                );
+
+            self.global_bounding_box = square_max(
+                self.global_bounding_box,
+                exact_squircle_bounds(
+                    &self.stack_layer_config.get(self.current_layer).unwrap(),
+                    1.1,
+                ),
+            );
         }
 
         // Status bar (bottom)
@@ -564,7 +580,7 @@ impl eframe::App for App {
                         formatting::format_block_count(self.nr_blocks_boundary),
                         formatting::format_block_count(self.nr_blocks_interior),
                         formatting::format_block_diameter(self.stack_blocks.get_mut(self.current_layer).unwrap().get_diameters()),
-                        //self.blocks_all.get_build_sequence() //FIXME: Redo, note it doesn't make sense for *tilted* superellipses (or non-centered ones?)
+                        //self.blocks_all.get_build_sequence() //longterm: Redo build sequence, note it doesn't make sense for *tilted* superellipses (or non-centered ones?)
                     )
                 )
             })
@@ -678,7 +694,7 @@ impl eframe::App for App {
                         self.stack_blocks.get(old_layer).unwrap().clone(),
                     );
 
-                    //todo: is the following necessary?
+                    //test: is the following necessary?
                     self.stack_sampled_parameters.resize(
                         self.layer_lowest,
                         self.layer_highest,
@@ -712,7 +728,6 @@ impl eframe::App for App {
                             .update_field_state(&mut self.lua, &self.stack_sampling_points);
 
                         self.sampling_points_is_outdated = true;
-                        self.recompute_metrics = true; // todo: check...
                     }
                 })
             });
@@ -722,7 +737,7 @@ impl eframe::App for App {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui_viewport(
                 ui,
-                &self.stack_layer_config,
+                self.global_bounding_box,
                 self.stack_layer_config.get(self.current_layer).unwrap(),
                 self.stack_sampled_parameters
                     .get(self.current_layer)
@@ -740,9 +755,9 @@ impl eframe::App for App {
                 self.view_outer_corners,
                 &mut self.reset_zoom_once,
                 &mut self.reset_zoom_continuous,
-                &self.boundary_2d,
-                &self.interior_2d,
-                &self.complement_2d,
+                self.boundary_2d.clone(), // fixme: this is weird. should be unnessary
+                self.interior_2d.clone(),
+                self.complement_2d.clone(),
                 self.boundary_3d.get(self.current_layer),
                 self.interior_3d.get(self.current_layer),
                 &self.convex_hull,
