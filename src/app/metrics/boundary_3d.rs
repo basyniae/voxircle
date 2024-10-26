@@ -32,7 +32,7 @@ pub fn boundary_3d(
                             || !blocks.blocks[i - 1]
                             || !blocks.blocks[i + blocks.grid_size]
                             || !blocks.blocks[i - blocks.grid_size]
-                            // top and bottom faces of stack: (
+                            // top and bottom faces of stack:
                             || (layer == layer_min && floating_bottom)
                             || (layer == layer_max && floating_top)
                             // vertical boundary: see if 1. the layer above exists, 2. there is no block at the global coords on the layer above

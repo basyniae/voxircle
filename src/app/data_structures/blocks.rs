@@ -15,6 +15,7 @@ pub struct Blocks {
 // TODO: make intersect and complement methods for easier computation
 // longterm: Symmetry type detection, then build sequences should be within reach
 // TODO: make everything use is_block_on_global_coord
+/// Getter methods
 impl Blocks {
     pub fn new(blocks: Vec<bool>, grid_size: usize) -> Self {
         Blocks {
@@ -81,7 +82,10 @@ impl Blocks {
 
         output_vec
     }
+}
 
+/// Methods for getting metrics
+impl Blocks {
     /// Get number of blocks
     pub fn get_nr_blocks(&self) -> u64 {
         (*self.blocks).into_iter().filter(|b| **b).count() as u64
@@ -90,8 +94,6 @@ impl Blocks {
     /// Get (thin-walled) interior, i.e., blocks in self which have no neighbors which share a side
     /// with an air block
     pub fn get_interior(&self) -> Blocks {
-        // let mut output_vec = Vec::new();
-
         Blocks::new(
             (0..self.grid_size.pow(2))
                 .map(|i| {
@@ -102,10 +104,10 @@ impl Blocks {
                         && i / self.grid_size != 0
                         && i / self.grid_size != self.grid_size - 1
                         // cannot lie on the boundary of the grid
-                        && self.blocks[i + 1] == true
-                        && self.blocks[i - 1] == true
-                        && self.blocks[i + self.grid_size] == true
-                        && self.blocks[i - self.grid_size] == true
+                        && self.blocks[i + 1]
+                        && self.blocks[i - 1]
+                        && self.blocks[i + self.grid_size]
+                        && self.blocks[i - self.grid_size]
                     // all direct neighbors should also be blocks
                 })
                 .collect(),
@@ -113,8 +115,32 @@ impl Blocks {
         )
     }
 
-    // todo: make direct methods for layer boundary and interior
-    /// Complement of blocks (for interiors)
+    /// Get (thin-walled) boundary
+    /// (There is the obvious relation of boundary + interior = blocks, but we won't use it)
+    pub fn get_boundary(&self) -> Blocks {
+        Blocks::new(
+            (0..self.grid_size.pow(2))
+                .map(|i| {
+                    self.blocks[i] == true
+                        // has to be a block
+                        // and (be on the grid boundary or border any non-block)
+                    && (
+                        i % self.grid_size == 0
+                            || i % self.grid_size == self.grid_size - 1
+                            || i / self.grid_size == 0
+                            || i / self.grid_size == self.grid_size - 1
+                            || !self.blocks[i + 1]
+                            || !self.blocks[i - 1]
+                            || !self.blocks[i + self.grid_size]
+                            || !self.blocks[i - self.grid_size]
+                        )
+                })
+                .collect(),
+            self.grid_size,
+        )
+    }
+
+    /// Complement of blocks (for building interiors)
     pub fn get_complement(&self) -> Blocks {
         Blocks::new(
             (0..self.grid_size.pow(2))
@@ -216,7 +242,7 @@ impl Blocks {
 
     // Returns a (unordered) list of all corners of the blocks (so get_block_coords (±0.5,±0.5))
     // which are the corner of exactly 1 block (note that exactly 2 blocks corresponds to a corner
-    //  which is an edge of the whole block structure, and exactly 2 blocks correponds to an inner corner)
+    //  which is an edge of the whole block structure, and exactly 2 blocks corresponds to an inner corner)
     // The convex hull only depends on points of this type (so it should be a large reduction).
     pub fn get_outer_corners(&self) -> Vec<[f64; 2]> {
         // loop over all 2x2s in the grid, which we think of as points between the blocks
@@ -224,7 +250,7 @@ impl Blocks {
 
         let mut output = vec![];
 
-        // For an n×n grid there are (n-1)×(n-1) points inbetween 4 points... (vaguely speaking)
+        // For an n×n grid there are (n-1)×(n-1) points between 4 points... (vaguely speaking)
         for corner_point in 0..self.grid_size.pow(2) {
             // Filter out those corner points which don't have a 2×2 around them
             // (using bottom right index to match corners to their block)
