@@ -22,7 +22,7 @@ pub fn sampling_points_update(
     layer_highest: isize,
 ) {
     // Activates if the sampling options have changed (this update) or if the stack grows
-    //  (previous update). The points may also have to be recomputed if the stack shrinks,
+    //  (previous update). The points (may) also have to be recomputed if the stack shrinks,
     //  when half_of_bottom or half_of_top layer options are implemented. Fixme.
     if (*sampling_points_compute_once || sampling_points_compute_auto)
         && *sampling_points_is_outdated
