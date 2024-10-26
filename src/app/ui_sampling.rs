@@ -76,7 +76,7 @@ pub fn ui_sampling(
                 ui.selectable_value(
                     sample_distribute_method,
                     SampleDistributeMethod::ExcludeEndpoints,
-                    "Include endpoints",
+                    "Exclude endpoints",
                 );
             })
             .response
@@ -88,7 +88,7 @@ pub fn ui_sampling(
         if ui
             .checkbox(
                 only_sample_half_of_bottom_layer,
-                "Only sample the top half of the bottom layer",
+                "Only sample half of the bottom layer",
             )
             .changed()
         {
@@ -98,7 +98,7 @@ pub fn ui_sampling(
         if ui
             .checkbox(
                 only_sample_half_of_top_layer,
-                "Only sample the bottom half of the top layer",
+                "Only sample half of the top layer",
             )
             .changed()
         {

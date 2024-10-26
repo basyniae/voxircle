@@ -2,6 +2,7 @@ use crate::app::data_structures::blocks::Blocks;
 use crate::app::data_structures::layer_config::LayerConfig;
 use crate::app::data_structures::sampled_parameters::SampledParameters;
 use crate::app::data_structures::zvec::ZVec;
+use crate::app::generation::Algorithm;
 use crate::app::lua_field::LuaField;
 use crate::app::sampling::{SampleCombineMethod, SampleDistributeMethod};
 use mlua::Lua;
@@ -86,41 +87,39 @@ pub fn parameters_update(
         *blocks_current_layer_is_outdated = true;
 
         // Update parameters for the sampling
-        {
-            crate::app::sampling::set_parameters(
-                stack_sampled_parameters.get_mut(current_layer).unwrap(),
-                &stack_sampling_points.get(current_layer).unwrap(),
-                [
-                    stack_layer_config.get(current_layer).unwrap().radius_a,
-                    stack_layer_config.get(current_layer).unwrap().radius_b,
-                    stack_layer_config.get(current_layer).unwrap().tilt,
-                    stack_layer_config
-                        .get(current_layer)
-                        .unwrap()
-                        .center_offset_x,
-                    stack_layer_config
-                        .get(current_layer)
-                        .unwrap()
-                        .center_offset_y,
-                    stack_layer_config
-                        .get(current_layer)
-                        .unwrap()
-                        .squircle_parameter,
-                ],
-                stack_layer_config.get(current_layer).unwrap().algorithm,
-                lua,
-                lua_field_radius_a,
-                lua_field_radius_b,
-                lua_field_tilt,
-                lua_field_center_offset_x,
-                lua_field_center_offset_y,
-                lua_field_squircle_parameter,
-                single_radius,
-            );
-        }
+        set_parameters(
+            stack_sampled_parameters.get_mut(current_layer).unwrap(),
+            &stack_sampling_points.get(current_layer).unwrap(),
+            [
+                stack_layer_config.get(current_layer).unwrap().radius_a,
+                stack_layer_config.get(current_layer).unwrap().radius_b,
+                stack_layer_config.get(current_layer).unwrap().tilt,
+                stack_layer_config
+                    .get(current_layer)
+                    .unwrap()
+                    .center_offset_x,
+                stack_layer_config
+                    .get(current_layer)
+                    .unwrap()
+                    .center_offset_y,
+                stack_layer_config
+                    .get(current_layer)
+                    .unwrap()
+                    .squircle_parameter,
+            ],
+            stack_layer_config.get(current_layer).unwrap().algorithm,
+            lua,
+            lua_field_radius_a,
+            lua_field_radius_b,
+            lua_field_tilt,
+            lua_field_center_offset_x,
+            lua_field_center_offset_y,
+            lua_field_squircle_parameter,
+            single_radius,
+        );
 
         // Update parameters for the sliders
-        crate::app::sampling::update_control_parameters(
+        update_control_parameters(
             stack_layer_config.get_mut(current_layer).unwrap(),
             current_layer,
             lua,
@@ -158,7 +157,7 @@ pub fn parameters_update(
 
         // Update parameters for the sampling
         for layer in layer_lowest..=layer_highest {
-            crate::app::sampling::set_parameters(
+            set_parameters(
                 stack_sampled_parameters.get_mut(layer).unwrap(),
                 &stack_sampling_points.get(layer).unwrap(),
                 [
@@ -181,7 +180,7 @@ pub fn parameters_update(
             );
 
             // Update parameters for the sliders
-            crate::app::sampling::update_control_parameters(
+            update_control_parameters(
                 stack_layer_config.get_mut(layer).unwrap(),
                 layer,
                 lua,
@@ -255,4 +254,109 @@ pub fn blocks_update(
             layer_lowest,
         );
     }
+}
+
+fn update_control_parameters(
+    current_layer: &mut LayerConfig,
+    layer: isize,
+
+    lua: &mut Lua,
+    lua_field_radius_a: &mut LuaField,
+    lua_field_radius_b: &mut LuaField,
+    lua_field_tilt: &mut LuaField,
+    lua_field_center_offset_x: &mut LuaField,
+    lua_field_center_offset_y: &mut LuaField,
+    lua_field_squircle_parameter: &mut LuaField,
+    single_radius: bool,
+) {
+    lua.globals().set("layer", layer).unwrap();
+    lua.globals().set("l", layer).unwrap();
+
+    // evaluate the lua field at the layer
+    if let Some(radius_a) = lua_field_radius_a.eval(lua) {
+        current_layer.radius_a = radius_a
+    }
+
+    if single_radius {
+        if let Some(radius_a) = lua_field_radius_a.eval(lua) {
+            current_layer.radius_b = radius_a
+        }
+    } else {
+        if let Some(radius_b) = lua_field_radius_b.eval(lua) {
+            current_layer.radius_b = radius_b
+        }
+    }
+
+    if let Some(tilt) = lua_field_tilt.eval(lua) {
+        current_layer.tilt = tilt
+    }
+    if let Some(center_offset_x) = lua_field_center_offset_x.eval(lua) {
+        current_layer.center_offset_x = center_offset_x
+    }
+    if let Some(center_offset_y) = lua_field_center_offset_y.eval(lua) {
+        current_layer.center_offset_y = center_offset_y
+    }
+
+    if let Some(squircle_parameter) = lua_field_squircle_parameter.eval(lua) {
+        current_layer.squircle_parameter = squircle_parameter
+    }
+}
+
+/// Update (old) input SampledParameters object with new values evaluated from the code
+fn set_parameters(
+    sampled_parameters: &mut SampledParameters,
+    sampling_points: &Vec<f64>,
+    default_parameters: [f64; 6],
+
+    algorithm: Algorithm,
+    lua: &mut Lua,
+    lua_field_radius_a: &mut LuaField,
+    lua_field_radius_b: &mut LuaField,
+    lua_field_tilt: &mut LuaField,
+    lua_field_center_offset_x: &mut LuaField,
+    lua_field_center_offset_y: &mut LuaField,
+    lua_field_squircle_parameter: &mut LuaField,
+    single_radius: bool,
+) {
+    // evaluate the lua field at the sampling point values
+    let sampled_values: Vec<[Option<f64>; 6]> = sampling_points
+        .iter()
+        .map(|layer| {
+            lua.globals().set("layer", *layer).unwrap();
+            lua.globals().set("l", *layer).unwrap();
+
+            [
+                lua_field_radius_a.eval(lua),
+                {
+                    if single_radius {
+                        lua_field_radius_a.eval(lua)
+                    } else {
+                        lua_field_radius_b.eval(lua)
+                    }
+                },
+                lua_field_tilt.eval(lua),
+                lua_field_center_offset_x.eval(lua),
+                lua_field_center_offset_y.eval(lua),
+                lua_field_squircle_parameter.eval(lua),
+            ]
+        })
+        .collect();
+
+    // Set the algorithm & nr. of samples
+    sampled_parameters.algorithm = algorithm;
+    sampled_parameters.nr_samples = sampling_points.len();
+
+    // If the code evaluation failed (returned None) resort to using the default_parameters (supplied by sliders)
+    sampled_parameters.parameters = (0..sampling_points.len())
+        .map(|i| {
+            [
+                sampled_values[i][0].unwrap_or(default_parameters[0]),
+                sampled_values[i][1].unwrap_or(default_parameters[1]),
+                sampled_values[i][2].unwrap_or(default_parameters[2]),
+                sampled_values[i][3].unwrap_or(default_parameters[3]),
+                sampled_values[i][4].unwrap_or(default_parameters[4]),
+                sampled_values[i][5].unwrap_or(default_parameters[5]),
+            ]
+        })
+        .collect()
 }
