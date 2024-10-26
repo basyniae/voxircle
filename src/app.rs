@@ -335,8 +335,8 @@ impl eframe::App for App {
                     ui_sampling(
                         ui,
                         self.sampling_enabled,
-                        &mut self.only_sample_half_of_top_layer,
                         &mut self.only_sample_half_of_bottom_layer,
+                        &mut self.only_sample_half_of_top_layer,
                         &mut self.nr_samples_per_layer,
                         &mut self.sample_combine_method,
                         &mut self.sample_distribute_method,
