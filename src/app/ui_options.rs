@@ -245,20 +245,31 @@ pub fn ui_options(
         // Default values
 
         // Aim: Make choice of squircle parameter easy. there are distinct values at 2/3 and 1/3 we want to be exact
+        // From the implementation, squircle_parameter = 1.0 / (1.0 - squircle_ui_parameter) - 1.0,
+        //  so squircle_ui_parameter = squircle_parameter / (squircle_parameter + 1.0).
         ui.allocate_ui_with_layout(
             egui::Vec2::from([100.0, 200.0]),
             Layout::left_to_right(Align::Min),
             |ui| {
+                // Circle has squircle parameter 2
                 if ui.button("Circle").clicked() {
                     squircle_ui_parameter = 0.666666666666666;
                     lua_field_squircle_parameter.update_field_state(lua, sampling_points);
                     *parameters_current_layer_is_outdated = true;
                 }
+                // Astroid has squircle parameter 2/3
+                if ui.button("Astroid").clicked() {
+                    squircle_ui_parameter = 0.4;
+                    lua_field_squircle_parameter.update_field_state(lua, sampling_points);
+                    *parameters_current_layer_is_outdated = true;
+                }
+                // Diamond has squircle parameter 1
                 if ui.button("Diamond").clicked() {
                     squircle_ui_parameter = 0.5;
                     lua_field_squircle_parameter.update_field_state(lua, sampling_points);
                     *parameters_current_layer_is_outdated = true;
                 }
+                // Square has squircle parameter infinity
                 if ui.button("Square").clicked() {
                     squircle_ui_parameter = 1.0;
                     lua_field_squircle_parameter.update_field_state(lua, sampling_points);
