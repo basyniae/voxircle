@@ -56,6 +56,10 @@ The math library has been made global, so that for example `sqrt(5)` can be type
 An invalid code field will have a red background.
 To indicate that the code field has run successfully, the background will turn green.
 
+### Sampling
+
+Todo
+
 ## Scope
 
 The process of voxelization is that of approximating of particular shape by voxels, via a particular heuristic, implemented by a particular algorithm.
