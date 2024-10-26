@@ -19,23 +19,22 @@ pub fn ui_sampling(
 
     ui.add_enabled_ui(sampling_enabled, |ui| {
         if egui::ComboBox::from_label("Sample combination method")
-            // TODO: change formatting to text
-            .selected_text(format!("{:?}", sample_combine_method))
+            .selected_text(format!("{:}", sample_combine_method))
             .show_ui(ui, |ui| {
                 ui.selectable_value(
                     sample_combine_method,
                     SampleCombineMethod::AnySamples,
-                    "Any samples (for Contained)",
+                    "Any samples",
                 );
                 ui.selectable_value(
                     sample_combine_method,
                     SampleCombineMethod::AllSamples,
-                    "All samples (for Conservative)",
+                    "All samples",
                 );
                 ui.selectable_value(
                     sample_combine_method,
                     SampleCombineMethod::Percentage(0.5),
-                    "Given number of percentage of all samples",
+                    "Percentage of samples",
                 );
             })
             .response
@@ -44,6 +43,7 @@ pub fn ui_sampling(
             *sampling_points_is_outdated = true;
         };
 
+        // Extra sampling method-specific options
         match sample_combine_method {
             SampleCombineMethod::Percentage(percentage) => {
                 let mut perc_slider = percentage.clone();
@@ -66,7 +66,7 @@ pub fn ui_sampling(
         }
 
         if egui::ComboBox::from_label("Sample distribution method")
-            .selected_text(format!("{:?}", sample_distribute_method))
+            .selected_text(format!("{:}", sample_distribute_method))
             .show_ui(ui, |ui| {
                 ui.selectable_value(
                     sample_distribute_method,

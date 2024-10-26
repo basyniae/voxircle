@@ -2,6 +2,7 @@
 
 use crate::app::data_structures::blocks::Blocks;
 use crate::app::math::linear_algebra::{Mat2, Vec2};
+use std::fmt::{Display, Formatter};
 
 use self::{
     centerpoint::generate_alg_centerpoint, conservative::generate_alg_conservative,
@@ -19,7 +20,7 @@ pub mod percentage;
 #[derive(Debug, PartialEq, Default, Clone, Copy)]
 pub enum Algorithm {
     #[default]
-    CenterPoint,
+    Centerpoint,
     Conservative,
     Contained,
     Percentage(f64),
@@ -37,7 +38,7 @@ pub fn generate_all_blocks(
     grid_size: usize,
 ) -> Blocks {
     match algorithm {
-        Algorithm::CenterPoint => {
+        Algorithm::Centerpoint => {
             generate_alg_centerpoint(center_offset, sqrt_quad_form, squircle_parameter, grid_size)
         }
         Algorithm::Conservative => {
@@ -53,5 +54,27 @@ pub fn generate_all_blocks(
             grid_size,
         ),
         Algorithm::Empty => generate_alg_empty(grid_size),
+    }
+}
+
+impl Display for Algorithm {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Algorithm::Centerpoint => {
+                write!(f, "Centerpoint")
+            }
+            Algorithm::Conservative => {
+                write!(f, "Conservative")
+            }
+            Algorithm::Contained => {
+                write!(f, "Contained")
+            }
+            Algorithm::Percentage(percentage) => {
+                write!(f, "Percentage, {:.0}%", percentage * 100.0)
+            }
+            Algorithm::Empty => {
+                write!(f, "Empty")
+            }
+        }
     }
 }

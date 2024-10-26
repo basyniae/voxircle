@@ -20,7 +20,7 @@ pub struct LayerConfig {
 impl Default for LayerConfig {
     fn default() -> Self {
         Self {
-            algorithm: Algorithm::CenterPoint, // default: Centerpoint
+            algorithm: Algorithm::Centerpoint, // default: Centerpoint
 
             // Have two sets of parameters, one for "control", i.e., setting the parameter by hand,
             // the other for setting the parameter by code (called sampled_-)
