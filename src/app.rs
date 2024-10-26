@@ -7,19 +7,16 @@ use eframe::emath::Align;
 use mlua::Lua;
 
 use crate::app::data_structures::sampled_parameters::SampledParameters;
-use crate::app::math::exact_squircle_bounds::exact_squircle_bounds;
-use crate::app::math::square_max::square_max;
 use crate::app::sampling::{SampleCombineMethod, SampleDistributeMethod};
 use crate::app::ui_layer_navigation::ui_layer_navigation;
 use crate::app::ui_sampling::ui_sampling;
 use crate::app::ui_viewport::ui_viewport;
 use crate::app::update_logic::{blocks_update, parameters_update, sampling_points_update};
+use crate::app::update_metrics::update_metrics;
 use data_structures::blocks::Blocks;
 use data_structures::layer_config::LayerConfig;
 use data_structures::zvec::ZVec;
 use lua_field::LuaField;
-use math::convex_hull::get_convex_hull;
-use metrics::boundary_3d::boundary_3d;
 
 mod colors;
 mod data_structures;
@@ -36,6 +33,7 @@ mod ui_options;
 mod ui_sampling;
 mod ui_viewport;
 mod update_logic;
+mod update_metrics;
 
 pub struct App {
     // Layer management
@@ -469,95 +467,25 @@ impl eframe::App for App {
 
         if self.recompute_metrics {
             self.recompute_metrics = false;
-
-            // update 2d spatial metrics
-            self.interior_2d = self
-                .stack_blocks
-                .get(self.current_layer)
-                .unwrap()
-                .get_interior();
-            self.boundary_2d = Blocks::new(
-                // boundary is in all but not in interior (so all && interior.not())
-                self.stack_blocks
-                    .get(self.current_layer)
-                    .unwrap()
-                    .blocks
-                    .iter()
-                    .zip(self.interior_2d.blocks.iter())
-                    .map(|(all, interior)| *all && !interior)
-                    .collect(),
-                self.interior_2d.grid_size,
-            );
-            self.complement_2d = self
-                .stack_blocks
-                .get(self.current_layer)
-                .unwrap()
-                .get_complement();
-
-            // update 3d spatial metrics
-            self.boundary_3d = boundary_3d(
-                &self.stack_blocks,
+            update_metrics(
+                self.current_layer,
                 self.layer_lowest,
                 self.layer_highest,
-                true,
-                true,
-            );
-
-            self.interior_3d = ZVec::new(
-                (self.layer_lowest..self.layer_highest)
-                    .map(|layer| {
-                        Blocks::new(
-                            self.boundary_3d
-                                .get(layer)
-                                .unwrap()
-                                .blocks
-                                .iter()
-                                .zip(self.stack_blocks.get(layer).unwrap().blocks)
-                                .map(|(is_bdry, is_block)| is_block && !is_bdry)
-                                .collect(),
-                            self.stack_blocks.get(layer).unwrap().grid_size,
-                        )
-                    })
-                    .collect(),
-                self.layer_lowest,
-            );
-
-            // update numerical metrics
-            self.nr_blocks_total = self
-                .stack_blocks
-                .get_mut(self.current_layer)
-                .unwrap()
-                .get_nr_blocks();
-            self.nr_blocks_interior = self.interior_2d.get_nr_blocks();
-            self.nr_blocks_boundary = self.boundary_2d.get_nr_blocks();
-
-            self.outer_corners = self
-                .stack_blocks
-                .get_mut(self.current_layer)
-                .unwrap()
-                .get_outer_corners();
-            self.convex_hull = get_convex_hull(&self.outer_corners);
-
-            self.global_bounding_box = self
-                .stack_layer_config
-                .data
-                .iter()
-                .map(|g_c| exact_squircle_bounds(g_c, 1.1))
-                .fold(
-                    [
-                        [f64::INFINITY, f64::INFINITY],
-                        [f64::NEG_INFINITY, f64::NEG_INFINITY],
-                    ],
-                    |a, b| square_max(a, b),
-                );
-
-            self.global_bounding_box = square_max(
-                self.global_bounding_box,
-                exact_squircle_bounds(
-                    &self.stack_layer_config.get(self.current_layer).unwrap(),
-                    1.1,
-                ),
-            );
+                self.stack_blocks.get(self.current_layer).unwrap(),
+                self.stack_blocks.clone(),
+                self.stack_layer_config.clone(),
+                &mut self.nr_blocks_total,
+                &mut self.nr_blocks_interior,
+                &mut self.nr_blocks_boundary,
+                &mut self.boundary_2d,
+                &mut self.interior_2d,
+                &mut self.complement_2d,
+                &mut self.boundary_3d,
+                &mut self.interior_3d,
+                &mut self.convex_hull,
+                &mut self.outer_corners,
+                &mut self.global_bounding_box,
+            )
         }
 
         // Status bar (bottom)
