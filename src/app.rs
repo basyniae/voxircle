@@ -10,6 +10,7 @@ use crate::app::data_structures::sampled_parameters::SampledParameters;
 use crate::app::math::exact_squircle_bounds::exact_squircle_bounds;
 use crate::app::math::square_max::square_max;
 use crate::app::sampling::{SampleCombineMethod, SampleDistributeMethod};
+use crate::app::ui_layer_navigation::ui_layer_navigation;
 use crate::app::ui_sampling::ui_sampling;
 use crate::app::ui_viewport::ui_viewport;
 use crate::app::update_logic::{blocks_update, parameters_update, sampling_points_update};
@@ -30,6 +31,7 @@ mod metrics;
 mod plotting;
 mod sampling;
 mod ui_generation;
+mod ui_layer_navigation;
 mod ui_options;
 mod ui_sampling;
 mod ui_viewport;
@@ -412,9 +414,6 @@ impl eframe::App for App {
             });
         });
 
-        // Activates if the sampling options have changed (this update) or if the stack grows
-        //  (previous update). The points may also have to be recomputed if the stack shrinks,
-        //  when half_of_bottom or half_of_top layer options are implemented. implement later
         sampling_points_update(
             self.only_sample_half_of_bottom_layer,
             self.only_sample_half_of_top_layer,
@@ -589,147 +588,54 @@ impl eframe::App for App {
         // Layer navigation bar (top)
         if self.layers_enabled {
             egui::TopBottomPanel::top("layer-navigation").show(ctx, |ui| {
-                ui.centered_and_justified(|ui| {
-                    // bookkeeping for updating the configuration
-                    let old_layer = self.current_layer;
-                    let prev_layer_lowest = self.layer_lowest;
-                    let prev_layer_highest = self.layer_highest;
-
-                    // Finicky due to not being able to know the size of the widget in advance
-                    // so do a pretty good prediction
-                    let height = ui.style().spacing.interact_size.y;
-                    let controls_width = height + 10.0;
-                    let main_width = ui.style().spacing.interact_size.x; // Incorrect for >4 digits (which is unlikely to occur)
-                    let padding = ui.style().spacing.button_padding.x; //Button size is text size plus this on each side
-
-                    let (rect, response) = ui.allocate_exact_size(
-                        [
-                            4.0 * controls_width + 3.0 * main_width + padding * 12.0,
-                            height,
-                        ]
-                        .into(),
-                        egui::Sense::click(),
-                    );
-                    ui.put(rect, |ui: &mut egui::Ui| {
-                        ui.horizontal(|ui| {
-                            ui.add_enabled(
-                                !self.lock_stack_size,
-                                egui::DragValue::new(&mut self.layer_lowest).speed(0.05),
-                            );
-                            if ui
-                                .add(
-                                    egui::Button::new("|<")
-                                        .min_size(egui::Vec2::from([controls_width, height])),
-                                )
-                                .clicked()
-                            {
-                                self.current_layer = self.layer_lowest;
-                            }
-                            if ui
-                                .add(
-                                    egui::Button::new("<")
-                                        .min_size(egui::Vec2::from([controls_width, height])),
-                                )
-                                .clicked()
-                            {
-                                if !self.lock_stack_size
-                                    || self.current_layer - 1 >= self.layer_lowest
-                                {
-                                    self.current_layer = self.current_layer - 1;
-                                }
-                            }
-                            if self.lock_stack_size {
-                                ui.add(
-                                    egui::DragValue::new(&mut self.current_layer)
-                                        .speed(0.05)
-                                        .clamp_range(self.layer_lowest..=self.layer_highest),
-                                );
-                            } else {
-                                ui.add(egui::DragValue::new(&mut self.current_layer).speed(0.05));
-                            }
-
-                            if ui
-                                .add(
-                                    egui::Button::new(">")
-                                        .min_size(egui::Vec2::from([controls_width, height])),
-                                )
-                                .clicked()
-                            {
-                                if !self.lock_stack_size
-                                    || self.current_layer + 1 <= self.layer_highest
-                                {
-                                    self.current_layer = self.current_layer + 1;
-                                }
-                            }
-                            if ui
-                                .add(
-                                    egui::Button::new(">|")
-                                        .min_size(egui::Vec2::from([controls_width, height])),
-                                )
-                                .clicked()
-                            {
-                                self.current_layer = self.layer_highest;
-                            }
-                            ui.add_enabled(
-                                !self.lock_stack_size,
-                                egui::DragValue::new(&mut self.layer_highest).speed(0.05),
-                            );
-                        });
-                        response
-                    });
-
-                    // Check if enough (empty) layers are initialized, else initialize more
-                    self.layer_lowest = self.layer_lowest.min(self.current_layer);
-                    self.layer_highest = self.layer_highest.max(self.current_layer);
-
-                    self.stack_layer_config.resize(
-                        self.layer_lowest,
-                        self.layer_highest,
-                        self.stack_layer_config.get(old_layer).unwrap().clone(),
+                let (old_layer, has_layer_stack_grown, has_layer_stack_changed, has_layer_changed) =
+                    ui_layer_navigation(
+                        ui,
+                        &mut self.current_layer,
+                        &mut self.layer_lowest,
+                        &mut self.layer_highest,
+                        self.lock_stack_size,
                     );
 
-                    self.stack_blocks.resize(
-                        self.layer_lowest,
-                        self.layer_highest,
-                        self.stack_blocks.get(old_layer).unwrap().clone(),
-                    );
+                if has_layer_stack_changed {
+                    // The sampling points are (possibly) out of date.
+                    // This happens certainly if the stack grows, and if the stack shrinks only if
+                    //  only_sample_half_of_bottom_layer or only_sample_half_of_top_layer is true
+                    self.sampling_points_is_outdated = true;
 
-                    //test: is the following necessary?
-                    self.stack_sampled_parameters.resize(
-                        self.layer_lowest,
-                        self.layer_highest,
-                        self.stack_sampled_parameters
-                            .get(old_layer)
-                            .unwrap()
-                            .clone(),
-                    );
-
-                    self.stack_sampling_points.resize(
-                        self.layer_lowest,
-                        self.layer_highest,
-                        self.stack_sampling_points.get(old_layer).unwrap().clone(),
-                    );
-
-                    // update field state when the bounds increase
-                    if prev_layer_lowest > self.layer_lowest
-                        || prev_layer_highest < self.layer_highest
+                    // Resize all the stack objects
                     {
-                        self.lua_field_radius_a
-                            .update_field_state(&mut self.lua, &self.stack_sampling_points);
-                        self.lua_field_radius_b
-                            .update_field_state(&mut self.lua, &self.stack_sampling_points);
-                        self.lua_field_tilt
-                            .update_field_state(&mut self.lua, &self.stack_sampling_points);
-                        self.lua_field_center_offset_x
-                            .update_field_state(&mut self.lua, &self.stack_sampling_points);
-                        self.lua_field_center_offset_y
-                            .update_field_state(&mut self.lua, &self.stack_sampling_points);
-                        self.lua_field_squircle_parameter
-                            .update_field_state(&mut self.lua, &self.stack_sampling_points);
+                        self.stack_layer_config.resize(
+                            self.layer_lowest,
+                            self.layer_highest,
+                            self.stack_layer_config.get(old_layer).unwrap().clone(),
+                        );
 
-                        self.sampling_points_is_outdated = true;
+                        self.stack_sampled_parameters.resize(
+                            self.layer_lowest,
+                            self.layer_highest,
+                            self.stack_sampled_parameters
+                                .get(old_layer)
+                                .unwrap()
+                                .clone(),
+                        );
+
+                        self.stack_blocks.resize(
+                            self.layer_lowest,
+                            self.layer_highest,
+                            self.stack_blocks.get(old_layer).unwrap().clone(),
+                        );
+
+                        self.stack_sampling_points.resize(
+                            self.layer_lowest,
+                            self.layer_highest,
+                            self.stack_sampling_points.get(old_layer).unwrap().clone(),
+                        );
                     }
-                })
+                }
+
+                // Updating the field state when the bounds increase is not necessary,
+                //  as the changing sampling points invalidates the field states already.
             });
         }
 
@@ -755,7 +661,7 @@ impl eframe::App for App {
                 self.view_outer_corners,
                 &mut self.reset_zoom_once,
                 &mut self.reset_zoom_continuous,
-                self.boundary_2d.clone(), // fixme: this is weird. should be unnessary
+                self.boundary_2d.clone(), // fixme: this is weird. should be unnecessary
                 self.interior_2d.clone(),
                 self.complement_2d.clone(),
                 self.boundary_3d.get(self.current_layer),
