@@ -1,27 +1,26 @@
+use crate::app::colors::{
+    COLOR_BACKGROUND, COLOR_DARK_GREEN, COLOR_DARK_ORANGE, COLOR_FACE, COLOR_LIGHT_BLUE,
+    COLOR_LIME, COLOR_MUTED_ORANGE, COLOR_ORANGE, COLOR_PURPLE, COLOR_WIRE, COLOR_X_AXIS,
+    COLOR_YELLOW, COLOR_Y_AXIS,
+};
 use crate::app::data_structures::blocks::Blocks;
 use crate::app::data_structures::layer_config::LayerConfig;
 use crate::app::data_structures::sampled_parameters::SampledParameters;
-use crate::app::data_structures::zvec::ZVec;
 use crate::app::math::convex_hull::line_segments_from_conv_hull;
-use crate::app::math::exact_squircle_bounds::exact_squircle_bounds;
-use crate::app::math::square_max::square_max;
-use crate::app::{
-    generation, plotting, COLOR_BACKGROUND, COLOR_DARK_GREEN, COLOR_DARK_ORANGE, COLOR_FACE,
-    COLOR_LIGHT_BLUE, COLOR_LIME, COLOR_MUTED_ORANGE, COLOR_ORANGE, COLOR_PURPLE, COLOR_WIRE,
-    COLOR_X_AXIS, COLOR_YELLOW, COLOR_Y_AXIS,
-};
+use crate::app::{generation, plotting};
 use eframe::egui::{Stroke, Ui, Vec2b};
 use egui_plot::{
     uniform_grid_spacer, HLine, Line, Plot, PlotBounds, PlotPoint, PlotPoints, Points, Text, VLine,
 };
+use itertools::izip;
 use std::f64::consts::PI;
 
 pub fn ui_viewport(
     ui: &mut Ui,
-    stack_layer_config: &ZVec<LayerConfig>, // Store the configuration for each layer, handily indexed by integers
+    global_bounding_box: [[f64; 2]; 2],
     layer_config: LayerConfig,
     sampled_parameters: SampledParameters,
-    blocks: Blocks, // todo: factor so that it can only access the current layer of blocks and configs
+    blocks: Blocks,
     // todo: factor out the zoom size determination for clearer access
     sampling_enabled: bool,
 
@@ -41,12 +40,12 @@ pub fn ui_viewport(
     reset_zoom_continuous: &mut bool,
 
     // Metrics
-    boundary_2d: &Blocks,
-    interior_2d: &Blocks,
-    complement_2d: &Blocks,
+    boundary_2d: Blocks,
+    interior_2d: Blocks,
+    complement_2d: Blocks,
     boundary_3d_slice: Option<Blocks>,
     interior_3d_slice: Option<Blocks>,
-    convex_hull: &Vec<[f64; 2]>, //todo: check update orders and such
+    convex_hull: &Vec<[f64; 2]>,
     outer_corners: &Vec<[f64; 2]>,
 ) {
     ui.visuals_mut().extreme_bg_color = COLOR_BACKGROUND;
@@ -59,13 +58,13 @@ pub fn ui_viewport(
         .allow_boxed_zoom(false)
         // We don't need this, there's a maximal reasonable zoom in level and the reasonable zoom out level is only as big as the circle we're generating
         .auto_bounds(Vec2b::from([false, false]))
-        .allow_double_click_reset(false) // we have to implement this ourselves
+        .allow_double_click_reset(false) // we do this ourselves
         .label_formatter(move |_name, mouse_coord| {
             // if !name.is_empty() {  // Can condition formatting only on name of object! So if we want to have different tooltips for different objects this is what we must do
             //     format!("{}: {:.*}%", name, 1, value.y)
             // } else {
             //     "".to_owned()
-            // } // TODO: think about integer coords for odd & even circles (no +/- zero for even circles)... ideally have it dep. only on...
+            // } // longterm: think about integer coords for odd & even circles (no +/- zero for even circles)... ideally have it dep. only on...
             format!(
                 "{0:.0}, {1:.0}",
                 mouse_coord.x.trunc(),
@@ -76,23 +75,6 @@ pub fn ui_viewport(
         .show(ui, |plot_ui| {
             // Reset zoom (approximates default behaviour, but we get to specify the action of automatic zooming
             if *reset_zoom_once || *reset_zoom_continuous {
-                let mut global_bounding_box = stack_layer_config
-                    .data
-                    .iter()
-                    .map(|g_c| exact_squircle_bounds(g_c, 1.1))
-                    .fold(
-                        [
-                            [f64::INFINITY, f64::INFINITY],
-                            [f64::NEG_INFINITY, f64::NEG_INFINITY],
-                        ],
-                        |a, b| square_max(a, b),
-                    );
-
-                global_bounding_box = square_max(
-                    global_bounding_box,
-                    exact_squircle_bounds(&layer_config, 1.1),
-                );
-
                 plot_ui.set_plot_bounds(PlotBounds::from_min_max(
                     global_bounding_box[0],
                     global_bounding_box[1],
@@ -110,96 +92,59 @@ pub fn ui_viewport(
 
             // * Viewport plotting * //
             // Draw order should be largest to smallest, so
-            // 1. blocks + complement
-            // 2. 3d boundary
-            // 3. 2d boundary
-            // 4. 2d interior
-            // 5. 3d interior
+            // 1. blocks
+            // 2. complement
+            // 3. 3d boundary
+            // 4. 2d boundary
+            // 5. 2d interior
+            // 6. 3d interior
             // then geometric overlays like the target shape, center, etc.
-            if view_blocks {
-                for coord in blocks.get_all_block_coords() {
-                    plot_ui.polygon(
-                        plotting::square_at_coords(coord)
-                            .stroke(Stroke {
-                                width: 1.0,
-                                color: COLOR_WIRE,
-                            })
-                            .fill_color(COLOR_FACE),
-                    );
-                }
-            }
 
-            if view_complement {
-                for coord in complement_2d.get_all_block_coords() {
-                    plot_ui.polygon(
-                        plotting::square_at_coords(coord)
-                            .stroke(Stroke {
-                                width: 1.0,
-                                color: COLOR_WIRE,
-                            })
-                            .fill_color(COLOR_ORANGE),
-                    );
-                }
-            }
-
-            if view_boundary_3d {
-                // need to check for this, because of update order the layer isn't generated yet
-                if let Some(blocks) = boundary_3d_slice {
-                    for coord in blocks.get_all_block_coords() {
-                        plot_ui.polygon(
-                            plotting::square_at_coords(coord)
-                                .stroke(Stroke {
-                                    width: 1.0,
-                                    color: COLOR_WIRE,
-                                })
-                                .fill_color(COLOR_PURPLE),
-                        );
+            // First draw the blocks (the for loop is to avoid duplicate code)
+            for (view, option_blocks, color) in izip!(
+                [
+                    view_blocks,
+                    view_complement,
+                    view_boundary_3d,
+                    view_boundary_2d,
+                    view_interior_2d,
+                    view_interior_3d
+                ],
+                [
+                    Some(blocks),
+                    Some(complement_2d),
+                    boundary_3d_slice,
+                    Some(boundary_2d),
+                    Some(interior_2d),
+                    interior_3d_slice
+                ],
+                [
+                    COLOR_FACE,
+                    COLOR_ORANGE,
+                    COLOR_PURPLE,
+                    COLOR_LIGHT_BLUE,
+                    COLOR_YELLOW,
+                    COLOR_MUTED_ORANGE
+                ]
+            ) {
+                if view {
+                    if let Some(blocks) = option_blocks {
+                        for coord in blocks.get_all_block_coords() {
+                            plot_ui.polygon(
+                                plotting::square_at_coords(coord)
+                                    .stroke(Stroke {
+                                        width: 1.0,
+                                        color: COLOR_WIRE,
+                                    })
+                                    .fill_color(color),
+                            );
+                        }
                     }
                 }
             }
 
-            if view_boundary_2d {
-                for coord in boundary_2d.get_all_block_coords() {
-                    plot_ui.polygon(
-                        plotting::square_at_coords(coord)
-                            .stroke(Stroke {
-                                width: 1.0,
-                                color: COLOR_WIRE,
-                            })
-                            .fill_color(COLOR_LIGHT_BLUE),
-                    );
-                }
-            }
-
-            if view_interior_2d {
-                for coord in interior_2d.get_all_block_coords() {
-                    plot_ui.polygon(
-                        plotting::square_at_coords(coord)
-                            .stroke(Stroke {
-                                width: 1.0,
-                                color: COLOR_WIRE,
-                            })
-                            .fill_color(COLOR_YELLOW),
-                    );
-                }
-            }
-
-            if view_interior_3d {
-                // need to check for this, because of update order the layer isn't generated yet
-                if let Some(blocks) = interior_3d_slice {
-                    for coord in blocks.get_all_block_coords() {
-                        plot_ui.polygon(
-                            plotting::square_at_coords(coord)
-                                .stroke(Stroke {
-                                    width: 1.0,
-                                    color: COLOR_WIRE,
-                                })
-                                .fill_color(COLOR_MUTED_ORANGE),
-                        );
-                    }
-                }
-            }
-
+            // Plot onion skinned samples
+            // todo: gradient for onionskin
             if sampling_enabled {
                 for sampled_parameter in sampled_parameters.parameters.iter() {
                     plot_ui.line(

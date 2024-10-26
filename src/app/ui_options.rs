@@ -68,7 +68,7 @@ pub fn ui_options(
             ui.label("Include a particular block iff it is fully contained in the ellipse");
         }
         Algorithm::Percentage(percentage) => {
-            //TODO: implement ellipse, superellipse
+            // longterm: ellipse, superellipse
             ui.label(
                 format!(
                     "Include a particular block in the voxelization iff more than {:.0}% of it is contained in the circle. Ellipses and squircles not implemented.",
@@ -161,7 +161,7 @@ pub fn ui_options(
             lua_field_radius_b.show(ui, lua, sampling_points);
         }
 
-        //TODO: Make circular slider for more intuitive controls (need to build this myapp probably)
+        //longterm: Make circular slider for more intuitive controls (need to build this myapp probably)
     }
 
     //tilt

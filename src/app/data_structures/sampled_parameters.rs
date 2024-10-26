@@ -35,7 +35,7 @@ impl Default for SampledParameters {
 }
 
 impl SampledParameters {
-    // todo: fixme: make grid size determination better: needs to also take care of the offset (if
+    // fixme: make grid size determination better: needs to also take care of the offset (if
     //  the input is very offset this method fails)
     /// Run the generation algorithm for the configuration `self`, the output is a `Blocks` object. document.
     pub fn generate(&self, sample_combine_method: SampleCombineMethod) -> Blocks {
