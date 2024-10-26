@@ -1,4 +1,5 @@
 use crate::app::data_structures::zvec::ZVec;
+use std::fmt::{Display, Formatter};
 #[derive(Debug, PartialEq, Default, Clone, Copy)]
 pub enum SampleCombineMethod {
     #[default]
@@ -95,6 +96,35 @@ pub fn determine_sampling_points(
                         .collect(),
                     layer_lowest,
                 )
+            }
+        }
+    }
+}
+
+impl Display for SampleCombineMethod {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SampleCombineMethod::AllSamples => {
+                write!(f, "All samples")
+            }
+            SampleCombineMethod::AnySamples => {
+                write!(f, "Any samples")
+            }
+            SampleCombineMethod::Percentage(percentage) => {
+                write!(f, "≥{:.0}% percent of samples", percentage * 100.0)
+            }
+        }
+    }
+}
+
+impl Display for SampleDistributeMethod {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SampleDistributeMethod::IncludeEndpoints => {
+                write!(f, "Include endpoints")
+            }
+            SampleDistributeMethod::ExcludeEndpoints => {
+                write!(f, "Exclude endpoints")
             }
         }
     }

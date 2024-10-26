@@ -1,14 +1,14 @@
 use eframe::egui;
 use eframe::egui::Ui;
 
-/// Output: old_layer (isize), has_layer_stack_grown, has_layer_stack_changed, has_layer_changed
+/// Output: old_layer (isize), has_layer_stack_changed, has_layer_changed
 pub fn ui_layer_navigation(
     ui: &mut Ui,
     current_layer: &mut isize,
     layer_lowest: &mut isize,
     layer_highest: &mut isize,
     lock_stack_size: bool,
-) -> (isize, bool, bool, bool) {
+) -> (isize, bool, bool) {
     // bookkeeping for updating the configuration
     let old_layer = *current_layer;
     let prev_layer_lowest = *layer_lowest;
@@ -99,8 +99,10 @@ pub fn ui_layer_navigation(
 
     (
         old_layer,
-        prev_layer_lowest > *layer_lowest || prev_layer_highest < *layer_highest, // has layer stack grown?
         prev_layer_lowest != *layer_lowest || prev_layer_highest != *layer_highest, // has layer stack changed?
         old_layer != *current_layer, // has current layer changed?
     )
+
+    // Expression for if the stack has grown (might be useful later):
+    // prev_layer_lowest > *layer_lowest || prev_layer_highest < *layer_highest
 }

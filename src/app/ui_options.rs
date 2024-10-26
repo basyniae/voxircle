@@ -28,13 +28,13 @@ pub fn ui_options(
 ) {
     // Select algorithm
     egui::ComboBox::from_label("Algorithm")
-        .selected_text(format!("{:?}", current_layer_config.algorithm))
+        .selected_text(format!("{:}", current_layer_config.algorithm))
         // TODO: change formatting to text
         // TODO: easily change algorithm for all layers
         .show_ui(ui, |ui| {
             ui.selectable_value(
                 &mut current_layer_config.algorithm,
-                Algorithm::CenterPoint,
+                Algorithm::Centerpoint,
                 "Centerpoint",
             );
             ui.selectable_value(
@@ -56,7 +56,7 @@ pub fn ui_options(
 
     // additional algorithm-specific options + description
     match current_layer_config.algorithm {
-        Algorithm::CenterPoint => {
+        Algorithm::Centerpoint => {
             ui.label("Include a particular block iff its centerpoint is in the ellipse");
         }
         Algorithm::Conservative => {

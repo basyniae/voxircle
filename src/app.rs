@@ -588,14 +588,13 @@ impl eframe::App for App {
         // Layer navigation bar (top)
         if self.layers_enabled {
             egui::TopBottomPanel::top("layer-navigation").show(ctx, |ui| {
-                let (old_layer, has_layer_stack_grown, has_layer_stack_changed, has_layer_changed) =
-                    ui_layer_navigation(
-                        ui,
-                        &mut self.current_layer,
-                        &mut self.layer_lowest,
-                        &mut self.layer_highest,
-                        self.lock_stack_size,
-                    );
+                let (old_layer, has_layer_stack_changed, _has_layer_changed) = ui_layer_navigation(
+                    ui,
+                    &mut self.current_layer,
+                    &mut self.layer_lowest,
+                    &mut self.layer_highest,
+                    self.lock_stack_size,
+                );
 
                 if has_layer_stack_changed {
                     // The sampling points are (possibly) out of date.
