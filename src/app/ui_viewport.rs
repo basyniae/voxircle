@@ -1,7 +1,7 @@
 use crate::app::colors::{
-    COLOR_BACKGROUND, COLOR_DARK_GREEN, COLOR_DARK_ORANGE, COLOR_FACE, COLOR_LIGHT_BLUE,
-    COLOR_LIME, COLOR_MUTED_ORANGE, COLOR_ORANGE, COLOR_PURPLE, COLOR_WIRE, COLOR_X_AXIS,
-    COLOR_YELLOW, COLOR_Y_AXIS,
+    linear_gradient, COLOR_BACKGROUND, COLOR_DARK_BLUE, COLOR_DARK_GREEN, COLOR_DARK_ORANGE,
+    COLOR_FACE, COLOR_LIGHT_BLUE, COLOR_LIME, COLOR_MUTED_ORANGE, COLOR_ORANGE, COLOR_PURPLE,
+    COLOR_WIRE, COLOR_X_AXIS, COLOR_YELLOW, COLOR_Y_AXIS,
 };
 use crate::app::data_structures::blocks::Blocks;
 use crate::app::data_structures::layer_config::LayerConfig;
@@ -144,19 +144,22 @@ pub fn ui_viewport(
             }
 
             // Plot onion skinned samples
-            // todo: gradient for onionskin
             if sampling_enabled {
-                for sampled_parameter in sampled_parameters.parameters.iter() {
+                for i in 0..sampled_parameters.nr_samples {
                     plot_ui.line(
                         plotting::superellipse_at_coords(
-                            sampled_parameter[0],
-                            sampled_parameter[1],
-                            sampled_parameter[2],
-                            sampled_parameter[3],
-                            sampled_parameter[4],
-                            sampled_parameter[5],
+                            sampled_parameters.parameters[i][0],
+                            sampled_parameters.parameters[i][1],
+                            sampled_parameters.parameters[i][2],
+                            sampled_parameters.parameters[i][3],
+                            sampled_parameters.parameters[i][4],
+                            sampled_parameters.parameters[i][5],
                         )
-                        .color(COLOR_DARK_GREEN),
+                        .color(linear_gradient(
+                            COLOR_DARK_GREEN,
+                            COLOR_DARK_BLUE,
+                            i as f64 / (sampled_parameters.nr_samples as f64 - 1.0),
+                        )),
                     );
                 }
             }

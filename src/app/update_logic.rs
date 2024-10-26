@@ -18,6 +18,9 @@ pub fn sampling_points_update(
     sampling_points_compute_auto: bool,
     sampling_points_is_outdated: &mut bool,
 
+    parameters_current_layer_is_outdated: &mut bool,
+    parameters_all_layers_is_outdated_is_outdated: &mut bool,
+
     layer_lowest: isize,
     layer_highest: isize,
 ) {
@@ -29,6 +32,10 @@ pub fn sampling_points_update(
     {
         *sampling_points_compute_once = false;
         *sampling_points_is_outdated = false;
+
+        // if the sampling points have changed the parameters become outdated
+        *parameters_current_layer_is_outdated = true;
+        *parameters_all_layers_is_outdated_is_outdated = true;
 
         *stack_sampling_points = crate::app::sampling::determine_sampling_points(
             sample_distribute_method,

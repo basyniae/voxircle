@@ -191,11 +191,11 @@ impl App {
             blocks_all_layers_generate_once: false,
             blocks_all_layers_is_outdated: false,
             single_radius: true,
-            layers_enabled: true, // debug: make default false
+            layers_enabled: false,
             lock_stack_size: false,
 
             // Code mode
-            code_enabled: true, // debug: make default false
+            code_enabled: false,
             parameters_current_layer_sample_once: true, // on startup, get the parameters from the current configuration
             parameters_current_layer_sample_auto: false, // (Can only be turned off/on when sampling is enabled)
             parameters_current_layer_is_outdated: false,
@@ -205,7 +205,7 @@ impl App {
             parameters_all_layers_is_outdated: false,
 
             // Sampling
-            sampling_enabled: true, // debug: make default false
+            sampling_enabled: false,
             only_sample_half_of_bottom_layer: false, // todo: think about defaults
             only_sample_half_of_top_layer: false,
             nr_samples_per_layer: 1,
@@ -254,7 +254,7 @@ impl eframe::App for App {
                 egui::collapsing_header::CollapsingState::load_with_default_open(
                     ui.ctx(),
                     id,
-                    false, //debug: default true
+                    true,
                 )
                 .show_header(ui, |ui| {
                     ui.label(egui::RichText::new("Parameters").strong().size(15.0));
@@ -317,7 +317,7 @@ impl eframe::App for App {
                 egui::collapsing_header::CollapsingState::load_with_default_open(
                     ui.ctx(),
                     id,
-                    true, //debug: set default to false (this is for testing)
+                    false,
                 )
                 .show_header(ui, |ui| {
                     if ui
@@ -354,16 +354,13 @@ impl eframe::App for App {
                             }
                         )
                     ));
-
-                    // debug: remove label
-                    ui.label(format!("Sampling points: {:?}", self.stack_sampling_points))
                 });
 
                 let id = ui.make_persistent_id("viewport_options_collapsable");
                 egui::collapsing_header::CollapsingState::load_with_default_open(
                     ui.ctx(),
                     id,
-                    false, //debug: true
+                    true,
                 )
                 .show_header(ui, |ui| {
                     ui.label(egui::RichText::new("Viewport").strong().size(15.0));
@@ -421,6 +418,8 @@ impl eframe::App for App {
             &mut self.sampling_points_compute_once,
             self.sampling_points_compute_auto,
             &mut self.sampling_points_is_outdated,
+            &mut self.parameters_current_layer_is_outdated,
+            &mut self.parameters_all_layers_is_outdated,
             self.layer_lowest,
             self.layer_highest,
         );
