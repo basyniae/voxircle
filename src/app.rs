@@ -471,8 +471,8 @@ impl eframe::App for App {
                 self.layer_lowest,
                 self.layer_highest,
                 self.stack_blocks.get(self.current_layer).unwrap(),
-                self.stack_blocks.clone(),
-                self.stack_layer_config.clone(),
+                &self.stack_blocks,
+                &self.stack_layer_config,
                 &mut self.nr_blocks_total,
                 &mut self.nr_blocks_interior,
                 &mut self.nr_blocks_boundary,
@@ -534,28 +534,25 @@ impl eframe::App for App {
                         self.stack_layer_config.resize(
                             self.layer_lowest,
                             self.layer_highest,
-                            self.stack_layer_config.get(old_layer).unwrap().clone(),
+                            &self.stack_layer_config.get(old_layer).unwrap(),
                         );
 
                         self.stack_sampled_parameters.resize(
                             self.layer_lowest,
                             self.layer_highest,
-                            self.stack_sampled_parameters
-                                .get(old_layer)
-                                .unwrap()
-                                .clone(),
+                            &self.stack_sampled_parameters.get(old_layer).unwrap(),
                         );
 
                         self.stack_blocks.resize(
                             self.layer_lowest,
                             self.layer_highest,
-                            self.stack_blocks.get(old_layer).unwrap().clone(),
+                            &self.stack_blocks.get(old_layer).unwrap(),
                         );
 
                         self.stack_sampling_points.resize(
                             self.layer_lowest,
                             self.layer_highest,
-                            self.stack_sampling_points.get(old_layer).unwrap().clone(),
+                            &self.stack_sampling_points.get(old_layer).unwrap(),
                         );
                     }
                 }

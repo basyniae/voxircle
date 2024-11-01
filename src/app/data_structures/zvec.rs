@@ -43,7 +43,7 @@ impl<T: Clone + Debug> ZVec<T> {
     }
 
     /// Resize the ZVec so that new_min is the new minimum, removing data or filling with the default as necessary
-    pub fn resize_with_min(&mut self, new_min: isize, value: T) {
+    pub fn resize_with_min(&mut self, new_min: isize, value: &T) {
         if new_min < self.minimum {
             for _ in new_min..self.minimum {
                 self.data.push_front(value.clone());
@@ -58,7 +58,7 @@ impl<T: Clone + Debug> ZVec<T> {
     }
 
     /// Resize the ZVec so that new_max is the new maximum, removing data or filling with the default as necessary
-    pub fn resize_with_max(&mut self, new_max: isize, value: T) {
+    pub fn resize_with_max(&mut self, new_max: isize, value: &T) {
         if new_max > self.maximum {
             for _ in self.maximum..new_max {
                 self.data.push_back(value.clone());
@@ -73,9 +73,9 @@ impl<T: Clone + Debug> ZVec<T> {
     }
 
     /// Resize the ZVec to the new range, removing data or filling with the default as necessary
-    pub fn resize(&mut self, new_min: isize, new_max: isize, default: T) {
-        self.resize_with_min(new_min, default.clone());
-        self.resize_with_max(new_max, default);
+    pub fn resize(&mut self, new_min: isize, new_max: isize, default: &T) {
+        self.resize_with_min(new_min, &default);
+        self.resize_with_max(new_max, &default);
     }
 
     pub fn get_minimum(&self) -> isize {

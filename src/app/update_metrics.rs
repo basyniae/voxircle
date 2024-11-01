@@ -10,8 +10,8 @@ pub fn update_metrics(
     layer_lowest: isize,
     layer_highest: isize,
     current_layer_blocks: Blocks,
-    stack_blocks: ZVec<Blocks>,
-    stack_layer_config: ZVec<LayerConfig>,
+    stack_blocks: &ZVec<Blocks>,
+    stack_layer_config: &ZVec<LayerConfig>,
 
     // Metrics
     nr_blocks_total: &mut u64,
@@ -34,7 +34,7 @@ pub fn update_metrics(
 
     // update 3d spatial metrics
     *boundary_3d = app::metrics::boundary_3d::boundary_3d(
-        &stack_blocks,
+        stack_blocks,
         layer_lowest,
         layer_highest,
         true,
