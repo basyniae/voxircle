@@ -11,7 +11,7 @@ pub fn format_block_count(nr_blocks: u64) -> String {
     }
 }
 
-pub fn format_block_diameter(diameters: [u64; 2]) -> String {
+pub fn format_block_diameter(diameters: [usize; 2]) -> String {
     if diameters[0] == diameters[1] {
         format!("block diameter: {}", diameters[0])
     } else {

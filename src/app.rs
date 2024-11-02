@@ -108,6 +108,9 @@ pub struct App {
     view_convex_hull: bool,
     view_outer_corners: bool,
 
+    view_center_blocks: bool,
+    view_bounds: bool,
+
     global_bounding_box: [[f64; 2]; 2], // Is for viewport zoom. Update with metrics
 
     // Zoom options (used for double click to reset zoom)
@@ -226,6 +229,9 @@ impl App {
             view_interior_3d: false,
             view_convex_hull: false,
             view_outer_corners: false,
+
+            view_center_blocks: true, // debug: default false
+            view_bounds: true,        // debug: default false
 
             global_bounding_box: [[0.0; 2]; 2],
 
@@ -582,6 +588,8 @@ impl eframe::App for App {
                 self.view_interior_3d,
                 self.view_convex_hull,
                 self.view_outer_corners,
+                self.view_center_blocks,
+                self.view_bounds,
                 &mut self.reset_zoom_once,
                 &mut self.reset_zoom_continuous,
                 self.boundary_2d.clone(), // fixme: this is weird. should be unnecessary

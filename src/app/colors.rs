@@ -28,6 +28,7 @@ pub const COLOR_X_AXIS: Color32 = Color32::from_rgb(123, 34, 34);
 // x-axis color (red)
 pub const COLOR_Y_AXIS: Color32 = Color32::from_rgb(44, 107, 44);
 // y-axis color (green)
+pub const COLOR_RED: Color32 = Color32::from_rgb(255, 0, 0); //todo: make proper color
 
 /// convex combination in RGB
 pub fn linear_gradient(color_a: Color32, color_b: Color32, t: f64) -> Color32 {
