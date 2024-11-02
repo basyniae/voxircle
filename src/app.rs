@@ -599,7 +599,16 @@ impl eframe::App for App {
                 self.interior_3d.get(self.current_layer),
                 &self.convex_hull,
                 &self.outer_corners,
-            )
+            );
+
+            // fixme: make nicer display, do update order with metrics
+            ui.label(format!(
+                "Symmetry type: {:?}",
+                self.stack_blocks
+                    .get(self.current_layer)
+                    .unwrap()
+                    .get_symmetry_type()
+            ))
         });
     }
 }

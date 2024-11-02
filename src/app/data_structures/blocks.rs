@@ -3,7 +3,7 @@ use crate::app::sampling::SampleCombineMethod;
 use itertools::Itertools;
 
 /// Captures a bit matrix. The length of the vector should always be edge_length**2
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, PartialEq)]
 pub struct Blocks {
     pub blocks: Vec<bool>,
     pub grid_size: usize, // of type usize because we index with it a bunch of times
@@ -192,12 +192,11 @@ impl Blocks {
 /// Methods for getting bounds
 impl Blocks {
     // fixme: how to handle empty inputs?
-    // todo: think about if this would be better make as global coords (pairs of isizes).
     /// Get the smallest box that contains all blocks in the input.
     /// The output is in coordinates relative to the grid system (so usizes)
     /// Presented in the format ((x_1, y_1), (x_2, y_2)), where
     /// 0 <= x_1 <= x_2 < grid_size,   0 <= y_1 <= y_2 < grid_size
-    pub fn get_bounds(&self) -> [[usize; 2]; 2] {
+    pub fn get_bounds(&self) -> [[isize; 2]; 2] {
         let mut x_1 = self.grid_size;
         let mut y_1 = self.grid_size;
         let mut x_2 = 0;
@@ -212,13 +211,20 @@ impl Blocks {
             }
         }
 
-        [[x_1, y_1], [x_2, y_2]]
+        [
+            [
+                x_1 as isize - self.origin_usize[0] as isize,
+                y_1 as isize - self.origin_usize[1] as isize,
+            ],
+            [
+                x_2 as isize - self.origin_usize[0] as isize,
+                y_2 as isize - self.origin_usize[1] as isize,
+            ],
+        ]
     }
 
     pub fn get_bounds_floats(&self) -> [[f64; 2]; 2] {
         let [[x_1, y_1], [x_2, y_2]] = self.get_bounds();
-        let [x_1, y_1] = self.get_global_coord_usize_from_index(x_1 + y_1 * self.grid_size);
-        let [x_2, y_2] = self.get_global_coord_usize_from_index(x_2 + y_2 * self.grid_size);
 
         [
             [x_1 as f64, y_1 as f64],
@@ -227,11 +233,11 @@ impl Blocks {
     }
 
     /// Get the diameters of the bounding box of the input
-    /// Need to get the x and y diameters separately by assymetry.
+    /// Need to get the x and y diameters separately by asymetry.
     /// Diameters are preferred over radii since we always get an integer this way
     pub fn get_diameters(&self) -> [usize; 2] {
         let [[x_1, y_1], [x_2, y_2]] = self.get_bounds();
-        [x_2 - x_1 + 1, y_2 - y_1 + 1]
+        [(x_2 - x_1 + 1) as usize, (y_2 - y_1 + 1) as usize]
     }
 
     // Return the blocks object which contains the center 1, 2, or 4 blocks (depending on parities)
@@ -241,15 +247,23 @@ impl Blocks {
 
         // get indices, 1 or 2 depending on parity
         let x_indices = if diameter_x % 2 == 0 {
-            vec![x_1 + diameter_x / 2 - 1, x_1 + diameter_x / 2]
+            vec![
+                (self.origin_usize[0] as isize + x_1 + diameter_x as isize / 2).saturating_sub(1)
+                    as usize,
+                (self.origin_usize[0] as isize + x_1 + diameter_x as isize / 2) as usize,
+            ]
         } else {
-            vec![x_1 + diameter_x / 2]
+            vec![(self.origin_usize[0] as isize + x_1 + diameter_x as isize / 2) as usize]
         };
 
         let y_indices = if diameter_y % 2 == 0 {
-            vec![y_1 + diameter_y / 2 - 1, y_1 + diameter_y / 2]
+            vec![
+                (self.origin_usize[1] as isize + y_1 + diameter_y as isize / 2).saturating_sub(1)
+                    as usize,
+                (self.origin_usize[1] as isize + y_1 + diameter_y as isize / 2) as usize,
+            ]
         } else {
-            vec![y_1 + diameter_y / 2]
+            vec![(self.origin_usize[1] as isize + y_1 + diameter_y as isize / 2) as usize]
         };
 
         Self::squares_at_xy_coords(x_indices, y_indices, self.grid_size)
@@ -363,17 +377,144 @@ impl Blocks {
     }
 }
 
-/// Methods for modifying blocks
+/// Methods for modifying blocks (flipping and rotating)
 impl Blocks {
-    fn flip_horizontal(&self, bounds: [[usize; 2]; 2]) -> Self {
-        todo!()
+    /// Flip the blocks along the horizontal axis through the center of the bounds.
+    fn flip_horizontal(&self, bounds: [[isize; 2]; 2]) -> Self {
+        let [[x_1, _], [x_2, _]] = bounds;
+
+        Blocks::new(
+            (0..self.grid_size.pow(2))
+                .map(|index| {
+                    let [x, y] = self.get_global_coord_usize_from_index(index);
+                    // formula for mirroring in the middle of x_1 and x_2
+                    let preimage_global_coord = [-x + x_1 + x_2, y];
+                    self.is_block_on_global_coord(preimage_global_coord)
+                })
+                .collect(),
+            self.grid_size,
+        )
     }
+
+    /// Flip the blocks along the vertical axis through the center of the bounds.
+    fn flip_vertical(&self, bounds: [[isize; 2]; 2]) -> Self {
+        let [[_, y_1], [_, y_2]] = bounds;
+
+        Blocks::new(
+            (0..self.grid_size.pow(2))
+                .map(|index| {
+                    let [x, y] = self.get_global_coord_usize_from_index(index);
+                    // formula for mirroring in the middle of y_1 and y_2
+                    let image_global_coord = [x, -y + y_1 + y_2];
+                    self.is_block_on_global_coord(image_global_coord)
+                })
+                .collect(),
+            self.grid_size,
+        )
+    }
+
+    /// Flip the blocks along the 45° up diagonal through the center.
+    /// Requires that the center is either 1 or 4, so that this diagonal goes nicely through the grid
+    /// (Else reflection doesn't take cells to cells)
+    fn flip_up_diagonal(&self) -> Self {
+        let center_blocks = self.get_center_blocks();
+        assert!(center_blocks.get_nr_blocks() == 1 || center_blocks.get_nr_blocks() == 4);
+        let [x_m, y_m] = center_blocks.get_bounds()[0]; // Point through which the mirror goes
+
+        Blocks::new(
+            (0..self.grid_size.pow(2))
+                .map(|index| {
+                    let [x, y] = self.get_global_coord_usize_from_index(index);
+                    // formula for mirroring in the up diagonal through [x_m, y_m]
+                    let image_global_coord = [y + x_m - y_m, x - x_m + y_m];
+                    self.is_block_on_global_coord(image_global_coord)
+                })
+                .collect(),
+            self.grid_size,
+        )
+    }
+
+    /// Flip the blocks along the 45° down diagonal through the center.
+    /// Requires that the center is either 1 or 4, so that this diagonal goes nicely through the grid
+    /// (Else reflection doesn't take cells to cells)
+    fn flip_down_diagonal(&self) -> Self {
+        let center_blocks = self.get_center_blocks();
+        assert!(center_blocks.get_nr_blocks() == 1 || center_blocks.get_nr_blocks() == 4);
+        let [x_lb, y_lb] = center_blocks.get_bounds()[0]; // left bottom corner
+                                                          // Point through which the mirror goes
+        let [x_m, y_m] = if center_blocks.get_nr_blocks() == 1 {
+            [x_lb + 1, y_lb] // go right one from bottom left
+        } else {
+            [x_lb + 2, y_lb] // go right two from bottom left
+        };
+
+        Blocks::new(
+            (0..self.grid_size.pow(2))
+                .map(|index| {
+                    let [x, y] = self.get_global_coord_usize_from_index(index);
+                    // formula for mirroring in the up diagonal through [x_m, y_m]
+                    let image_global_coord = [-y + x_m + y_m - 1, -x + x_m + y_m - 1];
+                    // NOTE! We flip the left bottom corner! so to look up the preimage, we need to
+                    //  account for looking at the right top corner, hence the -1, -1 term
+                    self.is_block_on_global_coord(image_global_coord)
+                })
+                .collect(),
+            self.grid_size,
+        )
+    }
+}
+
+#[derive(Debug)]
+pub enum SymmetryType {
+    ReflectionHorizontal,
+    ReflectionVertical,
+    ReflectionDiagonalUp,
+    ReflectionDiagonalDown,
+    ReflectionsCardinals,
+    ReflectionsDiagonals,
+    ReflectionsAll,
+    RotationHalf,
+    RotationQuarter,
+    NoSymmetry,
 }
 
 /// Methods for symmetry detection & building helpers TODO
 impl Blocks {
-    // From a shape (which is assumed to be non-pathological,
-    // find the sequence of side lengths.
+    /// Get the symmetry type of the block structure
+    pub fn get_symmetry_type(&self) -> SymmetryType {
+        let bounds = self.get_bounds();
+        let diagonals_possible = self.get_center_blocks().get_nr_blocks() == 1
+            || self.get_center_blocks().get_nr_blocks() == 4;
+
+        match (
+            *self == self.flip_horizontal(bounds),
+            *self == self.flip_vertical(bounds),
+            diagonals_possible && *self == self.flip_up_diagonal(), // rely on short-circuiting here to prevent asserting errors
+            diagonals_possible && *self == self.flip_down_diagonal(),
+        ) {
+            // If any are true, we are in the reflection case
+            (true, _, true, _) | (true, _, _, true) | (_, true, true, _) | (_, true, _, true) => {
+                SymmetryType::ReflectionsAll
+            }
+            (true, true, false, false) => SymmetryType::ReflectionsCardinals,
+            (false, false, true, true) => SymmetryType::ReflectionsDiagonals,
+            (true, false, false, false) => SymmetryType::ReflectionHorizontal,
+            (false, true, false, false) => SymmetryType::ReflectionVertical,
+            (false, false, true, false) => SymmetryType::ReflectionDiagonalUp,
+            (false, false, false, true) => SymmetryType::ReflectionDiagonalDown,
+            (false, false, false, false) => {
+                // Rotation case
+                // Check 90° rotation symmetry
+                if diagonals_possible && *self == self.flip_horizontal(bounds).flip_up_diagonal() {
+                    SymmetryType::RotationQuarter
+                } else if *self == self.flip_horizontal(bounds).flip_vertical(bounds) {
+                    SymmetryType::RotationHalf
+                } else {
+                    SymmetryType::NoSymmetry
+                }
+            }
+        }
+    }
 }
 
 /// Methods for construction
