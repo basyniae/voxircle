@@ -2,8 +2,8 @@ use std::f64::consts::PI;
 
 use egui_plot::{Line, PlotBounds, PlotPoints, Polygon};
 
+/// Specifiying the bottom left coordinates of the square.
 pub fn square_at_coords(coord: [f64; 2]) -> Polygon {
-    // Specifiying the bottom left coordinates of the square.
     let x = coord[0];
     let y = coord[1];
 
@@ -64,4 +64,17 @@ pub fn tilted_line_in_bounds(bnds: PlotBounds, tilt: f64, offset_x: f64, offset_
         .collect();
 
     Line::new(PlotPoints::new(intersection_pts_in_box))
+}
+
+/// Plot a square given minimal and maximal points. Input: diagonally opposing corners of the square
+pub fn bounds_from_square(bounds: [[f64; 2]; 2]) -> Line {
+    let [[x_1, y_1], [x_2, y_2]] = bounds;
+
+    Line::new(PlotPoints::new(vec![
+        [x_1, y_1],
+        [x_1, y_2],
+        [x_2, y_2],
+        [x_2, y_1],
+        [x_1, y_1],
+    ]))
 }

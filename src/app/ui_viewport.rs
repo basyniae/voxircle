@@ -1,12 +1,13 @@
 use crate::app::colors::{
     linear_gradient, COLOR_BACKGROUND, COLOR_DARK_BLUE, COLOR_DARK_GREEN, COLOR_DARK_ORANGE,
     COLOR_FACE, COLOR_LIGHT_BLUE, COLOR_LIME, COLOR_MUTED_ORANGE, COLOR_ORANGE, COLOR_PURPLE,
-    COLOR_WIRE, COLOR_X_AXIS, COLOR_YELLOW, COLOR_Y_AXIS,
+    COLOR_RED, COLOR_WIRE, COLOR_X_AXIS, COLOR_YELLOW, COLOR_Y_AXIS,
 };
 use crate::app::data_structures::blocks::Blocks;
 use crate::app::data_structures::layer_config::LayerConfig;
 use crate::app::data_structures::sampled_parameters::SampledParameters;
 use crate::app::math::convex_hull::line_segments_from_conv_hull;
+use crate::app::plotting::bounds_from_square;
 use crate::app::{generation, plotting};
 use eframe::egui::{Stroke, Ui, Vec2b};
 use egui_plot::{
@@ -34,6 +35,9 @@ pub fn ui_viewport(
     view_interior_3d: bool,
     view_convex_hull: bool,
     view_outer_corners: bool,
+
+    view_center_blocks: bool,
+    view_bounds: bool,
 
     // Zoom options (used for double click to reset zoom)
     reset_zoom_once: &mut bool,
@@ -108,15 +112,17 @@ pub fn ui_viewport(
                     view_boundary_3d,
                     view_boundary_2d,
                     view_interior_2d,
-                    view_interior_3d
+                    view_interior_3d,
+                    view_center_blocks,
                 ],
                 [
-                    Some(blocks),
+                    Some(blocks.clone()), //fixme: remove clone
                     Some(complement_2d),
                     boundary_3d_slice,
                     Some(boundary_2d),
                     Some(interior_2d),
-                    interior_3d_slice
+                    interior_3d_slice,
+                    Some(blocks.clone().get_center_blocks()), // fixme: update in proper order
                 ],
                 [
                     COLOR_FACE,
@@ -124,7 +130,8 @@ pub fn ui_viewport(
                     COLOR_PURPLE,
                     COLOR_LIGHT_BLUE,
                     COLOR_YELLOW,
-                    COLOR_MUTED_ORANGE
+                    COLOR_MUTED_ORANGE,
+                    COLOR_RED,
                 ]
             ) {
                 if view {
@@ -280,6 +287,12 @@ pub fn ui_viewport(
                             .color(COLOR_DARK_ORANGE),
                     );
                 }
+            }
+
+            // Plot bounds of the blocks
+            if view_bounds {
+                let line = bounds_from_square(blocks.get_bounds_floats());
+                plot_ui.line(line.color(COLOR_ORANGE)); // todo: think about colors
             }
         });
 }

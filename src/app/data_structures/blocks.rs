@@ -1,5 +1,6 @@
 use crate::app::math::linear_algebra::Vec2;
 use crate::app::sampling::SampleCombineMethod;
+use itertools::Itertools;
 
 /// Captures a bit matrix. The length of the vector should always be edge_length**2
 #[derive(Default, Debug, Clone)]
@@ -66,6 +67,7 @@ impl Blocks {
     }
 
     /// Centered block coordinates, i.e., where the origin lies at (0,0)
+    /// Gives the left bottom coordinates of each block
     pub fn get_all_block_coords(&self) -> Vec<[f64; 2]> {
         let mut i = 0;
         let mut output_vec = Vec::new();
@@ -84,7 +86,7 @@ impl Blocks {
     }
 }
 
-/// Methods for getting metrics
+/// Methods for getting basic metrics
 impl Blocks {
     /// Get number of blocks
     pub fn get_nr_blocks(&self) -> u64 {
@@ -150,96 +152,6 @@ impl Blocks {
         )
     }
 
-    // From a shape (which is assumed to be non-pathological, TODO: make checks for this: do via symmetry detection)
-    // find the sequence of side lengths.
-    // Goal: easy construction in minecraft (it's how i think of circles)
-    pub fn get_build_sequence(&self) -> Vec<usize> {
-        // We scan horizontal lines bottom to top (which is just repeated addition of the edge length)
-        // Then subtract the nr blocks in each successive layer and divide by two
-
-        let mut nr_blocks_per_layer = vec![];
-
-        // loop over rows
-        'row: for i in 0..self.grid_size {
-            let mut nr_blocks_in_ith_layer: usize = 0;
-            let mut prev_block_had_block_below = false; // detect if we're accross the symmetry axis
-            let mut prev_location_had_block = false; // detect if all blocks on a row have been scanned
-            let mut last_row = false; // detect if this is the last row we need to include in the build list
-
-            // loop over elements of rows
-            for j in 0..self.grid_size {
-                // If there is a block at the current position
-                if self.blocks[i * self.grid_size + j] {
-                    prev_location_had_block = true;
-                    // And there is no block directly below it (note that padding takes care of positivity)
-                    if !self.blocks[(i - 1) * self.grid_size + j] {
-                        if prev_block_had_block_below {
-                            // If the previous block had a block below it and this one doesn't,
-                            //  we must be past the symmetry axis. So no contribution and stop
-                            //  scanning this line.
-                            nr_blocks_per_layer.push(nr_blocks_in_ith_layer);
-                            if last_row {
-                                break 'row;
-                            }
-                            break;
-                        }
-                        // Then this block contributes to the build sequence
-                        nr_blocks_in_ith_layer += 1;
-                    } else {
-                        prev_block_had_block_below = true;
-                    }
-
-                    // If there is no block left-diagonally above the current block
-                    //  we must be past the 45° point. (this assumes "niceness" of the input)
-                    if !self.blocks[(i + 1) * self.grid_size + j - 1] {
-                        // so break the outer loop as soon as we've scanned the full row
-                        // (this to avoid error in case of the final in build sequence being >1 in length)
-                        last_row = true;
-                    }
-                } else {
-                    // Stop scanning the line at the end of the line
-                    if prev_location_had_block {
-                        nr_blocks_per_layer.push(nr_blocks_in_ith_layer);
-                        if last_row {
-                            break 'row;
-                        }
-                        break;
-                    }
-                }
-            }
-        }
-
-        nr_blocks_per_layer
-    }
-
-    // Need to get the x and y diameters separately by assymetry.
-    // Also diameters are preferred over radii since we always get an integer this way
-    pub fn get_diameters(&self) -> [u64; 2] {
-        // x diameter: loop over all columns, count how many have at least one block
-        let mut x_diameter = 0;
-        for i in 0..self.grid_size {
-            for j in 0..self.grid_size {
-                if self.blocks[i + j * self.grid_size] {
-                    x_diameter += 1;
-                    break;
-                }
-            }
-        }
-
-        // y diameter: loop over all rows, count how many have at least one block
-        let mut y_diameter = 0;
-        for i in 0..self.grid_size {
-            for j in 0..self.grid_size {
-                if self.blocks[i * self.grid_size + j] {
-                    y_diameter += 1;
-                    break;
-                }
-            }
-        }
-
-        [x_diameter, y_diameter]
-    }
-
     // Returns a (unordered) list of all corners of the blocks (so get_block_coords (±0.5,±0.5))
     // which are the corner of exactly 1 block (note that exactly 2 blocks corresponds to a corner
     //  which is an edge of the whole block structure, and exactly 2 blocks corresponds to an inner corner)
@@ -274,6 +186,85 @@ impl Blocks {
         }
 
         output
+    }
+}
+
+/// Methods for getting bounds
+impl Blocks {
+    // fixme: how to handle empty inputs?
+    // todo: think about if this would be better make as global coords (pairs of isizes).
+    /// Get the smallest box that contains all blocks in the input.
+    /// The output is in coordinates relative to the grid system (so usizes)
+    /// Presented in the format ((x_1, y_1), (x_2, y_2)), where
+    /// 0 <= x_1 <= x_2 < grid_size,   0 <= y_1 <= y_2 < grid_size
+    pub fn get_bounds(&self) -> [[usize; 2]; 2] {
+        let mut x_1 = self.grid_size;
+        let mut y_1 = self.grid_size;
+        let mut x_2 = 0;
+        let mut y_2 = 0;
+
+        for (x, y) in (0..self.grid_size).cartesian_product(0..self.grid_size) {
+            if self.blocks[x + y * self.grid_size] {
+                x_1 = x_1.min(x);
+                y_1 = y_1.min(y);
+                x_2 = x_2.max(x);
+                y_2 = y_2.max(y);
+            }
+        }
+
+        [[x_1, y_1], [x_2, y_2]]
+    }
+
+    pub fn get_bounds_floats(&self) -> [[f64; 2]; 2] {
+        let [[x_1, y_1], [x_2, y_2]] = self.get_bounds();
+        let [x_1, y_1] = self.get_global_coord_usize_from_index(x_1 + y_1 * self.grid_size);
+        let [x_2, y_2] = self.get_global_coord_usize_from_index(x_2 + y_2 * self.grid_size);
+
+        [
+            [x_1 as f64, y_1 as f64],
+            [x_2 as f64 + 1.0, y_2 as f64 + 1.0],
+        ]
+    }
+
+    /// Get the diameters of the bounding box of the input
+    /// Need to get the x and y diameters separately by assymetry.
+    /// Diameters are preferred over radii since we always get an integer this way
+    pub fn get_diameters(&self) -> [usize; 2] {
+        let [[x_1, y_1], [x_2, y_2]] = self.get_bounds();
+        [x_2 - x_1 + 1, y_2 - y_1 + 1]
+    }
+
+    // Return the blocks object which contains the center 1, 2, or 4 blocks (depending on parities)
+    pub fn get_center_blocks(&self) -> Blocks {
+        let [[x_1, y_1], [x_2, y_2]] = self.get_bounds();
+        let [diameter_x, diameter_y] = self.get_diameters();
+
+        // get indices, 1 or 2 depending on parity
+        let x_indices = if diameter_x % 2 == 0 {
+            vec![x_1 + diameter_x / 2 - 1, x_1 + diameter_x / 2]
+        } else {
+            vec![x_1 + diameter_x / 2]
+        };
+
+        let y_indices = if diameter_y % 2 == 0 {
+            vec![y_1 + diameter_y / 2 - 1, y_1 + diameter_y / 2]
+        } else {
+            vec![y_1 + diameter_y / 2]
+        };
+
+        Self::squares_at_xy_coords(x_indices, y_indices, self.grid_size)
+    }
+
+    // Get the coordinates of the center of the bounding box
+    pub fn get_center_coord(&self) -> [f64; 2] {
+        let center_blocks = self.get_center_blocks();
+        let nr_center_blocks = center_blocks.get_nr_blocks();
+        // Take the average of the left bottom coordinates, then add 0.5 in both coords to get the center
+        center_blocks
+            .get_all_block_coords()
+            .iter()
+            .fold([0.0; 2], |[a, b], [c, d]| [a + c, b + d])
+            .map(|coord| coord / (nr_center_blocks as f64) + 0.5)
     }
 }
 
@@ -369,5 +360,55 @@ impl Blocks {
                 Self::combine_percentage(stack, percentage)
             }
         }
+    }
+}
+
+/// Methods for modifying blocks
+impl Blocks {
+    fn flip_horizontal(&self, bounds: [[usize; 2]; 2]) -> Self {
+        todo!()
+    }
+}
+
+/// Methods for symmetry detection & building helpers TODO
+impl Blocks {
+    // From a shape (which is assumed to be non-pathological,
+    // find the sequence of side lengths.
+}
+
+/// Methods for construction
+impl Blocks {
+    // All blocks that have x coord in the set
+    fn strips_at_x_coords(x_coords: Vec<usize>, grid_size: usize) -> Blocks {
+        Blocks::new(
+            (0..grid_size.pow(2))
+                .map(|i| x_coords.contains(&(i % grid_size)))
+                .collect(),
+            grid_size,
+        )
+    }
+
+    // All blocks that have y coord in the set
+    fn strips_at_y_coords(y_coords: Vec<usize>, grid_size: usize) -> Blocks {
+        Blocks::new(
+            (0..grid_size.pow(2))
+                .map(|i| y_coords.contains(&(i / grid_size)))
+                .collect(),
+            grid_size,
+        )
+    }
+
+    // Blocks that have x and y coords contained in the provided vectors
+    fn squares_at_xy_coords(
+        x_coords: Vec<usize>,
+        y_coords: Vec<usize>,
+        grid_size: usize,
+    ) -> Blocks {
+        Blocks::new(
+            (0..grid_size.pow(2))
+                .map(|i| x_coords.contains(&(i % grid_size)) && y_coords.contains(&(i / grid_size)))
+                .collect(),
+            grid_size,
+        )
     }
 }
