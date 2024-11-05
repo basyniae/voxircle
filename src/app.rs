@@ -6,6 +6,8 @@ use eframe::egui::{Direction, Layout};
 use eframe::emath::Align;
 use mlua::Lua;
 
+use crate::app::data_structures::blocks::SymmetryType;
+use crate::app::data_structures::blocks::SymmetryType::NoSymmetry;
 use crate::app::data_structures::sampled_parameters::SampledParameters;
 use crate::app::sampling::{SampleCombineMethod, SampleDistributeMethod};
 use crate::app::ui_layer_navigation::ui_layer_navigation;
@@ -108,8 +110,12 @@ pub struct App {
     view_convex_hull: bool,
     view_outer_corners: bool,
 
+    // viewport options for symmetry & building
     view_center_blocks: bool,
     view_bounds: bool,
+    view_mirrors: bool,
+    symmetry_type: SymmetryType,
+    center_coord: [f64; 2], //todo: rename
 
     global_bounding_box: [[f64; 2]; 2], // Is for viewport zoom. Update with metrics
 
@@ -230,8 +236,11 @@ impl App {
             view_convex_hull: false,
             view_outer_corners: false,
 
-            view_center_blocks: true, // debug: default false
-            view_bounds: true,        // debug: default false
+            view_center_blocks: false,
+            view_bounds: false,
+            view_mirrors: true, //debug false
+            symmetry_type: NoSymmetry,
+            center_coord: [0.0; 2],
 
             global_bounding_box: [[0.0; 2]; 2],
 
@@ -362,6 +371,7 @@ impl eframe::App for App {
                     ));
                 });
 
+                // todo: move viewport options to its own file
                 let id = ui.make_persistent_id("viewport_options_collapsable");
                 egui::collapsing_header::CollapsingState::load_with_default_open(
                     ui.ctx(),
@@ -394,6 +404,13 @@ impl eframe::App for App {
                         self.single_radius,
                         egui::Checkbox::new(&mut self.view_intersect_area, "Intersect area"),
                     );
+
+                    ui.collapsing("Symmetry & Building", |ui| {
+                        ui.label(format!("Symmetry type: {:}", self.symmetry_type));
+                        ui.checkbox(&mut self.view_center_blocks, "Center blocks");
+                        ui.checkbox(&mut self.view_bounds, "Bounds");
+                        ui.checkbox(&mut self.view_mirrors, "Mirrors");
+                    })
                 });
 
                 ui.separator();
@@ -489,6 +506,8 @@ impl eframe::App for App {
                 &mut self.interior_3d,
                 &mut self.convex_hull,
                 &mut self.outer_corners,
+                &mut self.symmetry_type,
+                &mut self.center_coord,
                 &mut self.global_bounding_box,
             )
         }
@@ -590,6 +609,9 @@ impl eframe::App for App {
                 self.view_outer_corners,
                 self.view_center_blocks,
                 self.view_bounds,
+                self.view_mirrors,
+                &self.symmetry_type,
+                &self.center_coord,
                 &mut self.reset_zoom_once,
                 &mut self.reset_zoom_continuous,
                 self.boundary_2d.clone(), // fixme: this is weird. should be unnecessary
@@ -600,15 +622,6 @@ impl eframe::App for App {
                 &self.convex_hull,
                 &self.outer_corners,
             );
-
-            // fixme: make nicer display, do update order with metrics
-            ui.label(format!(
-                "Symmetry type: {:?}",
-                self.stack_blocks
-                    .get(self.current_layer)
-                    .unwrap()
-                    .get_symmetry_type()
-            ))
         });
     }
 }

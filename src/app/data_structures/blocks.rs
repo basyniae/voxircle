@@ -1,6 +1,7 @@
 use crate::app::math::linear_algebra::Vec2;
 use crate::app::sampling::SampleCombineMethod;
 use itertools::Itertools;
+use std::fmt::{Display, Formatter};
 
 /// Captures a bit matrix. The length of the vector should always be edge_length**2
 #[derive(Default, Debug, Clone, PartialEq)]
@@ -379,25 +380,8 @@ impl Blocks {
 
 /// Methods for modifying blocks (flipping and rotating)
 impl Blocks {
-    /// Flip the blocks along the horizontal axis through the center of the bounds.
-    fn flip_horizontal(&self, bounds: [[isize; 2]; 2]) -> Self {
-        let [[x_1, _], [x_2, _]] = bounds;
-
-        Blocks::new(
-            (0..self.grid_size.pow(2))
-                .map(|index| {
-                    let [x, y] = self.get_global_coord_usize_from_index(index);
-                    // formula for mirroring in the middle of x_1 and x_2
-                    let preimage_global_coord = [-x + x_1 + x_2, y];
-                    self.is_block_on_global_coord(preimage_global_coord)
-                })
-                .collect(),
-            self.grid_size,
-        )
-    }
-
     /// Flip the blocks along the vertical axis through the center of the bounds.
-    fn flip_vertical(&self, bounds: [[isize; 2]; 2]) -> Self {
+    fn flip_horizontal(&self, bounds: [[isize; 2]; 2]) -> Self {
         let [[_, y_1], [_, y_2]] = bounds;
 
         Blocks::new(
@@ -407,6 +391,23 @@ impl Blocks {
                     // formula for mirroring in the middle of y_1 and y_2
                     let image_global_coord = [x, -y + y_1 + y_2];
                     self.is_block_on_global_coord(image_global_coord)
+                })
+                .collect(),
+            self.grid_size,
+        )
+    }
+
+    /// Flip the blocks along the horizontal axis through the center of the bounds.
+    fn flip_vertical(&self, bounds: [[isize; 2]; 2]) -> Self {
+        let [[x_1, _], [x_2, _]] = bounds;
+
+        Blocks::new(
+            (0..self.grid_size.pow(2))
+                .map(|index| {
+                    let [x, y] = self.get_global_coord_usize_from_index(index);
+                    // formula for mirroring in the middle of x_1 and x_2
+                    let preimage_global_coord = [-x + x_1 + x_2, y];
+                    self.is_block_on_global_coord(preimage_global_coord)
                 })
                 .collect(),
             self.grid_size,
@@ -464,6 +465,7 @@ impl Blocks {
     }
 }
 
+//
 #[derive(Debug)]
 pub enum SymmetryType {
     ReflectionHorizontal,
@@ -476,6 +478,29 @@ pub enum SymmetryType {
     RotationHalf,
     RotationQuarter,
     NoSymmetry,
+}
+
+impl Display for SymmetryType {
+    // Used as "Symmetry type: format("{}", symmetry_type)
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SymmetryType::ReflectionHorizontal => write!(f, "Reflection along horizontal line"),
+            SymmetryType::ReflectionVertical => write!(f, "Reflection along vertical line"),
+            SymmetryType::ReflectionDiagonalUp => write!(f, "Reflection along up 45° diagonal"),
+            SymmetryType::ReflectionDiagonalDown => write!(f, "Reflection along down 45° diagonal"),
+            SymmetryType::ReflectionsCardinals => {
+                write!(f, "Reflection along horizontal and vertical lines")
+            }
+            SymmetryType::ReflectionsDiagonals => write!(f, "Reflection along both 45° diagonals"),
+            SymmetryType::ReflectionsAll => write!(
+                f,
+                "Reflections along horizontal, vertical, and 45° diagonal lines"
+            ),
+            SymmetryType::RotationHalf => write!(f, "Rotation by 180°, or mirroring in a point"),
+            SymmetryType::RotationQuarter => write!(f, "Rotation by 90°"),
+            SymmetryType::NoSymmetry => write!(f, "No symmetry"),
+        }
+    }
 }
 
 /// Methods for symmetry detection & building helpers TODO
