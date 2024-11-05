@@ -3,7 +3,7 @@ use crate::app::colors::{
     COLOR_FACE, COLOR_LIGHT_BLUE, COLOR_LIME, COLOR_MUTED_ORANGE, COLOR_ORANGE, COLOR_PURPLE,
     COLOR_RED, COLOR_WIRE, COLOR_X_AXIS, COLOR_YELLOW, COLOR_Y_AXIS,
 };
-use crate::app::data_structures::blocks::Blocks;
+use crate::app::data_structures::blocks::{Blocks, SymmetryType};
 use crate::app::data_structures::layer_config::LayerConfig;
 use crate::app::data_structures::sampled_parameters::SampledParameters;
 use crate::app::math::convex_hull::line_segments_from_conv_hull;
@@ -38,6 +38,9 @@ pub fn ui_viewport(
 
     view_center_blocks: bool,
     view_bounds: bool,
+    view_mirrors: bool,
+    symmetry_type: &SymmetryType,
+    center_coord: &[f64; 2], //todo: rename
 
     // Zoom options (used for double click to reset zoom)
     reset_zoom_once: &mut bool,
@@ -208,10 +211,9 @@ pub fn ui_viewport(
 
             // Plot rotated x and y axes for nonzero tilt (dark orange and purple)
             if layer_config.tilt != 0.0 {
-                let bounds = plot_ui.plot_bounds();
                 plot_ui.line(
                     plotting::tilted_line_in_bounds(
-                        bounds,
+                        plot_ui.plot_bounds(),
                         layer_config.tilt,
                         layer_config.center_offset_x,
                         layer_config.center_offset_y,
@@ -220,7 +222,7 @@ pub fn ui_viewport(
                 );
                 plot_ui.line(
                     plotting::tilted_line_in_bounds(
-                        bounds,
+                        plot_ui.plot_bounds(),
                         layer_config.tilt + PI / 2.0,
                         layer_config.center_offset_x,
                         layer_config.center_offset_y,
@@ -293,6 +295,89 @@ pub fn ui_viewport(
             if view_bounds {
                 let line = bounds_from_square(blocks.get_bounds_floats());
                 plot_ui.line(line.color(COLOR_ORANGE)); // todo: think about colors
+            }
+
+            // todo: think about colors
+            if view_mirrors {
+                match symmetry_type {
+                    SymmetryType::ReflectionHorizontal => {
+                        plot_ui.hline(HLine::new(center_coord[1]).color(COLOR_PURPLE).width(2.0));
+                    }
+                    SymmetryType::ReflectionVertical => {
+                        plot_ui.vline(VLine::new(center_coord[0]).color(COLOR_PURPLE).width(2.0));
+                    }
+                    SymmetryType::ReflectionDiagonalUp => {
+                        plot_ui.line(
+                            plotting::tilted_line_in_bounds(
+                                plot_ui.plot_bounds(),
+                                std::f64::consts::FRAC_PI_4,
+                                layer_config.center_offset_x,
+                                layer_config.center_offset_y,
+                            )
+                            .color(COLOR_PURPLE),
+                        );
+                    }
+                    SymmetryType::ReflectionDiagonalDown => {
+                        plot_ui.line(
+                            plotting::tilted_line_in_bounds(
+                                plot_ui.plot_bounds(),
+                                -std::f64::consts::FRAC_PI_4,
+                                layer_config.center_offset_x,
+                                layer_config.center_offset_y,
+                            )
+                            .color(COLOR_PURPLE),
+                        );
+                    }
+                    SymmetryType::ReflectionsCardinals => {
+                        plot_ui.vline(VLine::new(center_coord[0]).color(COLOR_PURPLE).width(2.0));
+                        plot_ui.hline(HLine::new(center_coord[1]).color(COLOR_PURPLE).width(2.0));
+                    }
+                    SymmetryType::ReflectionsDiagonals => {
+                        plot_ui.line(
+                            plotting::tilted_line_in_bounds(
+                                plot_ui.plot_bounds(),
+                                std::f64::consts::FRAC_PI_4,
+                                layer_config.center_offset_x,
+                                layer_config.center_offset_y,
+                            )
+                            .color(COLOR_PURPLE),
+                        );
+                        plot_ui.line(
+                            plotting::tilted_line_in_bounds(
+                                plot_ui.plot_bounds(),
+                                -std::f64::consts::FRAC_PI_4,
+                                layer_config.center_offset_x,
+                                layer_config.center_offset_y,
+                            )
+                            .color(COLOR_PURPLE),
+                        );
+                    }
+                    SymmetryType::ReflectionsAll => {
+                        plot_ui.vline(VLine::new(center_coord[0]).color(COLOR_PURPLE).width(2.0));
+                        plot_ui.hline(HLine::new(center_coord[1]).color(COLOR_PURPLE).width(2.0));
+                        plot_ui.line(
+                            plotting::tilted_line_in_bounds(
+                                plot_ui.plot_bounds(),
+                                std::f64::consts::FRAC_PI_4,
+                                layer_config.center_offset_x,
+                                layer_config.center_offset_y,
+                            )
+                            .color(COLOR_PURPLE),
+                        );
+                        plot_ui.line(
+                            plotting::tilted_line_in_bounds(
+                                plot_ui.plot_bounds(),
+                                -std::f64::consts::FRAC_PI_4,
+                                layer_config.center_offset_x,
+                                layer_config.center_offset_y,
+                            )
+                            .color(COLOR_PURPLE),
+                        );
+                    }
+                    SymmetryType::RotationHalf => {}
+                    SymmetryType::RotationQuarter => {}
+                    SymmetryType::NoSymmetry => {}
+                }
             }
         });
 }

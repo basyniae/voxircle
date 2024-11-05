@@ -1,5 +1,5 @@
 use crate::app;
-use crate::app::data_structures::blocks::Blocks;
+use crate::app::data_structures::blocks::{Blocks, SymmetryType};
 use crate::app::data_structures::layer_config::LayerConfig;
 use crate::app::data_structures::zvec::ZVec;
 use crate::app::math::exact_squircle_bounds::exact_squircle_bounds;
@@ -24,6 +24,8 @@ pub fn update_metrics(
     interior_3d: &mut ZVec<Blocks>,
     convex_hull: &mut Vec<[f64; 2]>,
     outer_corners: &mut Vec<[f64; 2]>,
+    symmetry_type: &mut SymmetryType,
+    center_coord: &mut [f64; 2],
 
     global_bounding_box: &mut [[f64; 2]; 2],
 ) {
@@ -80,6 +82,10 @@ pub fn update_metrics(
             ],
             |a, b| square_max(a, b),
         );
+
+    *symmetry_type = current_layer_blocks.get_symmetry_type();
+
+    *center_coord = current_layer_blocks.get_center_coord();
 
     *global_bounding_box = square_max(
         *global_bounding_box,
