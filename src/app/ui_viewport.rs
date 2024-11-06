@@ -3,9 +3,10 @@ use crate::app::colors::{
     COLOR_FACE, COLOR_LIGHT_BLUE, COLOR_LIME, COLOR_MUTED_ORANGE, COLOR_ORANGE, COLOR_PURPLE,
     COLOR_RED, COLOR_WIRE, COLOR_X_AXIS, COLOR_YELLOW, COLOR_Y_AXIS,
 };
-use crate::app::data_structures::blocks::{Blocks, SymmetryType};
+use crate::app::data_structures::blocks::Blocks;
 use crate::app::data_structures::layer_config::LayerConfig;
 use crate::app::data_structures::sampled_parameters::SampledParameters;
+use crate::app::data_structures::symmetry_type::SymmetryType;
 use crate::app::math::convex_hull::line_segments_from_conv_hull;
 use crate::app::plotting::bounds_from_square;
 use crate::app::{generation, plotting};
