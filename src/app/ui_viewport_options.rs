@@ -1,4 +1,4 @@
-use crate::app::data_structures::blocks::SymmetryType;
+use crate::app::data_structures::symmetry_type::SymmetryType;
 use eframe::egui;
 use eframe::egui::Ui;
 

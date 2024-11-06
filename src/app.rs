@@ -6,20 +6,19 @@ use eframe::egui::{Direction, Layout};
 use eframe::emath::Align;
 use mlua::Lua;
 
-use crate::app::data_structures::blocks::SymmetryType;
-use crate::app::data_structures::blocks::SymmetryType::NoSymmetry;
-use crate::app::data_structures::sampled_parameters::SampledParameters;
-use crate::app::sampling::{SampleCombineMethod, SampleDistributeMethod};
-use crate::app::ui_layer_navigation::ui_layer_navigation;
-use crate::app::ui_sampling::ui_sampling;
-use crate::app::ui_viewport::ui_viewport;
-use crate::app::ui_viewport_options::ui_viewport_options;
-use crate::app::update_logic::{blocks_update, parameters_update, sampling_points_update};
-use crate::app::update_metrics::update_metrics;
 use data_structures::blocks::Blocks;
 use data_structures::layer_config::LayerConfig;
+use data_structures::sampled_parameters::SampledParameters;
+use data_structures::symmetry_type::SymmetryType;
 use data_structures::zvec::ZVec;
 use lua_field::LuaField;
+use sampling::{SampleCombineMethod, SampleDistributeMethod};
+use ui_layer_navigation::ui_layer_navigation;
+use ui_sampling::ui_sampling;
+use ui_viewport::ui_viewport;
+use ui_viewport_options::ui_viewport_options;
+use update_logic::{blocks_update, parameters_update, sampling_points_update};
+use update_metrics::update_metrics;
 
 mod colors;
 mod data_structures;
@@ -241,7 +240,7 @@ impl App {
             view_center_blocks: false,
             view_bounds: false,
             view_mirrors: true, //debug false
-            symmetry_type: NoSymmetry,
+            symmetry_type: SymmetryType::NoSymmetry,
             center_coord: [0.0; 2],
 
             global_bounding_box: [[0.0; 2]; 2],
