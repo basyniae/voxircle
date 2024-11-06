@@ -13,6 +13,7 @@ use crate::app::sampling::{SampleCombineMethod, SampleDistributeMethod};
 use crate::app::ui_layer_navigation::ui_layer_navigation;
 use crate::app::ui_sampling::ui_sampling;
 use crate::app::ui_viewport::ui_viewport;
+use crate::app::ui_viewport_options::ui_viewport_options;
 use crate::app::update_logic::{blocks_update, parameters_update, sampling_points_update};
 use crate::app::update_metrics::update_metrics;
 use data_structures::blocks::Blocks;
@@ -34,6 +35,7 @@ mod ui_layer_navigation;
 mod ui_options;
 mod ui_sampling;
 mod ui_viewport;
+mod ui_viewport_options;
 mod update_logic;
 mod update_metrics;
 
@@ -380,37 +382,26 @@ impl eframe::App for App {
                 )
                 .show_header(ui, |ui| {
                     ui.label(egui::RichText::new("Viewport").strong().size(15.0));
-                    // you can put checkboxes or whatever here
                 })
                 .body(|ui| {
-                    ui.columns(2, |columns| {
-                        columns[0].checkbox(&mut self.view_blocks, "Blocks");
-                        columns[0].checkbox(&mut self.view_complement, "Complement");
-                        columns[0].checkbox(&mut self.view_convex_hull, "Convex hull");
-                        columns[0].checkbox(&mut self.view_outer_corners, "Outer corners");
-
-                        columns[1].checkbox(&mut self.view_boundary_2d, "Layer Boundary");
-                        columns[1].checkbox(&mut self.view_interior_2d, "Layer Interior");
-                        columns[1].add_enabled(
-                            self.layers_enabled,
-                            egui::Checkbox::new(&mut self.view_boundary_3d, "3D Boundary"),
-                        );
-                        columns[1].add_enabled(
-                            self.layers_enabled,
-                            egui::Checkbox::new(&mut self.view_interior_3d, "3D Interior"),
-                        );
-                    });
-                    ui.add_enabled(
+                    ui_viewport_options(
+                        ui,
+                        self.layers_enabled,
                         self.single_radius,
-                        egui::Checkbox::new(&mut self.view_intersect_area, "Intersect area"),
-                    );
-
-                    ui.collapsing("Symmetry & Building", |ui| {
-                        ui.label(format!("Symmetry type: {:}", self.symmetry_type));
-                        ui.checkbox(&mut self.view_center_blocks, "Center blocks");
-                        ui.checkbox(&mut self.view_bounds, "Bounds");
-                        ui.checkbox(&mut self.view_mirrors, "Mirrors");
-                    })
+                        &self.symmetry_type,
+                        &mut self.view_blocks,
+                        &mut self.view_boundary_2d,
+                        &mut self.view_interior_2d,
+                        &mut self.view_complement,
+                        &mut self.view_intersect_area,
+                        &mut self.view_boundary_3d,
+                        &mut self.view_interior_3d,
+                        &mut self.view_convex_hull,
+                        &mut self.view_outer_corners,
+                        &mut self.view_center_blocks,
+                        &mut self.view_bounds,
+                        &mut self.view_mirrors,
+                    )
                 });
 
                 ui.separator();

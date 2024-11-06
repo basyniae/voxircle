@@ -43,24 +43,12 @@ pub fn update_metrics(
         true,
     );
 
-    // todo: move computation to boundary_3d.rs
-    *interior_3d = ZVec::new(
-        (layer_lowest..layer_highest)
-            .map(|layer| {
-                Blocks::new(
-                    boundary_3d
-                        .get(layer)
-                        .unwrap()
-                        .blocks
-                        .iter()
-                        .zip(stack_blocks.get(layer).unwrap().blocks)
-                        .map(|(is_bdry, is_block)| is_block && !is_bdry)
-                        .collect(),
-                    stack_blocks.get(layer).unwrap().grid_size,
-                )
-            })
-            .collect(),
+    *interior_3d = app::metrics::boundary_3d::interior_3d(
+        stack_blocks,
         layer_lowest,
+        layer_highest,
+        true,
+        true,
     );
 
     // update numerical metrics

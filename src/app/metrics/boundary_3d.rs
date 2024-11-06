@@ -47,3 +47,37 @@ pub fn boundary_3d(
 
     ZVec::new(out, layer_min)
 }
+
+// feels like a roundabout implementation, but there's no good reason to make it similar to boundary_3d above.
+pub fn interior_3d(
+    stack_blocks: &ZVec<Blocks>,
+    layer_min: isize,
+    layer_max: isize,
+    floating_bottom: bool,
+    floating_top: bool,
+) -> ZVec<Blocks> {
+    ZVec::new(
+        (layer_min..layer_max)
+            .map(|layer| {
+                Blocks::new(
+                    boundary_3d(
+                        stack_blocks,
+                        layer_min,
+                        layer_max,
+                        floating_bottom,
+                        floating_top,
+                    )
+                    .get(layer)
+                    .unwrap()
+                    .blocks
+                    .iter()
+                    .zip(stack_blocks.get(layer).unwrap().blocks)
+                    .map(|(is_bdry, is_block)| is_block && !is_bdry)
+                    .collect(),
+                    stack_blocks.get(layer).unwrap().grid_size,
+                )
+            })
+            .collect(),
+        layer_min,
+    )
+}
