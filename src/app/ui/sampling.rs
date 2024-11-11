@@ -1,3 +1,4 @@
+use crate::app::control::Control;
 use crate::app::sampling::{SampleCombineMethod, SampleDistributeMethod};
 use eframe::egui;
 use eframe::egui::Ui;
@@ -11,9 +12,7 @@ pub fn ui_sampling(
     nr_samples_per_layer: &mut usize,
     sample_combine_method: &mut SampleCombineMethod,
     sample_distribute_method: &mut SampleDistributeMethod,
-    sampling_points_compute_once: &mut bool,
-    sampling_points_compute_auto: &mut bool,
-    sampling_points_is_outdated: &mut bool,
+    sampling_points_control: &mut Control,
 ) {
     ui.label("Vertical sampling of the code. Requires code mode to be on.");
 
@@ -40,7 +39,7 @@ pub fn ui_sampling(
             .response
             .changed()
         {
-            *sampling_points_is_outdated = true;
+            sampling_points_control.set_outdated();
         };
 
         // Extra sampling method-specific options
@@ -59,7 +58,7 @@ pub fn ui_sampling(
                     .changed()
                 {
                     *sample_combine_method = SampleCombineMethod::Percentage(perc_slider);
-                    *sampling_points_is_outdated = true;
+                    sampling_points_control.set_outdated();
                 };
             }
             _ => {}
@@ -82,7 +81,7 @@ pub fn ui_sampling(
             .response
             .changed()
         {
-            *sampling_points_is_outdated = true;
+            sampling_points_control.set_outdated();
         };
 
         if ui
@@ -92,7 +91,7 @@ pub fn ui_sampling(
             )
             .changed()
         {
-            *sampling_points_is_outdated = true;
+            sampling_points_control.set_outdated();
         };
 
         if ui
@@ -102,22 +101,22 @@ pub fn ui_sampling(
             )
             .changed()
         {
-            *sampling_points_is_outdated = true;
+            sampling_points_control.set_outdated();
         };
 
         ui.checkbox(
-            sampling_points_compute_auto,
+            sampling_points_control.auto(),
             "Auto recompute sampling points",
         );
         if ui.button("Recompute sampling points").clicked() {
-            *sampling_points_compute_once = true
+            sampling_points_control.set_outdated();
         }
 
         if ui
             .add(egui::Slider::new(nr_samples_per_layer, 1..=20).text("Nr. samples per layer"))
             .changed()
         {
-            *sampling_points_is_outdated = true;
+            sampling_points_control.set_outdated();
             if !sampling_enabled {
                 *nr_samples_per_layer = 1; // if sampling is off, don't allow changing this value
             }

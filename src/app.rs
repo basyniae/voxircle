@@ -6,6 +6,7 @@ use eframe::egui::{Direction, Layout};
 use eframe::emath::Align;
 use mlua::Lua;
 
+use crate::app::control::Control;
 use data_structures::blocks::Blocks;
 use data_structures::layer_config::LayerConfig;
 use data_structures::symmetry_type::SymmetryType;
@@ -23,6 +24,7 @@ use update::logic::{blocks_update, parameters_update, sampling_points_update};
 use update::metrics::update_metrics;
 
 mod colors;
+mod control;
 mod data_structures;
 mod formatting;
 mod generation;
@@ -60,13 +62,9 @@ pub struct App {
     outer_corners: Vec<[f64; 2]>,
 
     // Generate new shape on this layer automatically from the provided parameters
-    blocks_current_layer_generate_once: bool, // todo: structify
-    blocks_current_layer_generate_auto: bool,
-    blocks_current_layer_is_outdated: bool,
+    blocks_current_layer_control: Control,
 
-    blocks_all_layers_generate_once: bool,
-    blocks_all_layers_generate_auto: bool,
-    blocks_all_layers_is_outdated: bool,
+    blocks_all_layers_control: Control,
 
     single_radius: bool,
     layers_enabled: bool,
@@ -74,14 +72,8 @@ pub struct App {
 
     // Code mode
     code_enabled: bool,
-
-    parameters_current_layer_sample_once: bool,
-    parameters_current_layer_sample_auto: bool,
-    parameters_current_layer_is_outdated: bool,
-
-    parameters_all_layers_sample_once: bool,
-    parameters_all_layers_sample_auto: bool,
-    parameters_all_layers_is_outdated: bool,
+    parameters_current_layer_control: Control,
+    parameters_all_layers_control: Control,
 
     // Sampling
     sampling_enabled: bool,
@@ -91,10 +83,7 @@ pub struct App {
     sample_combine_method: SampleCombineMethod,
     sample_distribute_method: SampleDistributeMethod,
     stack_sampling_points: ZVec<Vec<f64>>,
-
-    sampling_points_compute_once: bool,
-    sampling_points_compute_auto: bool,
-    sampling_points_is_outdated: bool,
+    sampling_points_control: Control, // todo: Rename
 
     // Viewport options
     view_blocks: bool, // todo: make single struct
@@ -190,25 +179,16 @@ impl App {
             outer_corners: Default::default(),
 
             // Initialize on simplest working mode of operation
-            blocks_current_layer_generate_auto: true,
-            blocks_current_layer_generate_once: true,
-            blocks_current_layer_is_outdated: true,
-            blocks_all_layers_generate_auto: false,
-            blocks_all_layers_generate_once: false,
-            blocks_all_layers_is_outdated: false,
+            blocks_current_layer_control: Control::AUTO_UPDATE,
+            blocks_all_layers_control: Control::FIRST_FRAME_UPDATE,
             single_radius: true,
             layers_enabled: false,
             lock_stack_size: false,
 
             // Code mode
             code_enabled: false,
-            parameters_current_layer_sample_once: true, // on startup, get the parameters from the current configuration
-            parameters_current_layer_sample_auto: false, // (Can only be turned off/on when sampling is enabled)
-            parameters_current_layer_is_outdated: false,
-            parameters_all_layers_sample_once: false,
-            parameters_all_layers_sample_auto: true, // (Can only be turned off when sampling is
-            // enabled, leave on to automatically get the parameters from the code/sliders)
-            parameters_all_layers_is_outdated: false,
+            parameters_current_layer_control: Control::FIRST_FRAME_UPDATE,
+            parameters_all_layers_control: Control::AUTO_UPDATE,
 
             // Sampling
             sampling_enabled: false,
@@ -218,9 +198,7 @@ impl App {
             sample_combine_method: SampleCombineMethod::AnySamples,
             sample_distribute_method: SampleDistributeMethod::IncludeEndpoints,
             stack_sampling_points: ZVec::new(VecDeque::from([vec![0.0]]), 0), // start with middle sample
-            sampling_points_compute_once: true,
-            sampling_points_compute_auto: true,
-            sampling_points_is_outdated: false,
+            sampling_points_control: Control::AUTO_UPDATE,
 
             // Simplest working configuration
             view_blocks: true,
@@ -285,8 +263,8 @@ impl eframe::App for App {
                         &mut self.lua_field_center_offset_y,
                         &mut self.lua_field_squircle_parameter,
                         &self.stack_sampling_points,
-                        &mut self.parameters_current_layer_is_outdated,
-                        &mut self.parameters_all_layers_is_outdated,
+                        &mut self.parameters_current_layer_control,
+                        &mut self.parameters_all_layers_control,
                     );
                 });
 
@@ -352,9 +330,7 @@ impl eframe::App for App {
                         &mut self.nr_samples_per_layer,
                         &mut self.sample_combine_method,
                         &mut self.sample_distribute_method,
-                        &mut self.sampling_points_compute_once,
-                        &mut self.sampling_points_compute_auto,
-                        &mut self.sampling_points_is_outdated,
+                        &mut self.sampling_points_control,
                     );
 
                     ui.label(format!(
@@ -403,14 +379,10 @@ impl eframe::App for App {
 
                 ui_generation(
                     ui,
-                    &mut self.blocks_current_layer_generate_once,
-                    &mut self.blocks_current_layer_generate_auto,
-                    &mut self.blocks_all_layers_generate_once,
-                    &mut self.blocks_all_layers_generate_auto,
-                    &mut self.parameters_current_layer_sample_once,
-                    &mut self.parameters_current_layer_sample_auto,
-                    &mut self.parameters_all_layers_sample_once,
-                    &mut self.parameters_all_layers_sample_auto,
+                    &mut self.blocks_current_layer_control,
+                    &mut self.blocks_all_layers_control,
+                    &mut self.parameters_current_layer_control,
+                    &mut self.parameters_all_layers_control,
                     self.layers_enabled,
                     self.code_enabled,
                     self.sampling_enabled,
@@ -424,11 +396,9 @@ impl eframe::App for App {
             self.nr_samples_per_layer,
             self.sample_distribute_method,
             &mut self.stack_sampling_points,
-            &mut self.sampling_points_compute_once,
-            self.sampling_points_compute_auto,
-            &mut self.sampling_points_is_outdated,
-            &mut self.parameters_current_layer_is_outdated,
-            &mut self.parameters_all_layers_is_outdated,
+            &mut self.sampling_points_control,
+            &mut self.parameters_current_layer_control,
+            &mut self.parameters_all_layers_control,
             self.layer_lowest,
             self.layer_highest,
         );
@@ -437,14 +407,10 @@ impl eframe::App for App {
             &mut self.stack_layer_config,
             &mut self.stack_sampled_parameters,
             &self.stack_sampling_points,
-            &mut self.parameters_current_layer_sample_once,
-            self.parameters_current_layer_sample_auto,
-            &mut self.parameters_current_layer_is_outdated,
-            &mut self.parameters_all_layers_sample_once,
-            self.parameters_all_layers_sample_auto,
-            &mut self.parameters_all_layers_is_outdated,
-            &mut self.blocks_current_layer_is_outdated,
-            &mut self.blocks_all_layers_is_outdated,
+            &mut self.parameters_current_layer_control,
+            &mut self.parameters_all_layers_control,
+            &mut self.blocks_current_layer_control,
+            &mut self.blocks_all_layers_control,
             self.current_layer,
             self.layer_lowest,
             self.layer_highest,
@@ -461,12 +427,8 @@ impl eframe::App for App {
         blocks_update(
             &self.stack_sampled_parameters,
             &mut self.stack_blocks,
-            &mut self.blocks_current_layer_generate_once,
-            self.blocks_current_layer_generate_auto,
-            &mut self.blocks_current_layer_is_outdated,
-            &mut self.blocks_all_layers_generate_once,
-            self.blocks_all_layers_generate_auto,
-            &mut self.blocks_all_layers_is_outdated,
+            &mut self.blocks_current_layer_control,
+            &mut self.blocks_all_layers_control,
             &mut self.recompute_metrics,
             self.current_layer,
             self.layer_lowest,
@@ -538,7 +500,7 @@ impl eframe::App for App {
                     // The sampling points are (possibly) out of date.
                     // This happens certainly if the stack grows, and if the stack shrinks only if
                     //  only_sample_half_of_bottom_layer or only_sample_half_of_top_layer is true
-                    self.sampling_points_is_outdated = true;
+                    self.sampling_points_control.set_outdated();
 
                     // Resize all the stack objects
                     {

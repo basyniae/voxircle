@@ -1,3 +1,4 @@
+use crate::app::control::Control;
 use crate::app::data_structures::blocks::Blocks;
 use crate::app::data_structures::layer_config::LayerConfig;
 use crate::app::data_structures::zvec::ZVec;
@@ -13,13 +14,9 @@ pub fn sampling_points_update(
     nr_samples_per_layer: usize,
     sample_distribute_method: SampleDistributeMethod,
     stack_sampling_points: &mut ZVec<Vec<f64>>,
-
-    sampling_points_compute_once: &mut bool,
-    sampling_points_compute_auto: bool,
-    sampling_points_is_outdated: &mut bool,
-
-    parameters_current_layer_is_outdated: &mut bool,
-    parameters_all_layers_is_outdated_is_outdated: &mut bool,
+    sampling_points_control: &mut Control,
+    parameters_current_layer_control: &mut Control,
+    parameters_all_layers_control: &mut Control,
 
     layer_lowest: isize,
     layer_highest: isize,
@@ -27,15 +24,10 @@ pub fn sampling_points_update(
     // Activates if the sampling options have changed (this update) or if the stack grows
     //  (previous update). The points (may) also have to be recomputed if the stack shrinks,
     //  when half_of_bottom or half_of_top layer options are implemented.
-    if (*sampling_points_compute_once || sampling_points_compute_auto)
-        && *sampling_points_is_outdated
-    {
-        *sampling_points_compute_once = false;
-        *sampling_points_is_outdated = false;
-
+    if sampling_points_control.update() {
         // if the sampling points have changed the parameters become outdated
-        *parameters_current_layer_is_outdated = true;
-        *parameters_all_layers_is_outdated_is_outdated = true;
+        parameters_current_layer_control.set_outdated();
+        parameters_all_layers_control.set_outdated();
 
         *stack_sampling_points = crate::app::sampling::determine_sampling_points(
             sample_distribute_method,
@@ -52,17 +44,10 @@ pub fn parameters_update(
     stack_layer_config: &mut ZVec<LayerConfig>,
     stack_sampled_parameters: &mut ZVec<SampledParameters>, // Store the configuration for each layer, handily indexed by integers
     stack_sampling_points: &ZVec<Vec<f64>>,
-
-    parameters_current_layer_sample_once: &mut bool,
-    parameters_current_layer_sample_auto: bool,
-    parameters_current_layer_is_outdated: &mut bool,
-
-    parameters_all_layers_sample_once: &mut bool,
-    parameters_all_layers_sample_auto: bool,
-    parameters_all_layers_is_outdated: &mut bool,
-
-    blocks_current_layer_is_outdated: &mut bool,
-    blocks_all_layer_is_outdated: &mut bool, // fixme: we really should use this at least somewhere
+    parameters_current_layer_control: &mut Control,
+    parameters_all_layers_control: &mut Control,
+    blocks_current_layer_control: &mut Control,
+    blocks_all_layers_control: &mut Control, // fixme: we really should use this at least somewhere
 
     current_layer: isize,
     layer_lowest: isize,
@@ -79,19 +64,8 @@ pub fn parameters_update(
     lua_field_squircle_parameter: &mut LuaField,
 ) {
     // Generate parameters to be sampled
-    if (*parameters_current_layer_sample_once || parameters_current_layer_sample_auto)
-        && (*parameters_current_layer_is_outdated
-            || lua_field_radius_a.has_changed()
-            || lua_field_radius_b.has_changed()
-            || lua_field_tilt.has_changed()
-            || lua_field_center_offset_x.has_changed()
-            || lua_field_center_offset_y.has_changed()
-            || lua_field_squircle_parameter.has_changed())
-    {
-        *parameters_current_layer_sample_once = false;
-        *parameters_current_layer_is_outdated = false;
-
-        *blocks_current_layer_is_outdated = true;
+    if parameters_current_layer_control.update() {
+        blocks_current_layer_control.set_outdated();
 
         // Update parameters for the sampling
         set_parameters(
@@ -148,19 +122,8 @@ pub fn parameters_update(
     }
 
     // Generate parameters to be sampled
-    if (*parameters_all_layers_sample_once || parameters_all_layers_sample_auto)
-        && (*parameters_all_layers_is_outdated
-            || lua_field_radius_a.has_changed()
-            || lua_field_radius_b.has_changed()
-            || lua_field_tilt.has_changed()
-            || lua_field_center_offset_x.has_changed()
-            || lua_field_center_offset_y.has_changed()
-            || lua_field_squircle_parameter.has_changed())
-    {
-        *parameters_all_layers_sample_once = false;
-        *parameters_all_layers_is_outdated = false;
-
-        *blocks_current_layer_is_outdated = true;
+    if parameters_all_layers_control.update() {
+        blocks_current_layer_control.set_outdated();
 
         // Update parameters for the sampling
         for layer in layer_lowest..=layer_highest {
@@ -213,27 +176,14 @@ pub fn parameters_update(
 pub fn blocks_update(
     stack_sampled_parameters: &ZVec<SampledParameters>, // Store the configuration for each layer, handily indexed by integers
     stack_blocks: &mut ZVec<Blocks>,
-
-    blocks_current_layer_generate_once: &mut bool,
-    blocks_current_layer_generate_auto: bool,
-    blocks_current_layer_is_outdated: &mut bool,
-
-    blocks_all_layers_generate_once: &mut bool,
-    blocks_all_layers_generate_auto: bool,
-    blocks_all_layers_is_outdated: &mut bool,
-
+    blocks_current_layer_control: &mut Control,
+    blocks_all_layers_control: &mut Control,
     recompute_metrics: &mut bool,
-
     current_layer: isize,
     layer_lowest: isize,
-
     sample_combine_method: SampleCombineMethod,
 ) {
-    if (*blocks_current_layer_generate_once || blocks_current_layer_generate_auto)
-        && *blocks_current_layer_is_outdated
-    {
-        *blocks_current_layer_generate_once = false;
-        *blocks_current_layer_is_outdated = false;
+    if blocks_current_layer_control.update() {
         *recompute_metrics = true;
 
         stack_blocks.set(
@@ -245,11 +195,7 @@ pub fn blocks_update(
         );
     }
 
-    if (*blocks_all_layers_generate_once || blocks_all_layers_generate_auto)
-        && (*blocks_all_layers_is_outdated || *blocks_current_layer_is_outdated)
-    {
-        *blocks_all_layers_generate_once = false;
-        *blocks_all_layers_is_outdated = false;
+    if blocks_all_layers_control.update() {
         *recompute_metrics = true;
 
         *stack_blocks = ZVec::new(

@@ -1,49 +1,47 @@
+use crate::app::control::Control;
 use eframe::egui;
 use eframe::egui::Ui;
+
 pub fn ui_generation(
     ui: &mut Ui,
-    blocks_current_layer_generate_once: &mut bool,
-    blocks_current_layer_generate_auto: &mut bool,
-    blocks_all_layers_generate_once: &mut bool,
-    blocks_all_layers_generate_auto: &mut bool,
-    parameters_current_layer_sample_once: &mut bool,
-    parameters_current_layer_sample_auto: &mut bool,
-    parameters_all_layers_sample_once: &mut bool,
-    parameters_all_layers_sample_auto: &mut bool,
+    blocks_current_layer_control: &mut Control,
+    blocks_all_layers_control: &mut Control,
+    parameters_current_layer_control: &mut Control,
+    parameters_all_layers_control: &mut Control,
     layers_enabled: bool,
     code_enabled: bool,
     sampling_enabled: bool,
 ) {
     if layers_enabled {
         ui.checkbox(
-            blocks_current_layer_generate_auto,
+            blocks_current_layer_control.auto(),
             "Auto-generate blocks on current layer",
         );
         ui.checkbox(
-            blocks_all_layers_generate_auto,
+            blocks_all_layers_control.auto(),
             "Auto-generate blocks on all layers",
         );
     } else {
-        ui.checkbox(blocks_current_layer_generate_auto, "Auto-generate blocks");
+        ui.checkbox(blocks_current_layer_control.auto(), "Auto-generate blocks");
     }
 
     if sampling_enabled {
         ui.checkbox(
-            parameters_current_layer_sample_auto,
+            parameters_current_layer_control.auto(),
             "Auto-sample parameters on current layer",
         );
         ui.checkbox(
-            parameters_all_layers_sample_auto,
+            parameters_all_layers_control.auto(),
             "Auto-sample parameters on all layers",
         );
     }
 
     ui_generation_buttons(
         ui,
-        blocks_current_layer_generate_once,
-        blocks_all_layers_generate_once,
-        parameters_current_layer_sample_once,
-        parameters_all_layers_sample_once,
+        blocks_current_layer_control,
+        blocks_all_layers_control,
+        parameters_current_layer_control,
+        parameters_all_layers_control,
         layers_enabled,
         code_enabled,
     );
@@ -51,10 +49,10 @@ pub fn ui_generation(
 
 fn ui_generation_buttons(
     ui: &mut Ui,
-    blocks_current_layer_generate_once: &mut bool,
-    blocks_all_layers_generate_once: &mut bool,
-    parameters_current_layer_sample_once: &mut bool,
-    parameters_all_layers_sample_once: &mut bool,
+    blocks_current_layer_control: &mut Control,
+    blocks_all_layers_control: &mut Control,
+    parameters_current_layer_control: &mut Control,
+    parameters_all_layers_control: &mut Control,
     layers_enabled: bool,
     code_enabled: bool,
 ) {
@@ -72,7 +70,9 @@ fn ui_generation_buttons(
                 .wrap(true),
             );
 
-            *parameters_current_layer_sample_once |= response.clicked();
+            if response.clicked() {
+                parameters_current_layer_control.once();
+            }
         }
 
         if code_enabled && layers_enabled {
@@ -81,7 +81,9 @@ fn ui_generation_buttons(
                 egui::Button::new("Sample parameters for all layers").wrap(true),
             );
 
-            *parameters_all_layers_sample_once |= response.clicked();
+            if response.clicked() {
+                parameters_all_layers_control.once();
+            }
         }
 
         if code_enabled {
@@ -99,14 +101,18 @@ fn ui_generation_buttons(
             })
             .wrap(true),
         );
-        *blocks_current_layer_generate_once = response.clicked();
+        if response.clicked() {
+            blocks_current_layer_control.once();
+        }
 
         if layers_enabled {
             let response = ui.add_sized(
                 [150.0, 50.0],
                 egui::Button::new("Generate blocks on all layers").wrap(true),
             );
-            *blocks_all_layers_generate_once = response.clicked();
+            if response.clicked() {
+                blocks_all_layers_control.once();
+            }
         };
     });
 }
