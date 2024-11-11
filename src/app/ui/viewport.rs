@@ -5,10 +5,10 @@ use crate::app::colors::{
 };
 use crate::app::data_structures::blocks::Blocks;
 use crate::app::data_structures::layer_config::LayerConfig;
-use crate::app::data_structures::sampled_parameters::SampledParameters;
 use crate::app::data_structures::symmetry_type::SymmetryType;
-use crate::app::math::convex_hull::line_segments_from_conv_hull;
+use crate::app::metrics::convex_hull::line_segments_from_conv_hull;
 use crate::app::plotting::bounds_from_square;
+use crate::app::sampling::sampled_parameters::SampledParameters;
 use crate::app::{generation, plotting};
 use eframe::egui::{Stroke, Ui, Vec2b};
 use egui_plot::{
@@ -375,7 +375,7 @@ pub fn ui_viewport(
                             .color(COLOR_PURPLE),
                         );
                     }
-                    SymmetryType::RotationHalf => {}
+                    SymmetryType::RotationHalf => {} //todo: how to visualize rotational symmetry?
                     SymmetryType::RotationQuarter => {}
                     SymmetryType::NoSymmetry => {}
                 }

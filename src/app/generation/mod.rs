@@ -14,8 +14,8 @@ mod centerpoint;
 mod conservative;
 mod contained;
 mod empty;
-pub mod percentage;
-// want it public because we use the circle intersection area as a widget
+pub mod percentage; // want it public because we use the circle intersection area as a widget
+mod square;
 
 #[derive(Debug, PartialEq, Default, Clone, Copy)]
 pub enum Algorithm {

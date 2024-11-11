@@ -248,7 +248,7 @@ impl Blocks {
 
     // Return the blocks object which contains the center 1, 2, or 4 blocks (depending on parities)
     pub fn get_center_blocks(&self) -> Blocks {
-        let [[x_1, y_1], [x_2, y_2]] = self.get_bounds();
+        let [[x_1, y_1], [_, _]] = self.get_bounds();
         let [diameter_x, diameter_y] = self.get_diameters();
 
         // get indices, 1 or 2 depending on parity
@@ -470,7 +470,7 @@ impl Blocks {
     }
 }
 
-/// Methods for symmetry detection & building helpers TODO
+/// Methods for symmetry detection
 impl Blocks {
     /// Get the symmetry type of the block structure
     pub fn get_symmetry_type(&self) -> SymmetryType {
