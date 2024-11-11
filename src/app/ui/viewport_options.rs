@@ -1,4 +1,5 @@
 use crate::app::data_structures::symmetry_type::SymmetryType;
+use crate::app::view::View;
 use eframe::egui;
 use eframe::egui::Ui;
 
@@ -7,50 +8,39 @@ pub fn ui_viewport_options(
     layers_enabled: bool,
     single_radius: bool,
     symmetry_type: &SymmetryType,
-
-    view_blocks: &mut bool,
-    view_boundary_2d: &mut bool,
-    view_interior_2d: &mut bool,
-    view_complement: &mut bool,
-    view_intersect_area: &mut bool,
-    view_boundary_3d: &mut bool,
-    view_interior_3d: &mut bool,
-    view_convex_hull: &mut bool,
-    view_outer_corners: &mut bool,
-
-    // viewport options for symmetry & building
-    view_center_blocks: &mut bool,
-    view_bounds: &mut bool,
-    view_mirrors: &mut bool,
+    view: &mut View,
 ) {
-    ui.checkbox(view_blocks, "Blocks");
+    ui.checkbox(&mut view.blocks, "Blocks");
     ui.columns(2, |columns| {
         // Better to fully hide 3d settings
         if layers_enabled {
-            columns[0].checkbox(view_boundary_2d, "Layer Boundary");
-            columns[0].checkbox(view_interior_2d, "Layer Interior");
-            columns[1].checkbox(view_boundary_3d, "3D Boundary");
-            columns[1].checkbox(view_interior_3d, "3D Interior");
+            columns[0].checkbox(&mut view.boundary_2d, "Layer Boundary");
+            columns[0].checkbox(&mut view.interior_2d, "Layer Interior");
+            columns[1].checkbox(&mut view.boundary_3d, "3D Boundary");
+            columns[1].checkbox(&mut view.interior_3d, "3D Interior");
         } else {
-            columns[0].checkbox(view_boundary_2d, "Boundary");
-            columns[0].checkbox(view_interior_2d, "Interior");
+            columns[0].checkbox(&mut view.boundary_2d, "Boundary");
+            columns[0].checkbox(&mut view.interior_2d, "Interior");
         }
     });
 
     ui.collapsing("Symmetry & Building", |ui| {
         ui.label(format!("Symmetry type: {:}", symmetry_type));
-        ui.checkbox(view_center_blocks, "Center blocks");
-        ui.checkbox(view_bounds, "Bounds");
-        ui.checkbox(view_mirrors, "Mirrors");
+        ui.checkbox(&mut view.center_blocks, "Center blocks");
+        ui.checkbox(&mut view.bounds, "Bounds");
+        ui.checkbox(&mut view.mirrors, "Mirrors");
     });
 
     ui.collapsing("Technical", |ui| {
-        ui.checkbox(view_complement, "Complement");
-        ui.checkbox(view_convex_hull, "Convex hull");
-        ui.checkbox(view_outer_corners, "Outer corners");
+        ui.checkbox(&mut view.complement, "Complement");
+        ui.checkbox(&mut view.convex_hull, "Convex hull");
+        ui.checkbox(&mut view.outer_corners, "Outer corners");
         ui.add_enabled(
             single_radius,
-            egui::Checkbox::new(view_intersect_area, "Intersect area (only for circles)"),
+            egui::Checkbox::new(
+                &mut view.intersect_area,
+                "Intersect area (only for circles)",
+            ),
         );
     });
 }
