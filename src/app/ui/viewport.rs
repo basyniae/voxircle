@@ -9,6 +9,7 @@ use crate::app::data_structures::symmetry_type::SymmetryType;
 use crate::app::metrics::convex_hull::line_segments_from_conv_hull;
 use crate::app::plotting::bounds_from_square;
 use crate::app::sampling::sampled_parameters::SampledParameters;
+use crate::app::view::View;
 use crate::app::{generation, plotting};
 use eframe::egui::{Stroke, Ui, Vec2b};
 use egui_plot::{
@@ -19,42 +20,27 @@ use std::f64::consts::PI;
 
 pub fn ui_viewport(
     ui: &mut Ui,
-    global_bounding_box: [[f64; 2]; 2],
     layer_config: LayerConfig,
     sampled_parameters: SampledParameters,
     blocks: Blocks,
-    // todo: factor out the zoom size determination for clearer access
     sampling_enabled: bool,
-
-    // Viewport options
-    view_blocks: bool,
-    view_boundary_2d: bool,
-    view_interior_2d: bool,
-    view_complement: bool,
-    view_intersect_area: bool,
-    view_boundary_3d: bool,
-    view_interior_3d: bool,
-    view_convex_hull: bool,
-    view_outer_corners: bool,
-
-    view_center_blocks: bool,
-    view_bounds: bool,
-    view_mirrors: bool,
-    symmetry_type: &SymmetryType,
-    center_coord: &[f64; 2], //todo: rename
+    view: &View,
 
     // Zoom options (used for double click to reset zoom)
     reset_zoom_once: &mut bool,
     reset_zoom_continuous: &mut bool,
 
     // Metrics
-    boundary_2d: Blocks,
-    interior_2d: Blocks,
-    complement_2d: Blocks,
+    boundary_2d: &Blocks,
+    interior_2d: &Blocks,
+    complement_2d: &Blocks,
     boundary_3d_slice: Option<Blocks>,
     interior_3d_slice: Option<Blocks>,
     convex_hull: &Vec<[f64; 2]>,
     outer_corners: &Vec<[f64; 2]>,
+    symmetry_type: &SymmetryType,
+    center_coord: &[f64; 2],
+    global_bounding_box: [[f64; 2]; 2], //todo: rename
 ) {
     ui.visuals_mut().extreme_bg_color = COLOR_BACKGROUND;
 
@@ -111,20 +97,20 @@ pub fn ui_viewport(
             // First draw the blocks (the for loop is to avoid duplicate code)
             for (view, option_blocks, color) in izip!(
                 [
-                    view_blocks,
-                    view_complement,
-                    view_boundary_3d,
-                    view_boundary_2d,
-                    view_interior_2d,
-                    view_interior_3d,
-                    view_center_blocks,
+                    view.blocks,
+                    view.complement,
+                    view.boundary_3d,
+                    view.boundary_2d,
+                    view.interior_2d,
+                    view.interior_3d,
+                    view.center_blocks,
                 ],
                 [
-                    Some(blocks.clone()), //fixme: remove clone
-                    Some(complement_2d),
+                    Some(blocks.clone()), //fixme: remove clones
+                    Some(complement_2d.clone()),
                     boundary_3d_slice,
-                    Some(boundary_2d),
-                    Some(interior_2d),
+                    Some(boundary_2d.clone()),
+                    Some(interior_2d.clone()),
                     interior_3d_slice,
                     Some(blocks.clone().get_center_blocks()), // fixme: update in proper order
                 ],
@@ -232,7 +218,7 @@ pub fn ui_viewport(
                 );
             }
 
-            if view_intersect_area {
+            if view.intersect_area {
                 let grid_size =
                     (2.0 * 1.42 * f64::max(layer_config.radius_a, layer_config.radius_b)).ceil()
                         as usize
@@ -274,7 +260,7 @@ pub fn ui_viewport(
             }
 
             // Perhaps better to use the plot_ui.shape
-            if view_convex_hull {
+            if view.convex_hull {
                 for i in line_segments_from_conv_hull(convex_hull.clone()) {
                     let pts: PlotPoints = (0..=1).map(|t| i[t]).collect();
                     plot_ui.line(Line::new(pts).color(COLOR_ORANGE));
@@ -282,7 +268,7 @@ pub fn ui_viewport(
             }
 
             // Plot outer corners of block
-            if view_outer_corners {
+            if view.outer_corners {
                 for [i, j] in outer_corners {
                     plot_ui.points(
                         Points::new(vec![[*i, *j]])
@@ -293,13 +279,13 @@ pub fn ui_viewport(
             }
 
             // Plot bounds of the blocks
-            if view_bounds {
+            if view.bounds {
                 let line = bounds_from_square(blocks.get_bounds_floats());
                 plot_ui.line(line.color(COLOR_ORANGE)); // todo: think about colors
             }
 
             // todo: think about colors
-            if view_mirrors {
+            if view.mirrors {
                 match symmetry_type {
                     SymmetryType::ReflectionHorizontal => {
                         plot_ui.hline(HLine::new(center_coord[1]).color(COLOR_PURPLE).width(2.0));

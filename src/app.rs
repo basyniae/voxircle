@@ -7,6 +7,7 @@ use eframe::emath::Align;
 use mlua::Lua;
 
 use crate::app::control::Control;
+use crate::app::view::View;
 use data_structures::blocks::Blocks;
 use data_structures::layer_config::LayerConfig;
 use data_structures::symmetry_type::SymmetryType;
@@ -35,6 +36,7 @@ mod plotting;
 mod sampling;
 mod ui;
 mod update;
+mod view;
 
 pub struct App {
     // Layer management
@@ -86,20 +88,7 @@ pub struct App {
     sampling_points_control: Control, // todo: Rename
 
     // Viewport options
-    view_blocks: bool, // todo: make single struct
-    view_boundary_2d: bool,
-    view_interior_2d: bool,
-    view_complement: bool,
-    view_intersect_area: bool,
-    view_boundary_3d: bool,
-    view_interior_3d: bool,
-    view_convex_hull: bool,
-    view_outer_corners: bool,
-
-    // viewport options for symmetry & building
-    view_center_blocks: bool,
-    view_bounds: bool,
-    view_mirrors: bool,
+    view: View,
     symmetry_type: SymmetryType,
     center_coord: [f64; 2], //todo: rename
 
@@ -201,19 +190,7 @@ impl App {
             sampling_points_control: Control::AUTO_UPDATE,
 
             // Simplest working configuration
-            view_blocks: true,
-            view_boundary_2d: false,
-            view_interior_2d: false,
-            view_intersect_area: false,
-            view_complement: false,
-            view_boundary_3d: false,
-            view_interior_3d: false,
-            view_convex_hull: false,
-            view_outer_corners: false,
-
-            view_center_blocks: false,
-            view_bounds: false,
-            view_mirrors: true, //debug false
+            view: Default::default(),
             symmetry_type: SymmetryType::NoSymmetry,
             center_coord: [0.0; 2],
 
@@ -360,18 +337,7 @@ impl eframe::App for App {
                         self.layers_enabled,
                         self.single_radius,
                         &self.symmetry_type,
-                        &mut self.view_blocks,
-                        &mut self.view_boundary_2d,
-                        &mut self.view_interior_2d,
-                        &mut self.view_complement,
-                        &mut self.view_intersect_area,
-                        &mut self.view_boundary_3d,
-                        &mut self.view_interior_3d,
-                        &mut self.view_convex_hull,
-                        &mut self.view_outer_corners,
-                        &mut self.view_center_blocks,
-                        &mut self.view_bounds,
-                        &mut self.view_mirrors,
+                        &mut self.view,
                     )
                 });
 
@@ -539,36 +505,25 @@ impl eframe::App for App {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui_viewport(
                 ui,
-                self.global_bounding_box,
                 self.stack_layer_config.get(self.current_layer).unwrap(),
                 self.stack_sampled_parameters
                     .get(self.current_layer)
                     .unwrap(),
                 self.stack_blocks.get(self.current_layer).unwrap(),
                 self.sampling_enabled,
-                self.view_blocks,
-                self.view_boundary_2d,
-                self.view_interior_2d,
-                self.view_complement,
-                self.view_intersect_area,
-                self.view_boundary_3d,
-                self.view_interior_3d,
-                self.view_convex_hull,
-                self.view_outer_corners,
-                self.view_center_blocks,
-                self.view_bounds,
-                self.view_mirrors,
-                &self.symmetry_type,
-                &self.center_coord,
+                &self.view,
                 &mut self.reset_zoom_once,
                 &mut self.reset_zoom_continuous,
-                self.boundary_2d.clone(), // fixme: this is weird. should be unnecessary
-                self.interior_2d.clone(),
-                self.complement_2d.clone(),
+                &self.boundary_2d, // fixme: this is weird. should be unnecessary
+                &self.interior_2d,
+                &self.complement_2d,
                 self.boundary_3d.get(self.current_layer),
                 self.interior_3d.get(self.current_layer),
                 &self.convex_hull,
                 &self.outer_corners,
+                &self.symmetry_type,
+                &self.center_coord,
+                self.global_bounding_box,
             );
         });
     }
