@@ -13,12 +13,14 @@ use data_structures::symmetry_type::SymmetryType;
 use data_structures::zvec::ZVec;
 use lua_field::LuaField;
 use sampling::{SampleCombineMethod, SampleDistributeMethod};
-use ui_layer_navigation::ui_layer_navigation;
-use ui_sampling::ui_sampling;
-use ui_viewport::ui_viewport;
-use ui_viewport_options::ui_viewport_options;
-use update_logic::{blocks_update, parameters_update, sampling_points_update};
-use update_metrics::update_metrics;
+use ui::generation::ui_generation;
+use ui::layer_navigation::ui_layer_navigation;
+use ui::options::ui_options;
+use ui::sampling::ui_sampling;
+use ui::viewport::ui_viewport;
+use ui::viewport_options::ui_viewport_options;
+use update::logic::{blocks_update, parameters_update, sampling_points_update};
+use update::metrics::update_metrics;
 
 mod colors;
 mod data_structures;
@@ -29,14 +31,8 @@ mod math;
 mod metrics;
 mod plotting;
 mod sampling;
-mod ui_generation;
-mod ui_layer_navigation;
-mod ui_options;
-mod ui_sampling;
-mod ui_viewport;
-mod ui_viewport_options;
-mod update_logic;
-mod update_metrics;
+mod ui;
+mod update;
 
 pub struct App {
     // Layer management
@@ -64,7 +60,7 @@ pub struct App {
     outer_corners: Vec<[f64; 2]>,
 
     // Generate new shape on this layer automatically from the provided parameters
-    blocks_current_layer_generate_once: bool,
+    blocks_current_layer_generate_once: bool, // todo: structify
     blocks_current_layer_generate_auto: bool,
     blocks_current_layer_is_outdated: bool,
 
@@ -101,7 +97,7 @@ pub struct App {
     sampling_points_is_outdated: bool,
 
     // Viewport options
-    view_blocks: bool,
+    view_blocks: bool, // todo: make single struct
     view_boundary_2d: bool,
     view_interior_2d: bool,
     view_complement: bool,
@@ -276,7 +272,7 @@ impl eframe::App for App {
                     ui.label(egui::RichText::new("Parameters").strong().size(15.0));
                 })
                 .body(|ui| {
-                    ui_options::ui_options(
+                    ui_options(
                         ui,
                         self.stack_layer_config.get_mut(self.current_layer).unwrap(),
                         &mut self.single_radius,
@@ -405,7 +401,7 @@ impl eframe::App for App {
 
                 ui.separator();
 
-                ui_generation::ui_generation(
+                ui_generation(
                     ui,
                     &mut self.blocks_current_layer_generate_once,
                     &mut self.blocks_current_layer_generate_auto,
