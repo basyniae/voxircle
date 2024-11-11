@@ -1,7 +1,7 @@
 use crate::app::generation::Algorithm;
 use crate::app::math::linear_algebra::{Mat2, Vec2};
 
-/// All parameters necessary to run the generation algorithm
+/// All parameters necessary to run the generation algorithm todo: rethink!!! purpose? compare SampledParameters
 #[derive(Debug, Clone)]
 pub struct LayerConfig {
     pub algorithm: Algorithm,

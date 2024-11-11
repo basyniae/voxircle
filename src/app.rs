@@ -8,10 +8,10 @@ use mlua::Lua;
 
 use data_structures::blocks::Blocks;
 use data_structures::layer_config::LayerConfig;
-use data_structures::sampled_parameters::SampledParameters;
 use data_structures::symmetry_type::SymmetryType;
 use data_structures::zvec::ZVec;
 use lua_field::LuaField;
+use sampling::sampled_parameters::SampledParameters;
 use sampling::{SampleCombineMethod, SampleDistributeMethod};
 use ui::generation::ui_generation;
 use ui::layer_navigation::ui_layer_navigation;

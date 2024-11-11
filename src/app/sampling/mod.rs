@@ -1,5 +1,8 @@
 use crate::app::data_structures::zvec::ZVec;
 use std::fmt::{Display, Formatter};
+
+pub mod sampled_parameters;
+
 #[derive(Debug, PartialEq, Default, Clone, Copy)]
 pub enum SampleCombineMethod {
     #[default]

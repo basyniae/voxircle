@@ -5,6 +5,7 @@ use crate::app::data_structures::symmetry_type::SymmetryType;
 use crate::app::data_structures::zvec::ZVec;
 use crate::app::math::exact_squircle_bounds::exact_squircle_bounds;
 use crate::app::math::square_max::square_max;
+use app::metrics::convex_hull::get_convex_hull;
 
 pub fn update_metrics(
     current_layer: isize,
@@ -58,7 +59,7 @@ pub fn update_metrics(
     *nr_blocks_boundary = boundary_2d.get_nr_blocks();
 
     *outer_corners = current_layer_blocks.get_outer_corners();
-    *convex_hull = app::math::convex_hull::get_convex_hull(&outer_corners);
+    *convex_hull = get_convex_hull(&outer_corners);
 
     *global_bounding_box = stack_layer_config
         .data

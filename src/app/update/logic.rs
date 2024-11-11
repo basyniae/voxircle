@@ -1,9 +1,9 @@
 use crate::app::data_structures::blocks::Blocks;
 use crate::app::data_structures::layer_config::LayerConfig;
-use crate::app::data_structures::sampled_parameters::SampledParameters;
 use crate::app::data_structures::zvec::ZVec;
 use crate::app::generation::Algorithm;
 use crate::app::lua_field::LuaField;
+use crate::app::sampling::sampled_parameters::SampledParameters;
 use crate::app::sampling::{SampleCombineMethod, SampleDistributeMethod};
 use mlua::Lua;
 
