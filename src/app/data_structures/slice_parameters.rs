@@ -3,7 +3,7 @@ use crate::app::math::linear_algebra::{Mat2, Vec2};
 
 /// All parameters necessary to run the generation algorithm todo: rethink!!! purpose? compare SampledParameters
 #[derive(Debug, Clone)]
-pub struct LayerConfig {
+pub struct SliceParameters {
     pub algorithm: Algorithm,
 
     pub radius_a: f64, // These two are specified (a is the x-axis if tilt = 0)
@@ -17,7 +17,7 @@ pub struct LayerConfig {
     pub squircle_parameter: f64,
 }
 
-impl Default for LayerConfig {
+impl Default for SliceParameters {
     fn default() -> Self {
         Self {
             algorithm: Algorithm::Centerpoint, // default: Centerpoint
@@ -38,7 +38,7 @@ impl Default for LayerConfig {
     }
 }
 
-impl LayerConfig {
+impl SliceParameters {
     /// Compute the sqrt_quad_form for the configuration `self`
     pub fn get_sqrt_quad_form(&self) -> Mat2 {
         // Compute a square root of the PSD symmetric quadratic form X defining the ellipse:

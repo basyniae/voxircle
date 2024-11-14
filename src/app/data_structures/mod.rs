@@ -1,4 +1,4 @@
 pub mod blocks;
-pub mod layer_config;
+pub mod slice_parameters;
 pub(crate) mod symmetry_type;
 pub mod zvec;

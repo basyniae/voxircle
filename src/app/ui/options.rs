@@ -1,7 +1,7 @@
 use std::f64::consts::PI;
 
 use crate::app::control::Control;
-use crate::app::data_structures::layer_config::LayerConfig;
+use crate::app::data_structures::slice_parameters::SliceParameters;
 use crate::app::data_structures::zvec::ZVec;
 use crate::app::generation::Algorithm;
 use crate::app::lua_field::LuaField;
@@ -12,7 +12,7 @@ use mlua::Lua;
 /// document
 pub fn ui_options(
     ui: &mut Ui,
-    current_layer_config: &mut LayerConfig,
+    current_layer_config: &mut SliceParameters,
     single_radius: &mut bool,
     code_enabled: bool,
     lua: &mut Lua,
