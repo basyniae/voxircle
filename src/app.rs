@@ -9,11 +9,11 @@ use mlua::Lua;
 use crate::app::control::Control;
 use crate::app::view::View;
 use data_structures::blocks::Blocks;
-use data_structures::layer_config::LayerConfig;
+use data_structures::slice_parameters::SliceParameters;
 use data_structures::symmetry_type::SymmetryType;
 use data_structures::zvec::ZVec;
 use lua_field::LuaField;
-use sampling::sampled_parameters::SampledParameters;
+use sampling::sampled_parameters::LayerParameters;
 use sampling::{SampleCombineMethod, SampleDistributeMethod};
 use ui::generation::ui_generation;
 use ui::layer_navigation::ui_layer_navigation;
@@ -44,12 +44,12 @@ pub struct App {
     layer_lowest: isize,
     layer_highest: isize,
 
-    stack_layer_config: ZVec<LayerConfig>, // Store the configuration for each layer, handily indexed by integers
-    stack_sampled_parameters: ZVec<SampledParameters>, // Store the configuration for each layer, handily indexed by integers
-    stack_blocks: ZVec<Blocks>,                        // Store the blocks for each layer
+    stack_configuration_parameters: ZVec<SliceParameters>, // Store the configuration for each layer, handily indexed by integers
+    stack_layer_parameters: ZVec<LayerParameters>, // Store the sampled parameters for each layer, handily indexed by integers
+    stack_blocks: ZVec<Blocks>,                    // Store the blocks for each layer
 
     recompute_metrics: bool, // If the current layer has changed, recompute the metrics. By update order, this needs to be a global variable
-    // longterm: there is no need for auto_recompute_metrics right now... though it might be good if recomputing metrics gets slow later on
+    // longterm: there is no need for recompute_metrics_control right now... though it might be good if recomputing metrics gets slow later on
 
     // Metrics
     nr_blocks_total: u64,
@@ -85,12 +85,12 @@ pub struct App {
     sample_combine_method: SampleCombineMethod,
     sample_distribute_method: SampleDistributeMethod,
     stack_sampling_points: ZVec<Vec<f64>>,
-    sampling_points_control: Control, // todo: Rename
+    sampling_points_control: Control,
 
     // Viewport options
     view: View,
     symmetry_type: SymmetryType,
-    center_coord: [f64; 2], //todo: rename
+    block_center_coord: [f64; 2],
 
     global_bounding_box: [[f64; 2]; 2], // Is for viewport zoom. Update with metrics
 
@@ -145,11 +145,11 @@ impl App {
             layer_highest: 0,
 
             // Initialize for single layer (it will get overridden on the first update)
-            stack_layer_config: ZVec::new(VecDeque::from(vec![LayerConfig::default()]), 0),
-            stack_sampled_parameters: ZVec::new(
-                VecDeque::from(vec![SampledParameters::default()]),
+            stack_configuration_parameters: ZVec::new(
+                VecDeque::from(vec![SliceParameters::default()]),
                 0,
             ),
+            stack_layer_parameters: ZVec::new(VecDeque::from(vec![LayerParameters::default()]), 0),
             stack_blocks: ZVec::new(VecDeque::from(vec![Blocks::default()]), 0),
 
             // Compute the metrics on the first update
@@ -192,7 +192,7 @@ impl App {
             // Simplest working configuration
             view: Default::default(),
             symmetry_type: SymmetryType::NoSymmetry,
-            center_coord: [0.0; 2],
+            block_center_coord: [0.0; 2],
 
             global_bounding_box: [[0.0; 2]; 2],
 
@@ -229,7 +229,9 @@ impl eframe::App for App {
                 .body(|ui| {
                     ui_options(
                         ui,
-                        self.stack_layer_config.get_mut(self.current_layer).unwrap(),
+                        self.stack_configuration_parameters
+                            .get_mut(self.current_layer)
+                            .unwrap(),
                         &mut self.single_radius,
                         self.code_enabled,
                         &mut self.lua,
@@ -321,7 +323,6 @@ impl eframe::App for App {
                     ));
                 });
 
-                // todo: move viewport options to its own file
                 let id = ui.make_persistent_id("viewport_options_collapsable");
                 egui::collapsing_header::CollapsingState::load_with_default_open(
                     ui.ctx(),
@@ -370,8 +371,8 @@ impl eframe::App for App {
         );
 
         parameters_update(
-            &mut self.stack_layer_config,
-            &mut self.stack_sampled_parameters,
+            &mut self.stack_configuration_parameters,
+            &mut self.stack_layer_parameters,
             &self.stack_sampling_points,
             &mut self.parameters_current_layer_control,
             &mut self.parameters_all_layers_control,
@@ -391,14 +392,14 @@ impl eframe::App for App {
         );
 
         blocks_update(
-            &self.stack_sampled_parameters,
+            &self.stack_layer_parameters,
             &mut self.stack_blocks,
             &mut self.blocks_current_layer_control,
             &mut self.blocks_all_layers_control,
             &mut self.recompute_metrics,
             self.current_layer,
             self.layer_lowest,
-            self.sample_combine_method,
+            &self.sample_combine_method,
         );
 
         if self.recompute_metrics {
@@ -409,7 +410,7 @@ impl eframe::App for App {
                 self.layer_highest,
                 self.stack_blocks.get(self.current_layer).unwrap(),
                 &self.stack_blocks,
-                &self.stack_layer_config,
+                &self.stack_configuration_parameters,
                 &mut self.nr_blocks_total,
                 &mut self.nr_blocks_interior,
                 &mut self.nr_blocks_boundary,
@@ -421,7 +422,7 @@ impl eframe::App for App {
                 &mut self.convex_hull,
                 &mut self.outer_corners,
                 &mut self.symmetry_type,
-                &mut self.center_coord,
+                &mut self.block_center_coord,
                 &mut self.global_bounding_box,
             )
         }
@@ -470,16 +471,16 @@ impl eframe::App for App {
 
                     // Resize all the stack objects
                     {
-                        self.stack_layer_config.resize(
+                        self.stack_configuration_parameters.resize(
                             self.layer_lowest,
                             self.layer_highest,
-                            &self.stack_layer_config.get(old_layer).unwrap(),
+                            &self.stack_configuration_parameters.get(old_layer).unwrap(),
                         );
 
-                        self.stack_sampled_parameters.resize(
+                        self.stack_layer_parameters.resize(
                             self.layer_lowest,
                             self.layer_highest,
-                            &self.stack_sampled_parameters.get(old_layer).unwrap(),
+                            &self.stack_layer_parameters.get(old_layer).unwrap(),
                         );
 
                         self.stack_blocks.resize(
@@ -505,16 +506,16 @@ impl eframe::App for App {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui_viewport(
                 ui,
-                self.stack_layer_config.get(self.current_layer).unwrap(),
-                self.stack_sampled_parameters
+                self.stack_configuration_parameters
                     .get(self.current_layer)
                     .unwrap(),
+                self.stack_layer_parameters.get(self.current_layer).unwrap(),
                 self.stack_blocks.get(self.current_layer).unwrap(),
                 self.sampling_enabled,
                 &self.view,
                 &mut self.reset_zoom_once,
                 &mut self.reset_zoom_continuous,
-                &self.boundary_2d, // fixme: this is weird. should be unnecessary
+                &self.boundary_2d,
                 &self.interior_2d,
                 &self.complement_2d,
                 self.boundary_3d.get(self.current_layer),
@@ -522,7 +523,7 @@ impl eframe::App for App {
                 &self.convex_hull,
                 &self.outer_corners,
                 &self.symmetry_type,
-                &self.center_coord,
+                &self.block_center_coord,
                 self.global_bounding_box,
             );
         });

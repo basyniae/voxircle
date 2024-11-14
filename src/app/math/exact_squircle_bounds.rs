@@ -1,8 +1,8 @@
-use crate::app::data_structures::layer_config::LayerConfig;
+use crate::app::data_structures::slice_parameters::SliceParameters;
 use crate::app::math::circle_geometry::get_squircle_tangent_point;
 use crate::app::math::linear_algebra::Vec2;
 
-pub fn exact_squircle_bounds(gen_config: &LayerConfig, pad_factor: f64) -> [[f64; 2]; 2] {
+pub fn exact_squircle_bounds(gen_config: &SliceParameters, pad_factor: f64) -> [[f64; 2]; 2] {
     let squircle_parameter = gen_config.squircle_parameter;
     let sqrt_quad_form = gen_config.get_sqrt_quad_form();
     let center_offset_x = gen_config.center_offset_x;
