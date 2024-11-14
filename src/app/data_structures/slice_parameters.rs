@@ -55,4 +55,26 @@ impl SliceParameters {
     pub fn get_squircle_ui_parameter(&self) -> f64 {
         1.0 - 1.0 / (1.0 + self.squircle_parameter)
     }
+
+    /// Keep the values in self except if Some is provided for a parameter (parameter-wise)
+    pub fn maybe_overwrite(
+        &self,
+        algorithm: Option<Algorithm>,
+        radius_a: Option<f64>,
+        radius_b: Option<f64>,
+        tilt: Option<f64>,
+        center_offset_x: Option<f64>,
+        center_offset_y: Option<f64>,
+        squircle_parameter: Option<f64>,
+    ) -> Self {
+        SliceParameters {
+            algorithm: algorithm.unwrap_or(self.algorithm),
+            radius_a: radius_a.unwrap_or(self.radius_a),
+            radius_b: radius_b.unwrap_or(self.radius_b),
+            tilt: tilt.unwrap_or(self.tilt),
+            center_offset_x: center_offset_x.unwrap_or(self.center_offset_x),
+            center_offset_y: center_offset_y.unwrap_or(self.center_offset_y),
+            squircle_parameter: squircle_parameter.unwrap_or(self.squircle_parameter),
+        }
+    }
 }
