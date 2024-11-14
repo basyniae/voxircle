@@ -15,7 +15,6 @@ pub struct Blocks {
     origin_usize: [usize; 2], //  same as origin_float but with usize coordinates
 }
 
-// TODO: make intersect and complement methods for easier computation
 // longterm: build sequences
 /// Getter methods
 impl Blocks {
@@ -372,12 +371,12 @@ impl Blocks {
         )
     }
 
-    pub fn combine(sample_combine_method: SampleCombineMethod, stack: Vec<Self>) -> Self {
+    pub fn combine(sample_combine_method: &SampleCombineMethod, stack: Vec<Self>) -> Self {
         match sample_combine_method {
             SampleCombineMethod::AllSamples => Self::combine_all(stack),
             SampleCombineMethod::AnySamples => Self::combine_any(stack),
             SampleCombineMethod::Percentage(percentage) => {
-                Self::combine_percentage(stack, percentage)
+                Self::combine_percentage(stack, *percentage)
             }
         }
     }
