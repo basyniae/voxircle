@@ -1,5 +1,6 @@
 use std::f64::consts::PI;
 
+use crate::app::data_structures::slice_parameters::SliceParameters;
 use egui_plot::{Line, PlotBounds, PlotPoints, Polygon};
 
 /// Specifiying the bottom left coordinates of the square.
@@ -17,14 +18,14 @@ pub fn square_at_coords(coord: [f64; 2]) -> Polygon {
     Polygon::new(square_pts).name("square".to_owned())
 }
 
-pub fn superellipse_at_coords(
-    radius_a: f64,
-    radius_b: f64,
-    tilt: f64,
-    center_x: f64,
-    center_y: f64,
-    squircle_parameter: f64,
-) -> Line {
+pub fn superellipse_at_coords(slice_parameters: &SliceParameters) -> Line {
+    let radius_a = slice_parameters.radius_a;
+    let radius_b = slice_parameters.radius_b;
+    let tilt = slice_parameters.tilt;
+    let center_x = slice_parameters.center_offset_x;
+    let center_y = slice_parameters.center_offset_y;
+    let squircle_parameter = slice_parameters.squircle_parameter;
+
     let circlepts: PlotPoints = (0..=1005)
         // Near the square (squircle_parameter = Infinity) we get weird holes (the parameterization
         //  is not equally spaced), so need a few more points for it to make sense

@@ -1,6 +1,6 @@
 use crate::app;
 use crate::app::data_structures::blocks::Blocks;
-use crate::app::data_structures::layer_config::LayerConfig;
+use crate::app::data_structures::slice_parameters::SliceParameters;
 use crate::app::data_structures::symmetry_type::SymmetryType;
 use crate::app::data_structures::zvec::ZVec;
 use crate::app::math::exact_squircle_bounds::exact_squircle_bounds;
@@ -13,7 +13,7 @@ pub fn update_metrics(
     layer_highest: isize,
     current_layer_blocks: Blocks,
     stack_blocks: &ZVec<Blocks>,
-    stack_layer_config: &ZVec<LayerConfig>,
+    stack_layer_config: &ZVec<SliceParameters>,
 
     // Metrics
     nr_blocks_total: &mut u64,

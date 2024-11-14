@@ -4,11 +4,11 @@ use crate::app::colors::{
     COLOR_RED, COLOR_WIRE, COLOR_X_AXIS, COLOR_YELLOW, COLOR_Y_AXIS,
 };
 use crate::app::data_structures::blocks::Blocks;
-use crate::app::data_structures::layer_config::LayerConfig;
+use crate::app::data_structures::slice_parameters::SliceParameters;
 use crate::app::data_structures::symmetry_type::SymmetryType;
 use crate::app::metrics::convex_hull::line_segments_from_conv_hull;
 use crate::app::plotting::bounds_from_square;
-use crate::app::sampling::sampled_parameters::SampledParameters;
+use crate::app::sampling::sampled_parameters::LayerParameters;
 use crate::app::view::View;
 use crate::app::{generation, plotting};
 use eframe::egui::{Stroke, Ui, Vec2b};
@@ -20,8 +20,8 @@ use std::f64::consts::PI;
 
 pub fn ui_viewport(
     ui: &mut Ui,
-    layer_config: LayerConfig,
-    sampled_parameters: SampledParameters,
+    slice_parameters: SliceParameters,
+    sampled_parameters: LayerParameters,
     blocks: Blocks,
     sampling_enabled: bool,
     view: &View,
@@ -144,19 +144,13 @@ pub fn ui_viewport(
             if sampling_enabled {
                 for i in 0..sampled_parameters.nr_samples {
                     plot_ui.line(
-                        plotting::superellipse_at_coords(
-                            sampled_parameters.parameters[i][0],
-                            sampled_parameters.parameters[i][1],
-                            sampled_parameters.parameters[i][2],
-                            sampled_parameters.parameters[i][3],
-                            sampled_parameters.parameters[i][4],
-                            sampled_parameters.parameters[i][5],
-                        )
-                        .color(linear_gradient(
-                            COLOR_DARK_GREEN,
-                            COLOR_DARK_BLUE,
-                            i as f64 / (sampled_parameters.nr_samples as f64 - 1.0),
-                        )),
+                        plotting::superellipse_at_coords(&sampled_parameters.parameters[i]).color(
+                            linear_gradient(
+                                COLOR_DARK_GREEN,
+                                COLOR_DARK_BLUE,
+                                i as f64 / (sampled_parameters.nr_samples as f64 - 1.0),
+                            ),
+                        ),
                     );
                 }
             }
@@ -164,55 +158,45 @@ pub fn ui_viewport(
             // Plot center
             plot_ui.points(
                 Points::new(vec![[
-                    layer_config.center_offset_x,
-                    layer_config.center_offset_y,
+                    slice_parameters.center_offset_x,
+                    slice_parameters.center_offset_y,
                 ]])
                 .radius(5.0)
                 .color(COLOR_DARK_GREEN),
             );
 
             // Plot target shape
-            plot_ui.line(
-                plotting::superellipse_at_coords(
-                    layer_config.radius_a,
-                    layer_config.radius_b,
-                    layer_config.tilt,
-                    layer_config.center_offset_x,
-                    layer_config.center_offset_y,
-                    layer_config.squircle_parameter,
-                )
-                .color(COLOR_LIME),
-            );
+            plot_ui.line(plotting::superellipse_at_coords(&slice_parameters).color(COLOR_LIME));
 
             // Plot x and y axes through the center of the shape
             plot_ui.hline(
-                HLine::new(layer_config.center_offset_y)
+                HLine::new(slice_parameters.center_offset_y)
                     .color(COLOR_X_AXIS)
                     .width(2.0),
             );
             plot_ui.vline(
-                VLine::new(layer_config.center_offset_x)
+                VLine::new(slice_parameters.center_offset_x)
                     .color(COLOR_Y_AXIS)
                     .width(2.0),
             );
 
             // Plot rotated x and y axes for nonzero tilt (dark orange and purple)
-            if layer_config.tilt != 0.0 {
+            if slice_parameters.tilt != 0.0 {
                 plot_ui.line(
                     plotting::tilted_line_in_bounds(
                         plot_ui.plot_bounds(),
-                        layer_config.tilt,
-                        layer_config.center_offset_x,
-                        layer_config.center_offset_y,
+                        slice_parameters.tilt,
+                        slice_parameters.center_offset_x,
+                        slice_parameters.center_offset_y,
                     )
                     .color(COLOR_DARK_ORANGE),
                 );
                 plot_ui.line(
                     plotting::tilted_line_in_bounds(
                         plot_ui.plot_bounds(),
-                        layer_config.tilt + PI / 2.0,
-                        layer_config.center_offset_x,
-                        layer_config.center_offset_y,
+                        slice_parameters.tilt + PI / 2.0,
+                        slice_parameters.center_offset_x,
+                        slice_parameters.center_offset_y,
                     )
                     .color(COLOR_PURPLE),
                 );
@@ -220,16 +204,16 @@ pub fn ui_viewport(
 
             if view.intersect_area {
                 let grid_size =
-                    (2.0 * 1.42 * f64::max(layer_config.radius_a, layer_config.radius_b)).ceil()
-                        as usize
+                    (2.0 * 1.42 * f64::max(slice_parameters.radius_a, slice_parameters.radius_b))
+                        .ceil() as usize
                         + 4;
 
                 let square = Blocks::new((0..grid_size.pow(2)).map(|_| true).collect(), grid_size);
 
                 for coord in square.get_all_block_coords() {
                     let cell_center = [coord[0] + 0.5, coord[1] + 0.5];
-                    let mut x_center = cell_center[0] - layer_config.center_offset_x;
-                    let mut y_center = cell_center[1] - layer_config.center_offset_y;
+                    let mut x_center = cell_center[0] - slice_parameters.center_offset_x;
+                    let mut y_center = cell_center[1] - slice_parameters.center_offset_y;
 
                     // Dihedral symmetry swaps (see percentage.rs for explanation)
                     if x_center < 0.0 {
@@ -244,7 +228,7 @@ pub fn ui_viewport(
 
                     plot_ui.text(Text::new(PlotPoint::from(cell_center), {
                         let value = generation::percentage::cell_disk_intersection_area(
-                            layer_config.radius_a.max(layer_config.radius_b),
+                            slice_parameters.radius_a.max(slice_parameters.radius_b),
                             x_center,
                             y_center,
                         );
@@ -298,8 +282,8 @@ pub fn ui_viewport(
                             plotting::tilted_line_in_bounds(
                                 plot_ui.plot_bounds(),
                                 std::f64::consts::FRAC_PI_4,
-                                layer_config.center_offset_x,
-                                layer_config.center_offset_y,
+                                slice_parameters.center_offset_x,
+                                slice_parameters.center_offset_y,
                             )
                             .color(COLOR_PURPLE),
                         );
@@ -309,8 +293,8 @@ pub fn ui_viewport(
                             plotting::tilted_line_in_bounds(
                                 plot_ui.plot_bounds(),
                                 -std::f64::consts::FRAC_PI_4,
-                                layer_config.center_offset_x,
-                                layer_config.center_offset_y,
+                                slice_parameters.center_offset_x,
+                                slice_parameters.center_offset_y,
                             )
                             .color(COLOR_PURPLE),
                         );
@@ -324,8 +308,8 @@ pub fn ui_viewport(
                             plotting::tilted_line_in_bounds(
                                 plot_ui.plot_bounds(),
                                 std::f64::consts::FRAC_PI_4,
-                                layer_config.center_offset_x,
-                                layer_config.center_offset_y,
+                                slice_parameters.center_offset_x,
+                                slice_parameters.center_offset_y,
                             )
                             .color(COLOR_PURPLE),
                         );
@@ -333,8 +317,8 @@ pub fn ui_viewport(
                             plotting::tilted_line_in_bounds(
                                 plot_ui.plot_bounds(),
                                 -std::f64::consts::FRAC_PI_4,
-                                layer_config.center_offset_x,
-                                layer_config.center_offset_y,
+                                slice_parameters.center_offset_x,
+                                slice_parameters.center_offset_y,
                             )
                             .color(COLOR_PURPLE),
                         );
@@ -346,8 +330,8 @@ pub fn ui_viewport(
                             plotting::tilted_line_in_bounds(
                                 plot_ui.plot_bounds(),
                                 std::f64::consts::FRAC_PI_4,
-                                layer_config.center_offset_x,
-                                layer_config.center_offset_y,
+                                slice_parameters.center_offset_x,
+                                slice_parameters.center_offset_y,
                             )
                             .color(COLOR_PURPLE),
                         );
@@ -355,8 +339,8 @@ pub fn ui_viewport(
                             plotting::tilted_line_in_bounds(
                                 plot_ui.plot_bounds(),
                                 -std::f64::consts::FRAC_PI_4,
-                                layer_config.center_offset_x,
-                                layer_config.center_offset_y,
+                                slice_parameters.center_offset_x,
+                                slice_parameters.center_offset_y,
                             )
                             .color(COLOR_PURPLE),
                         );
