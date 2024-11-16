@@ -9,7 +9,18 @@ use eframe::egui;
 use eframe::egui::{Align, Layout, Ui};
 use mlua::Lua;
 
-/// document
+// my first macro!
+// todo: there should be a way to simplify this further, there's still a lot of repetition in the code
+//  (esp. if you take into account the other ui files also)
+/// Mark the inputted control variables as outdated
+macro_rules! outdate {
+    ( $( $x:expr ),+ ) => {{
+        $($x.set_outdated();)+
+    }};
+}
+
+/// Draw ui for algorithm selection, parameters of the generation (radius etc.), and lua fields.
+/// Update
 pub fn ui_options(
     ui: &mut Ui,
     current_layer_config: &mut SliceParameters,
@@ -114,7 +125,10 @@ pub fn ui_options(
             lua_field_radius_a.update_field_state(lua, sampling_points);
             lua_field_radius_b.update_field_state(lua, sampling_points);
 
-            parameters_current_layer_control.set_outdated();
+            outdate!(
+                parameters_current_layer_control,
+                parameters_all_layers_control
+            );
         };
 
         // lua
@@ -136,7 +150,10 @@ pub fn ui_options(
             .changed()
         {
             lua_field_radius_a.update_field_state(lua, sampling_points);
-            parameters_current_layer_control.set_outdated();
+            outdate!(
+                parameters_current_layer_control,
+                parameters_all_layers_control
+            );
         }
         if code_enabled {
             lua_field_radius_a.show(ui, lua, sampling_points);
@@ -154,7 +171,10 @@ pub fn ui_options(
             .changed()
         {
             lua_field_radius_b.update_field_state(lua, sampling_points);
-            parameters_current_layer_control.set_outdated();
+            outdate!(
+                parameters_current_layer_control,
+                parameters_all_layers_control
+            );
         }
         if code_enabled {
             lua_field_radius_b.show(ui, lua, sampling_points);
@@ -174,7 +194,10 @@ pub fn ui_options(
         .changed()
     {
         lua_field_tilt.update_field_state(lua, sampling_points);
-        parameters_current_layer_control.set_outdated();
+        outdate!(
+            parameters_current_layer_control,
+            parameters_all_layers_control
+        );
     };
 
     // Particular values
@@ -185,37 +208,58 @@ pub fn ui_options(
             if ui.button("0°").clicked() {
                 current_layer_config.tilt = 0.0;
                 lua_field_tilt.update_field_state(lua, sampling_points);
-                parameters_current_layer_control.set_outdated();
+                outdate!(
+                    parameters_current_layer_control,
+                    parameters_all_layers_control
+                );
             }
             if ui.button("30°").clicked() {
                 current_layer_config.tilt = PI / 6.0;
                 lua_field_tilt.update_field_state(lua, sampling_points);
-                parameters_current_layer_control.set_outdated();
+                outdate!(
+                    parameters_current_layer_control,
+                    parameters_all_layers_control
+                );
             }
             if ui.button("45°").clicked() {
                 current_layer_config.tilt = PI / 4.0;
                 lua_field_tilt.update_field_state(lua, sampling_points);
-                parameters_current_layer_control.set_outdated();
+                outdate!(
+                    parameters_current_layer_control,
+                    parameters_all_layers_control
+                );
             }
             if ui.button("1:2").clicked() {
                 current_layer_config.tilt = 0.5_f64.atan();
                 lua_field_tilt.update_field_state(lua, sampling_points);
-                parameters_current_layer_control.set_outdated();
+                outdate!(
+                    parameters_current_layer_control,
+                    parameters_all_layers_control
+                );
             }
             if ui.button("1:3").clicked() {
                 current_layer_config.tilt = 0.333333333333_f64.atan();
                 lua_field_tilt.update_field_state(lua, sampling_points);
-                parameters_current_layer_control.set_outdated();
+                outdate!(
+                    parameters_current_layer_control,
+                    parameters_all_layers_control
+                );
             }
             if ui.button("2:3").clicked() {
                 current_layer_config.tilt = 0.666666666666_f64.atan();
                 lua_field_tilt.update_field_state(lua, sampling_points);
-                parameters_current_layer_control.set_outdated();
+                outdate!(
+                    parameters_current_layer_control,
+                    parameters_all_layers_control
+                );
             }
             if ui.button("1:4").clicked() {
                 current_layer_config.tilt = 0.25_f64.atan();
                 lua_field_tilt.update_field_state(lua, sampling_points);
-                parameters_current_layer_control.set_outdated();
+                outdate!(
+                    parameters_current_layer_control,
+                    parameters_all_layers_control
+                );
             }
         },
     );
@@ -238,7 +282,10 @@ pub fn ui_options(
             .changed()
         {
             lua_field_squircle_parameter.update_field_state(lua, sampling_points);
-            parameters_current_layer_control.set_outdated();
+            outdate!(
+                parameters_current_layer_control,
+                parameters_all_layers_control
+            );
         };
 
         // Default values
@@ -254,25 +301,37 @@ pub fn ui_options(
                 if ui.button("Circle").clicked() {
                     squircle_ui_parameter = 0.666666666666666;
                     lua_field_squircle_parameter.update_field_state(lua, sampling_points);
-                    parameters_current_layer_control.set_outdated();
+                    outdate!(
+                        parameters_current_layer_control,
+                        parameters_all_layers_control
+                    );
                 }
                 // Astroid has squircle parameter 2/3
                 if ui.button("Astroid").clicked() {
                     squircle_ui_parameter = 0.4;
                     lua_field_squircle_parameter.update_field_state(lua, sampling_points);
-                    parameters_current_layer_control.set_outdated();
+                    outdate!(
+                        parameters_current_layer_control,
+                        parameters_all_layers_control
+                    );
                 }
                 // Diamond has squircle parameter 1
                 if ui.button("Diamond").clicked() {
                     squircle_ui_parameter = 0.5;
                     lua_field_squircle_parameter.update_field_state(lua, sampling_points);
-                    parameters_current_layer_control.set_outdated();
+                    outdate!(
+                        parameters_current_layer_control,
+                        parameters_all_layers_control
+                    );
                 }
                 // Square has squircle parameter infinity
                 if ui.button("Square").clicked() {
                     squircle_ui_parameter = 1.0;
                     lua_field_squircle_parameter.update_field_state(lua, sampling_points);
-                    parameters_current_layer_control.set_outdated();
+                    outdate!(
+                        parameters_current_layer_control,
+                        parameters_all_layers_control
+                    );
                 }
             },
         );
@@ -289,25 +348,34 @@ pub fn ui_options(
     if ui
         .add(
             egui::Slider::new(&mut current_layer_config.center_offset_x, -1.0..=1.0)
-                .text("x offset"),
+                .text("x offset")
+                .clamp_to_range(false),
         )
         .changed()
     {
         lua_field_center_offset_x.update_field_state(lua, sampling_points);
-        parameters_current_layer_control.set_outdated();
-    }
+        outdate!(
+            parameters_current_layer_control,
+            parameters_all_layers_control
+        );
+    };
     if code_enabled {
         lua_field_center_offset_x.show(ui, lua, sampling_points);
     }
+
     if ui
         .add(
             egui::Slider::new(&mut current_layer_config.center_offset_y, -1.0..=1.0)
-                .text("y offset"),
+                .text("y offset")
+                .clamp_to_range(false),
         )
         .changed()
     {
         lua_field_center_offset_y.update_field_state(lua, sampling_points);
-        parameters_current_layer_control.set_outdated();
+        outdate!(
+            parameters_current_layer_control,
+            parameters_all_layers_control
+        );
     };
     if code_enabled {
         lua_field_center_offset_y.show(ui, lua, sampling_points);
@@ -321,16 +389,20 @@ pub fn ui_options(
             if ui.button("Even center").clicked() {
                 current_layer_config.center_offset_x = 0.0;
                 current_layer_config.center_offset_y = 0.0;
-                lua_field_center_offset_x.update_field_state(lua, sampling_points);
-                lua_field_center_offset_y.update_field_state(lua, sampling_points);
-                parameters_current_layer_control.set_outdated();
+                outdate!(
+                    parameters_current_layer_control,
+                    parameters_all_layers_control
+                );
             }
             if ui.button("Odd center").clicked() {
                 current_layer_config.center_offset_x = 0.5;
                 current_layer_config.center_offset_y = 0.5;
                 lua_field_center_offset_x.update_field_state(lua, sampling_points);
                 lua_field_center_offset_y.update_field_state(lua, sampling_points);
-                parameters_current_layer_control.set_outdated();
+                outdate!(
+                    parameters_current_layer_control,
+                    parameters_all_layers_control
+                );
             }
         },
     );
@@ -342,12 +414,12 @@ pub fn ui_options(
         || lua_field_center_offset_y.has_changed()
         || lua_field_squircle_parameter.has_changed()
     {
-        parameters_current_layer_control.set_outdated()
+        outdate!(
+            parameters_current_layer_control,
+            parameters_all_layers_control
+        );
     }
 
     // This is the only logical thing I can think of... if the current layer is outdated then certainly
     // the parameters for all layers is no longer up to date.
-    if parameters_current_layer_control.is_outdated {
-        parameters_all_layers_control.set_outdated()
-    };
 }

@@ -22,7 +22,7 @@ pub fn ui_viewport(
     ui: &mut Ui,
     slice_parameters: SliceParameters,
     sampled_parameters: LayerParameters,
-    blocks: Blocks,
+    blocks: Option<&Blocks>,
     sampling_enabled: bool,
     view: &View,
 
@@ -31,16 +31,16 @@ pub fn ui_viewport(
     reset_zoom_continuous: &mut bool,
 
     // Metrics
-    boundary_2d: &Blocks,
-    interior_2d: &Blocks,
-    complement_2d: &Blocks,
-    boundary_3d_slice: Option<Blocks>,
-    interior_3d_slice: Option<Blocks>,
+    boundary_2d: Option<&Blocks>,
+    interior_2d: Option<&Blocks>,
+    complement_2d: Option<&Blocks>,
+    boundary_3d_slice: Option<&Blocks>,
+    interior_3d_slice: Option<&Blocks>,
     convex_hull: &Vec<[f64; 2]>,
     outer_corners: &Vec<[f64; 2]>,
     symmetry_type: &SymmetryType,
     center_coord: &[f64; 2],
-    global_bounding_box: [[f64; 2]; 2], //todo: rename
+    global_bounding_box: &[[f64; 2]; 2], //todo: rename
 ) {
     ui.visuals_mut().extreme_bg_color = COLOR_BACKGROUND;
 
@@ -106,13 +106,13 @@ pub fn ui_viewport(
                     view.center_blocks,
                 ],
                 [
-                    Some(blocks.clone()), //fixme: remove clones
-                    Some(complement_2d.clone()),
+                    blocks,
+                    complement_2d,
                     boundary_3d_slice,
-                    Some(boundary_2d.clone()),
-                    Some(interior_2d.clone()),
+                    boundary_2d,
+                    interior_2d,
                     interior_3d_slice,
-                    Some(blocks.clone().get_center_blocks()), // fixme: update in proper order
+                    blocks.map(|b| b.get_center_blocks()).as_ref(), // update with other metrics?
                 ],
                 [
                     COLOR_FACE,
@@ -263,9 +263,11 @@ pub fn ui_viewport(
             }
 
             // Plot bounds of the blocks
-            if view.bounds {
-                let line = bounds_from_square(blocks.get_bounds_floats());
-                plot_ui.line(line.color(COLOR_ORANGE)); // todo: think about colors
+            if let Some(b) = blocks {
+                if view.bounds {
+                    let line = bounds_from_square(b.get_bounds_floats());
+                    plot_ui.line(line.color(COLOR_ORANGE)); // todo: think about colors
+                }
             }
 
             // todo: think about colors

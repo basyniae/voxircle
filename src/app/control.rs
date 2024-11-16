@@ -2,7 +2,7 @@
 pub struct Control {
     do_once: bool,
     do_auto: bool,
-    pub is_outdated: bool, // todo: use this publicly once (in options.rs), rethink
+    is_outdated: bool,
 }
 
 impl Control {
