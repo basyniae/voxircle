@@ -205,62 +205,25 @@ pub fn ui_options(
         egui::Vec2::from([100.0, 200.0]),
         Layout::left_to_right(Align::Min),
         |ui| {
-            if ui.button("0°").clicked() {
-                current_layer_config.tilt = 0.0;
-                lua_field_tilt.update_field_state(lua, sampling_points);
-                outdate!(
-                    parameters_current_layer_control,
-                    parameters_all_layers_control
-                );
-            }
-            if ui.button("30°").clicked() {
-                current_layer_config.tilt = PI / 6.0;
-                lua_field_tilt.update_field_state(lua, sampling_points);
-                outdate!(
-                    parameters_current_layer_control,
-                    parameters_all_layers_control
-                );
-            }
-            if ui.button("45°").clicked() {
-                current_layer_config.tilt = PI / 4.0;
-                lua_field_tilt.update_field_state(lua, sampling_points);
-                outdate!(
-                    parameters_current_layer_control,
-                    parameters_all_layers_control
-                );
-            }
-            if ui.button("1:2").clicked() {
-                current_layer_config.tilt = 0.5_f64.atan();
-                lua_field_tilt.update_field_state(lua, sampling_points);
-                outdate!(
-                    parameters_current_layer_control,
-                    parameters_all_layers_control
-                );
-            }
-            if ui.button("1:3").clicked() {
-                current_layer_config.tilt = 0.333333333333_f64.atan();
-                lua_field_tilt.update_field_state(lua, sampling_points);
-                outdate!(
-                    parameters_current_layer_control,
-                    parameters_all_layers_control
-                );
-            }
-            if ui.button("2:3").clicked() {
-                current_layer_config.tilt = 0.666666666666_f64.atan();
-                lua_field_tilt.update_field_state(lua, sampling_points);
-                outdate!(
-                    parameters_current_layer_control,
-                    parameters_all_layers_control
-                );
-            }
-            if ui.button("1:4").clicked() {
-                current_layer_config.tilt = 0.25_f64.atan();
-                lua_field_tilt.update_field_state(lua, sampling_points);
-                outdate!(
-                    parameters_current_layer_control,
-                    parameters_all_layers_control
-                );
-            }
+            [
+                ("0°", 0.0),
+                ("30°", PI / 6.0),
+                ("45°", PI / 4.0),
+                ("1:2", 0.5_f64.atan()),
+                ("1:3", 0.33333333333333_f64.atan()),
+                ("2:3", 0.66666666666666_f64.atan()),
+                ("1:4", 0.25_f64.atan()),
+            ]
+            .map(|(name, value)| {
+                if ui.button(name).clicked() {
+                    current_layer_config.tilt = value;
+                    lua_field_tilt.update_field_state(lua, sampling_points);
+                    outdate!(
+                        parameters_current_layer_control,
+                        parameters_all_layers_control
+                    )
+                }
+            });
         },
     );
     if code_enabled {
@@ -297,48 +260,27 @@ pub fn ui_options(
             egui::Vec2::from([100.0, 200.0]),
             Layout::left_to_right(Align::Min),
             |ui| {
-                // Circle has squircle parameter 2
-                if ui.button("Circle").clicked() {
-                    squircle_ui_parameter = 0.666666666666666;
-                    lua_field_squircle_parameter.update_field_state(lua, sampling_points);
-                    outdate!(
-                        parameters_current_layer_control,
-                        parameters_all_layers_control
-                    );
-                }
-                // Astroid has squircle parameter 2/3
-                if ui.button("Astroid").clicked() {
-                    squircle_ui_parameter = 0.4;
-                    lua_field_squircle_parameter.update_field_state(lua, sampling_points);
-                    outdate!(
-                        parameters_current_layer_control,
-                        parameters_all_layers_control
-                    );
-                }
-                // Diamond has squircle parameter 1
-                if ui.button("Diamond").clicked() {
-                    squircle_ui_parameter = 0.5;
-                    lua_field_squircle_parameter.update_field_state(lua, sampling_points);
-                    outdate!(
-                        parameters_current_layer_control,
-                        parameters_all_layers_control
-                    );
-                }
-                // Square has squircle parameter infinity
-                if ui.button("Square").clicked() {
-                    squircle_ui_parameter = 1.0;
-                    lua_field_squircle_parameter.update_field_state(lua, sampling_points);
-                    outdate!(
-                        parameters_current_layer_control,
-                        parameters_all_layers_control
-                    );
-                }
+                [
+                    ("Circle", 0.66666666666666), // Squircle parameter 2
+                    ("Astroid", 0.4),             // "" "" 2/3
+                    ("Diamond", 0.5),             // "" "" 1
+                    ("Square", 1.0),              // "" "" infinity
+                ]
+                .map(|(name, value)| {
+                    if ui.button(name).clicked() {
+                        squircle_ui_parameter = value;
+                        lua_field_squircle_parameter.update_field_state(lua, sampling_points);
+                        outdate!(
+                            parameters_current_layer_control,
+                            parameters_all_layers_control
+                        );
+                    }
+                });
             },
         );
         current_layer_config.squircle_parameter = 1.0 / (1.0 - squircle_ui_parameter) - 1.0;
     }
     // now kill the temporary variable
-
     if code_enabled {
         lua_field_squircle_parameter.show(ui, lua, sampling_points);
     }
@@ -386,24 +328,16 @@ pub fn ui_options(
         egui::Vec2::from([100.0, 200.0]),
         Layout::left_to_right(Align::Min),
         |ui| {
-            if ui.button("Even center").clicked() {
-                current_layer_config.center_offset_x = 0.0;
-                current_layer_config.center_offset_y = 0.0;
-                outdate!(
-                    parameters_current_layer_control,
-                    parameters_all_layers_control
-                );
-            }
-            if ui.button("Odd center").clicked() {
-                current_layer_config.center_offset_x = 0.5;
-                current_layer_config.center_offset_y = 0.5;
-                lua_field_center_offset_x.update_field_state(lua, sampling_points);
-                lua_field_center_offset_y.update_field_state(lua, sampling_points);
-                outdate!(
-                    parameters_current_layer_control,
-                    parameters_all_layers_control
-                );
-            }
+            [("Even center", 0.0, 0.0), ("Odd center", 0.5, 0.5)].map(|(name, x, y)| {
+                if ui.button(name).clicked() {
+                    current_layer_config.center_offset_x = x;
+                    current_layer_config.center_offset_y = y;
+                    outdate!(
+                        parameters_current_layer_control,
+                        parameters_all_layers_control
+                    )
+                }
+            });
         },
     );
 
@@ -419,7 +353,4 @@ pub fn ui_options(
             parameters_all_layers_control
         );
     }
-
-    // This is the only logical thing I can think of... if the current layer is outdated then certainly
-    // the parameters for all layers is no longer up to date.
 }
