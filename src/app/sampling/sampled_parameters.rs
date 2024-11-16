@@ -1,7 +1,7 @@
 use crate::app::data_structures::blocks::Blocks;
 use crate::app::data_structures::slice_parameters::SliceParameters;
 use crate::app::generation::{generate_all_blocks, Algorithm};
-use crate::app::math::linear_algebra::{Mat2, Vec2};
+use crate::app::math::linear_algebra::Vec2;
 use crate::app::sampling::SampleCombineMethod;
 
 /// Sampled parameters belonging to a single layer
@@ -38,7 +38,6 @@ impl Default for LayerParameters {
 impl LayerParameters {
     // fixme: make grid size determination better: needs to also take care of the offset (if
     //  the input is very offset this method fails)
-    // todo: use reference to sample combine method
     /// Run the generation algorithm for the configuration `self`, the output is a `Blocks` object. document.
     pub fn generate(&self, sample_combine_method: &SampleCombineMethod) -> Blocks {
         // Determine grid size
@@ -79,18 +78,5 @@ impl LayerParameters {
                 })
                 .collect(),
         )
-    }
-
-    // TODO: think about where sqrt_quad_form is stored, maybe better to precompute it if we're
-    //  using it multiple times (for this function whose purpose is display, and for the actual
-    //  generation of the shape)
-    /// Compute the sqrt_quad_form for the sampled parameters `self`
-    pub fn get_sampled_sqrt_quad_form(&self) -> Vec<Mat2> {
-        // Compute a square root of the PSD symmetric quadratic form X defining the ellipse:
-        //  (x,y)^TX(x,y)=1.
-        self.parameters
-            .iter()
-            .map(|slice_parameters| slice_parameters.get_sqrt_quad_form())
-            .collect()
     }
 }

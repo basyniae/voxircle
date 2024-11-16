@@ -2,7 +2,6 @@ use crate::app::data_structures::symmetry_type::SymmetryType;
 use crate::app::math::linear_algebra::Vec2;
 use crate::app::sampling::SampleCombineMethod;
 use itertools::Itertools;
-use std::fmt::Display;
 
 /// Captures a bit matrix. The length of the vector should always be edge_length**2
 #[derive(Default, Debug, Clone, PartialEq)]
@@ -530,7 +529,7 @@ impl Blocks {
         )
     }
 
-    // Blocks that have x and y coords contained in the provided vectors
+    /// Blocks that have x and y coords contained in the provided vectors
     fn squares_at_xy_coords(
         x_coords: Vec<usize>,
         y_coords: Vec<usize>,

@@ -510,21 +510,21 @@ impl eframe::App for App {
                     .get(self.current_layer)
                     .unwrap(),
                 self.stack_layer_parameters.get(self.current_layer).unwrap(),
-                self.stack_blocks.get(self.current_layer).unwrap(),
+                self.stack_blocks.get(self.current_layer).as_ref(),
                 self.sampling_enabled,
                 &self.view,
                 &mut self.reset_zoom_once,
                 &mut self.reset_zoom_continuous,
-                &self.boundary_2d,
-                &self.interior_2d,
-                &self.complement_2d,
-                self.boundary_3d.get(self.current_layer),
-                self.interior_3d.get(self.current_layer),
+                Some(&self.boundary_2d),
+                Some(&self.interior_2d),
+                Some(&self.complement_2d),
+                self.boundary_3d.get(self.current_layer).as_ref(),
+                self.interior_3d.get(self.current_layer).as_ref(),
                 &self.convex_hull,
                 &self.outer_corners,
                 &self.symmetry_type,
                 &self.block_center_coord,
-                self.global_bounding_box,
+                &self.global_bounding_box,
             );
         });
     }
