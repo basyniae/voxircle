@@ -1,8 +1,4 @@
-use crate::app::colors::{
-    linear_gradient, COLOR_BACKGROUND, COLOR_DARK_BLUE, COLOR_DARK_GREEN, COLOR_DARK_ORANGE,
-    COLOR_FACE, COLOR_LIGHT_BLUE, COLOR_LIME, COLOR_MUTED_ORANGE, COLOR_ORANGE, COLOR_PURPLE,
-    COLOR_RED, COLOR_WIRE, COLOR_X_AXIS, COLOR_YELLOW, COLOR_Y_AXIS,
-};
+use crate::app::colors::*;
 use crate::app::data_structures::blocks::Blocks;
 use crate::app::data_structures::slice_parameters::SliceParameters;
 use crate::app::data_structures::symmetry_type::SymmetryType;
@@ -42,7 +38,7 @@ pub fn ui_viewport(
     center_coord: &[f64; 2],
     global_bounding_box: &[[f64; 2]; 2], //todo: rename
 ) {
-    ui.visuals_mut().extreme_bg_color = COLOR_BACKGROUND;
+    ui.visuals_mut().extreme_bg_color = COLOR_VIEWPORT_BACKGROUND;
 
     Plot::new("my_plot")
         .data_aspect(1.0) // so that squares in the rasterization always look square in the viewport
@@ -115,15 +111,18 @@ pub fn ui_viewport(
                     blocks.map(|b| b.get_center_blocks()).as_ref(), // update with other metrics?
                 ],
                 [
-                    COLOR_FACE,
-                    COLOR_ORANGE,
-                    COLOR_PURPLE,
-                    COLOR_LIGHT_BLUE,
-                    COLOR_YELLOW,
-                    COLOR_MUTED_ORANGE,
-                    COLOR_RED,
+                    COLOR_BLOCKS,
+                    COLOR_COMPLEMENT_2D,
+                    COLOR_BOUNDARY_3D,
+                    COLOR_BOUNDARY_2D,
+                    COLOR_INTERIOR_2D,
+                    COLOR_INTERIOR_3D,
+                    COLOR_CENTER_BLOCKS,
                 ]
             ) {
+                // test if basic culling speeds up rendering all blocks for radii ~>100
+                // test: can the per-coord blocks be made persistent (up to change of generated shape)
+                //  with ids somehow?
                 if view {
                     if let Some(blocks) = option_blocks {
                         for coord in blocks.get_all_block_coords() {
@@ -146,27 +145,14 @@ pub fn ui_viewport(
                     plot_ui.line(
                         plotting::superellipse_at_coords(&sampled_parameters.parameters[i]).color(
                             linear_gradient(
-                                COLOR_DARK_GREEN,
-                                COLOR_DARK_BLUE,
+                                COLOR_SAMPLE_A,
+                                COLOR_SAMPLE_B,
                                 i as f64 / (sampled_parameters.nr_samples as f64 - 1.0),
                             ),
                         ),
                     );
                 }
             }
-
-            // Plot center
-            plot_ui.points(
-                Points::new(vec![[
-                    slice_parameters.center_offset_x,
-                    slice_parameters.center_offset_y,
-                ]])
-                .radius(5.0)
-                .color(COLOR_DARK_GREEN),
-            );
-
-            // Plot target shape
-            plot_ui.line(plotting::superellipse_at_coords(&slice_parameters).color(COLOR_LIME));
 
             // Plot x and y axes through the center of the shape
             plot_ui.hline(
@@ -189,7 +175,7 @@ pub fn ui_viewport(
                         slice_parameters.center_offset_x,
                         slice_parameters.center_offset_y,
                     )
-                    .color(COLOR_DARK_ORANGE),
+                    .color(COLOR_TILTED_X_AXIS),
                 );
                 plot_ui.line(
                     plotting::tilted_line_in_bounds(
@@ -198,10 +184,11 @@ pub fn ui_viewport(
                         slice_parameters.center_offset_x,
                         slice_parameters.center_offset_y,
                     )
-                    .color(COLOR_PURPLE),
+                    .color(COLOR_TILTED_Y_AXIS),
                 );
             }
 
+            // Plot intersect area
             if view.intersect_area {
                 let grid_size =
                     (2.0 * 1.42 * f64::max(slice_parameters.radius_a, slice_parameters.radius_b))
@@ -243,11 +230,12 @@ pub fn ui_viewport(
                 }
             }
 
+            // Plot convex hull
             // Perhaps better to use the plot_ui.shape
             if view.convex_hull {
                 for i in line_segments_from_conv_hull(convex_hull.clone()) {
                     let pts: PlotPoints = (0..=1).map(|t| i[t]).collect();
-                    plot_ui.line(Line::new(pts).color(COLOR_ORANGE));
+                    plot_ui.line(Line::new(pts).color(COLOR_CONV_HULL));
                 }
             }
 
@@ -257,7 +245,7 @@ pub fn ui_viewport(
                     plot_ui.points(
                         Points::new(vec![[*i, *j]])
                             .radius(3.0)
-                            .color(COLOR_DARK_ORANGE),
+                            .color(COLOR_OUTER_CORNERS),
                     );
                 }
             }
@@ -266,18 +254,18 @@ pub fn ui_viewport(
             if let Some(b) = blocks {
                 if view.bounds {
                     let line = bounds_from_square(b.get_bounds_floats());
-                    plot_ui.line(line.color(COLOR_ORANGE)); // todo: think about colors
+                    plot_ui.line(line.color(COLOR_BOUNDS))
                 }
             }
 
-            // todo: think about colors
+            // Plot mirrors
             if view.mirrors {
                 match symmetry_type {
                     SymmetryType::ReflectionHorizontal => {
-                        plot_ui.hline(HLine::new(center_coord[1]).color(COLOR_PURPLE).width(2.0));
+                        plot_ui.hline(HLine::new(center_coord[1]).color(COLOR_MIRRORS).width(2.0));
                     }
                     SymmetryType::ReflectionVertical => {
-                        plot_ui.vline(VLine::new(center_coord[0]).color(COLOR_PURPLE).width(2.0));
+                        plot_ui.vline(VLine::new(center_coord[0]).color(COLOR_MIRRORS).width(2.0));
                     }
                     SymmetryType::ReflectionDiagonalUp => {
                         plot_ui.line(
@@ -287,7 +275,7 @@ pub fn ui_viewport(
                                 slice_parameters.center_offset_x,
                                 slice_parameters.center_offset_y,
                             )
-                            .color(COLOR_PURPLE),
+                            .color(COLOR_MIRRORS),
                         );
                     }
                     SymmetryType::ReflectionDiagonalDown => {
@@ -298,12 +286,12 @@ pub fn ui_viewport(
                                 slice_parameters.center_offset_x,
                                 slice_parameters.center_offset_y,
                             )
-                            .color(COLOR_PURPLE),
+                            .color(COLOR_MIRRORS),
                         );
                     }
                     SymmetryType::ReflectionsCardinals => {
-                        plot_ui.vline(VLine::new(center_coord[0]).color(COLOR_PURPLE).width(2.0));
-                        plot_ui.hline(HLine::new(center_coord[1]).color(COLOR_PURPLE).width(2.0));
+                        plot_ui.vline(VLine::new(center_coord[0]).color(COLOR_MIRRORS).width(2.0));
+                        plot_ui.hline(HLine::new(center_coord[1]).color(COLOR_MIRRORS).width(2.0));
                     }
                     SymmetryType::ReflectionsDiagonals => {
                         plot_ui.line(
@@ -313,7 +301,7 @@ pub fn ui_viewport(
                                 slice_parameters.center_offset_x,
                                 slice_parameters.center_offset_y,
                             )
-                            .color(COLOR_PURPLE),
+                            .color(COLOR_MIRRORS),
                         );
                         plot_ui.line(
                             plotting::tilted_line_in_bounds(
@@ -322,12 +310,12 @@ pub fn ui_viewport(
                                 slice_parameters.center_offset_x,
                                 slice_parameters.center_offset_y,
                             )
-                            .color(COLOR_PURPLE),
+                            .color(COLOR_MIRRORS),
                         );
                     }
                     SymmetryType::ReflectionsAll => {
-                        plot_ui.vline(VLine::new(center_coord[0]).color(COLOR_PURPLE).width(2.0));
-                        plot_ui.hline(HLine::new(center_coord[1]).color(COLOR_PURPLE).width(2.0));
+                        plot_ui.vline(VLine::new(center_coord[0]).color(COLOR_MIRRORS).width(2.0));
+                        plot_ui.hline(HLine::new(center_coord[1]).color(COLOR_MIRRORS).width(2.0));
                         plot_ui.line(
                             plotting::tilted_line_in_bounds(
                                 plot_ui.plot_bounds(),
@@ -335,7 +323,7 @@ pub fn ui_viewport(
                                 slice_parameters.center_offset_x,
                                 slice_parameters.center_offset_y,
                             )
-                            .color(COLOR_PURPLE),
+                            .color(COLOR_MIRRORS),
                         );
                         plot_ui.line(
                             plotting::tilted_line_in_bounds(
@@ -344,7 +332,7 @@ pub fn ui_viewport(
                                 slice_parameters.center_offset_x,
                                 slice_parameters.center_offset_y,
                             )
-                            .color(COLOR_PURPLE),
+                            .color(COLOR_MIRRORS),
                         );
                     }
                     SymmetryType::RotationHalf => {} //todo: how to visualize rotational symmetry?
@@ -352,5 +340,20 @@ pub fn ui_viewport(
                     SymmetryType::NoSymmetry => {}
                 }
             }
+
+            // Plot target shape
+            plot_ui.line(
+                plotting::superellipse_at_coords(&slice_parameters).color(COLOR_TARGET_SHAPE),
+            );
+
+            // Plot center dot
+            plot_ui.points(
+                Points::new(vec![[
+                    slice_parameters.center_offset_x,
+                    slice_parameters.center_offset_y,
+                ]])
+                .radius(5.0)
+                .color(COLOR_CENTER_DOT),
+            );
         });
 }
