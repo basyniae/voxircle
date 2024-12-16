@@ -38,7 +38,7 @@ impl LuaField {
                 ui.visuals_mut().override_text_color = Some(Color32::BLACK)
             }
             FieldState::Changed => {
-                ui.visuals_mut().extreme_bg_color = Color32::from_rgb(227, 197, 103);
+                ui.visuals_mut().extreme_bg_color = Color32::from_rgb(227, 197, 103); //todo: make color
                 ui.visuals_mut().override_text_color = Some(Color32::BLACK)
             }
             FieldState::Invalid => {
