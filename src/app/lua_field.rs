@@ -82,7 +82,6 @@ impl LuaField {
                     scope.push_constant("layer", sample);
                     scope.push_constant("l", sample);
 
-                    println!("l = {}", sample.to_string());
                     engine.eval_expression_with_scope(&mut scope, &code).is_ok_and(|x: f64| {
                         !x.is_nan()
                             && (!self.req_finite || x.is_finite())
@@ -90,8 +89,8 @@ impl LuaField {
                     })
                 })
                 // is the expression valid for this particular layer?
-                .fold(true, |a, b| a && b)
-        }).fold(true, |a, b| a && b)
+                .all(|a| a)
+        }).all(|a| a) // is it finally valid for all layers
     }
 
 
@@ -99,13 +98,13 @@ impl LuaField {
         // Only change the parameter if the code is valid and has changed
         // longterm: should not rerun code if there has been a success (assuming layer hasn't changed)
         if self.field_state == FieldState::Changed || self.field_state == FieldState::RunSuccess {
-            let mut engine = Engine::new();
+            let engine = Engine::new();
             let mut scope = Scope::new();
 
-            scope.push_constant("layer", sample.clone());
-            scope.push_constant("l", sample.clone());
+            scope.push_constant("layer", *sample);
+            scope.push_constant("l", *sample);
 
-            let parameter = engine.eval_expression_with_scope(&mut scope, &*self.code).unwrap();
+            let parameter = engine.eval_expression_with_scope(&mut scope, &self.code).unwrap();
             Some(parameter)
         } else {
             None
