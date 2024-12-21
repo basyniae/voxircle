@@ -4,7 +4,6 @@ use std::default::Default;
 use eframe::egui::{self};
 use eframe::egui::{Direction, Layout};
 use eframe::emath::Align;
-use mlua::Lua;
 
 use crate::app::control::Control;
 use crate::app::view::View;
@@ -99,7 +98,7 @@ pub struct App {
     reset_zoom_continuous: bool,
 
     // Lua fields
-    lua: Lua, // Lua instance (only initialized once)
+    // lua: Lua, // Lua instance (only initialized once)
     // Longterm: for easily adding more shapes with potentially variable inputs, make this attached to the algorithm?
     // longterm: Option to run an external lua file
     // longterm: sliders for "Dummy variables" that can be referenced in code (for easier visual tweaking)
@@ -121,21 +120,21 @@ impl App {
         });
 
         // persist lua between layer switching and frames and so on
-        let lua = Lua::new();
-        // give lua as little information as possible about the configurations... handle that all in rust
-        lua.globals().set("layer", 0).unwrap();
-        lua.globals().set("l", 0).unwrap(); // short layer alias
-
-        // Make math functions global for easier access (so `sqrt` instead of `math.sqrt`)
-        lua.load(
-            r#"
-                for k, v in pairs(math) do
-                  _G[k] = v
-                end
-            "#,
-        )
-        .exec()
-        .unwrap();
+        // let lua = Lua::new();
+        // // give lua as little information as possible about the configurations... handle that all in rust
+        // lua.globals().set("layer", 0).unwrap();
+        // lua.globals().set("l", 0).unwrap(); // short layer alias
+        // 
+        // // Make math functions global for easier access (so `sqrt` instead of `math.sqrt`)
+        // lua.load(
+        //     r#"
+        //         for k, v in pairs(math) do
+        //           _G[k] = v
+        //         end
+        //     "#,
+        // )
+        // .exec()
+        // .unwrap();
 
         // Defaults should be such that we get useful output on startup
         Self {
@@ -201,7 +200,6 @@ impl App {
             reset_zoom_continuous: true,
 
             // Standard initializations, finite or nonnegative as necessary and sensible for the data type
-            lua,
             lua_field_radius_a: LuaField::new(true, true),
             lua_field_radius_b: LuaField::new(true, true),
             lua_field_tilt: LuaField::new(true, false),
@@ -234,7 +232,6 @@ impl eframe::App for App {
                             .unwrap(),
                         &mut self.single_radius,
                         self.code_enabled,
-                        &mut self.lua,
                         &mut self.lua_field_radius_a,
                         &mut self.lua_field_radius_b,
                         &mut self.lua_field_tilt,
@@ -382,7 +379,6 @@ impl eframe::App for App {
             self.layer_lowest,
             self.layer_highest,
             self.single_radius,
-            &mut self.lua,
             &mut self.lua_field_radius_a,
             &mut self.lua_field_radius_b,
             &mut self.lua_field_tilt,

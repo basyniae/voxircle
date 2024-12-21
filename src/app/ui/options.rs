@@ -7,7 +7,6 @@ use crate::app::generation::Algorithm;
 use crate::app::lua_field::LuaField;
 use eframe::egui;
 use eframe::egui::{Align, Layout, Ui};
-use mlua::Lua;
 
 // my first macro!
 // todo: there should be a way to simplify this further, there's still a lot of repetition in the code
@@ -26,7 +25,6 @@ pub fn ui_options(
     current_layer_config: &mut SliceParameters,
     single_radius: &mut bool,
     code_enabled: bool,
-    lua: &mut Lua,
     lua_field_radius_a: &mut LuaField,
     lua_field_radius_b: &mut LuaField,
     lua_field_tilt: &mut LuaField,
@@ -122,8 +120,8 @@ pub fn ui_options(
             .changed()
         {
             // the code is now invalid
-            lua_field_radius_a.update_field_state(lua, sampling_points);
-            lua_field_radius_b.update_field_state(lua, sampling_points);
+            lua_field_radius_a.update_field_state(sampling_points);
+            lua_field_radius_b.update_field_state(sampling_points);
 
             outdate!(
                 parameters_current_layer_control,
@@ -133,7 +131,7 @@ pub fn ui_options(
 
         // lua
         if code_enabled {
-            lua_field_radius_a.show(ui, lua, sampling_points);
+            lua_field_radius_a.show(ui, sampling_points);
         }
 
         current_layer_config.radius_b = current_layer_config.radius_a;
@@ -149,14 +147,14 @@ pub fn ui_options(
             )
             .changed()
         {
-            lua_field_radius_a.update_field_state(lua, sampling_points);
+            lua_field_radius_a.update_field_state(sampling_points);
             outdate!(
                 parameters_current_layer_control,
                 parameters_all_layers_control
             );
         }
         if code_enabled {
-            lua_field_radius_a.show(ui, lua, sampling_points);
+            lua_field_radius_a.show(ui, sampling_points);
         }
 
         // radius b
@@ -170,14 +168,14 @@ pub fn ui_options(
             )
             .changed()
         {
-            lua_field_radius_b.update_field_state(lua, sampling_points);
+            lua_field_radius_b.update_field_state(sampling_points);
             outdate!(
                 parameters_current_layer_control,
                 parameters_all_layers_control
             );
         }
         if code_enabled {
-            lua_field_radius_b.show(ui, lua, sampling_points);
+            lua_field_radius_b.show(ui, sampling_points);
         }
 
         //longterm: Make circular slider for more intuitive controls (need to build this myapp probably)
@@ -193,7 +191,7 @@ pub fn ui_options(
         )
         .changed()
     {
-        lua_field_tilt.update_field_state(lua, sampling_points);
+        lua_field_tilt.update_field_state(sampling_points);
         outdate!(
             parameters_current_layer_control,
             parameters_all_layers_control
@@ -217,7 +215,7 @@ pub fn ui_options(
             .map(|(name, value)| {
                 if ui.button(name).clicked() {
                     current_layer_config.tilt = value;
-                    lua_field_tilt.update_field_state(lua, sampling_points);
+                    lua_field_tilt.update_field_state(sampling_points);
                     outdate!(
                         parameters_current_layer_control,
                         parameters_all_layers_control
@@ -227,7 +225,7 @@ pub fn ui_options(
         },
     );
     if code_enabled {
-        lua_field_tilt.show(ui, lua, sampling_points);
+        lua_field_tilt.show(ui, sampling_points);
     }
 
     // Squircle parameter
@@ -244,7 +242,7 @@ pub fn ui_options(
             )
             .changed()
         {
-            lua_field_squircle_parameter.update_field_state(lua, sampling_points);
+            lua_field_squircle_parameter.update_field_state(sampling_points);
             outdate!(
                 parameters_current_layer_control,
                 parameters_all_layers_control
@@ -269,7 +267,7 @@ pub fn ui_options(
                 .map(|(name, value)| {
                     if ui.button(name).clicked() {
                         squircle_ui_parameter = value;
-                        lua_field_squircle_parameter.update_field_state(lua, sampling_points);
+                        lua_field_squircle_parameter.update_field_state(sampling_points);
                         outdate!(
                             parameters_current_layer_control,
                             parameters_all_layers_control
@@ -282,7 +280,7 @@ pub fn ui_options(
     }
     // now kill the temporary variable
     if code_enabled {
-        lua_field_squircle_parameter.show(ui, lua, sampling_points);
+        lua_field_squircle_parameter.show(ui, sampling_points);
     }
 
     // Centerpoint
@@ -295,14 +293,14 @@ pub fn ui_options(
         )
         .changed()
     {
-        lua_field_center_offset_x.update_field_state(lua, sampling_points);
+        lua_field_center_offset_x.update_field_state(sampling_points);
         outdate!(
             parameters_current_layer_control,
             parameters_all_layers_control
         );
     };
     if code_enabled {
-        lua_field_center_offset_x.show(ui, lua, sampling_points);
+        lua_field_center_offset_x.show(ui, sampling_points);
     }
 
     if ui
@@ -313,14 +311,14 @@ pub fn ui_options(
         )
         .changed()
     {
-        lua_field_center_offset_y.update_field_state(lua, sampling_points);
+        lua_field_center_offset_y.update_field_state(sampling_points);
         outdate!(
             parameters_current_layer_control,
             parameters_all_layers_control
         );
     };
     if code_enabled {
-        lua_field_center_offset_y.show(ui, lua, sampling_points);
+        lua_field_center_offset_y.show(ui, sampling_points);
     }
 
     // Add odd and even buttons (also good so people understand what the abstraction "offset center" actually means)
