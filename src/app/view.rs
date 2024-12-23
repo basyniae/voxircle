@@ -27,7 +27,7 @@ impl Default for View {
             outer_corners: false,
             center_blocks: false,
             bounds: false,
-            mirrors: true, //debug false
+            mirrors: false,
         }
     }
 }
