@@ -67,7 +67,7 @@ fn ui_generation_buttons(
                         "Sample parameters"
                     }
                 })
-                .wrap(true),
+                    .wrap(),
             );
 
             if response.clicked() {
@@ -78,7 +78,7 @@ fn ui_generation_buttons(
         if code_enabled && layers_enabled {
             let response = ui.add_sized(
                 [150.0, 50.0],
-                egui::Button::new("Sample parameters for all layers").wrap(true),
+                egui::Button::new("Sample parameters for all layers").wrap(),
             );
 
             if response.clicked() {
@@ -99,7 +99,7 @@ fn ui_generation_buttons(
                     "Generate blocks"
                 }
             })
-            .wrap(true),
+                .wrap(),
         );
         if response.clicked() {
             blocks_current_layer_control.once();
@@ -108,7 +108,7 @@ fn ui_generation_buttons(
         if layers_enabled {
             let response = ui.add_sized(
                 [150.0, 50.0],
-                egui::Button::new("Generate blocks on all layers").wrap(true),
+                egui::Button::new("Generate blocks on all layers").wrap(),
             );
             if response.clicked() {
                 blocks_all_layers_control.once();

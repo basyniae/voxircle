@@ -221,28 +221,28 @@ impl eframe::App for App {
                     id,
                     true,
                 )
-                .show_header(ui, |ui| {
-                    ui.label(egui::RichText::new("Parameters").strong().size(15.0));
-                })
-                .body(|ui| {
-                    ui_options(
-                        ui,
-                        self.stack_configuration_parameters
-                            .get_mut(self.current_layer)
-                            .unwrap(),
-                        &mut self.single_radius,
-                        self.code_enabled,
-                        &mut self.lua_field_radius_a,
-                        &mut self.lua_field_radius_b,
-                        &mut self.lua_field_tilt,
-                        &mut self.lua_field_center_offset_x,
-                        &mut self.lua_field_center_offset_y,
-                        &mut self.lua_field_squircle_parameter,
-                        &self.stack_sampling_points,
-                        &mut self.parameters_current_layer_control,
-                        &mut self.parameters_all_layers_control,
-                    );
-                });
+                    .show_header(ui, |ui| {
+                        ui.label(egui::RichText::new("Parameters").strong().size(15.0));
+                    })
+                    .body(|ui| {
+                        ui_options(
+                            ui,
+                            self.stack_configuration_parameters
+                                .get_mut(self.current_layer)
+                                .unwrap(),
+                            &mut self.single_radius,
+                            self.code_enabled,
+                            &mut self.lua_field_radius_a,
+                            &mut self.lua_field_radius_b,
+                            &mut self.lua_field_tilt,
+                            &mut self.lua_field_center_offset_x,
+                            &mut self.lua_field_center_offset_y,
+                            &mut self.lua_field_squircle_parameter,
+                            &self.stack_sampling_points,
+                            &mut self.parameters_current_layer_control,
+                            &mut self.parameters_all_layers_control,
+                        );
+                    });
 
                 let id = ui.make_persistent_id("layers_collapsable");
                 egui::collapsing_header::CollapsingState::load_with_default_open(
@@ -250,18 +250,18 @@ impl eframe::App for App {
                     id,
                     false,
                 )
-                .show_header(ui, |ui| {
-                    ui.checkbox(
-                        &mut self.layers_enabled,
-                        egui::RichText::new("Layers").strong().size(15.0),
-                    );
-                })
-                .body(|ui| {
-                    ui.add_enabled(
-                        self.layers_enabled,
-                        egui::Checkbox::new(&mut self.lock_stack_size, "Lock stack size"),
-                    );
-                });
+                    .show_header(ui, |ui| {
+                        ui.checkbox(
+                            &mut self.layers_enabled,
+                            egui::RichText::new("Layers").strong().size(15.0),
+                        );
+                    })
+                    .body(|ui| {
+                        ui.add_enabled(
+                            self.layers_enabled,
+                            egui::Checkbox::new(&mut self.lock_stack_size, "Lock stack size"),
+                        );
+                    });
 
                 let id = ui.make_persistent_id("code_collapsable");
                 egui::collapsing_header::CollapsingState::load_with_default_open(
@@ -269,15 +269,15 @@ impl eframe::App for App {
                     id,
                     false,
                 )
-                .show_header(ui, |ui| {
-                    ui.checkbox(
-                        &mut self.code_enabled,
-                        egui::RichText::new("Code").strong().size(15.0),
-                    );
-                })
-                .body(|ui| {
-                    ui.add_enabled(self.layers_enabled, egui::Label::new("No options here yet"));
-                });
+                    .show_header(ui, |ui| {
+                        ui.checkbox(
+                            &mut self.code_enabled,
+                            egui::RichText::new("Code").strong().size(15.0),
+                        );
+                    })
+                    .body(|ui| {
+                        ui.add_enabled(self.layers_enabled, egui::Label::new("No options here yet"));
+                    });
 
                 let id = ui.make_persistent_id("sampling_collapsable");
                 egui::collapsing_header::CollapsingState::load_with_default_open(
@@ -285,40 +285,40 @@ impl eframe::App for App {
                     id,
                     false,
                 )
-                .show_header(ui, |ui| {
-                    if ui
-                        .checkbox(
-                            &mut self.sampling_enabled,
-                            egui::RichText::new("Sampling").strong().size(15.0),
-                        )
-                        .changed()
-                        & !self.sampling_enabled
-                    {
-                        self.nr_samples_per_layer = 1; // set number of samples to 1 if sampling is off
-                    };
-                })
-                .body(|ui| {
-                    ui_sampling(
-                        ui,
-                        self.sampling_enabled,
-                        &mut self.only_sample_half_of_bottom_layer,
-                        &mut self.only_sample_half_of_top_layer,
-                        &mut self.nr_samples_per_layer,
-                        &mut self.sample_combine_method,
-                        &mut self.sample_distribute_method,
-                        &mut self.sampling_points_control,
-                    );
+                    .show_header(ui, |ui| {
+                        if ui
+                            .checkbox(
+                                &mut self.sampling_enabled,
+                                egui::RichText::new("Sampling").strong().size(15.0),
+                            )
+                            .changed()
+                            & !self.sampling_enabled
+                        {
+                            self.nr_samples_per_layer = 1; // set number of samples to 1 if sampling is off
+                        };
+                    })
+                    .body(|ui| {
+                        ui_sampling(
+                            ui,
+                            self.sampling_enabled,
+                            &mut self.only_sample_half_of_bottom_layer,
+                            &mut self.only_sample_half_of_top_layer,
+                            &mut self.nr_samples_per_layer,
+                            &mut self.sample_combine_method,
+                            &mut self.sample_distribute_method,
+                            &mut self.sampling_points_control,
+                        );
 
-                    ui.label(format!(
-                        "Total number of samples for all layers: {}",
-                        self.stack_sampling_points.data.iter().fold(
-                            0,
-                            |acc, samples_for_single_layer| {
-                                acc + samples_for_single_layer.len()
-                            }
-                        )
-                    ));
-                });
+                        ui.label(format!(
+                            "Total number of samples for all layers: {}",
+                            self.stack_sampling_points.data.iter().fold(
+                                0,
+                                |acc, samples_for_single_layer| {
+                                    acc + samples_for_single_layer.len()
+                                },
+                            )
+                        ));
+                    });
 
                 let id = ui.make_persistent_id("viewport_options_collapsable");
                 egui::collapsing_header::CollapsingState::load_with_default_open(
@@ -326,18 +326,18 @@ impl eframe::App for App {
                     id,
                     true,
                 )
-                .show_header(ui, |ui| {
-                    ui.label(egui::RichText::new("Viewport").strong().size(15.0));
-                })
-                .body(|ui| {
-                    ui_viewport_options(
-                        ui,
-                        self.layers_enabled,
-                        self.single_radius,
-                        &self.symmetry_type,
-                        &mut self.view,
-                    )
-                });
+                    .show_header(ui, |ui| {
+                        ui.label(egui::RichText::new("Viewport").strong().size(15.0));
+                    })
+                    .body(|ui| {
+                        ui_viewport_options(
+                            ui,
+                            self.layers_enabled,
+                            self.single_radius,
+                            &self.symmetry_type,
+                            &mut self.view,
+                        )
+                    });
 
                 ui.separator();
 
@@ -426,12 +426,12 @@ impl eframe::App for App {
         // Status bar (bottom)
         egui::TopBottomPanel::bottom("status-bar").show(ctx, |ui| {
             ui.with_layout(Layout {
-                main_dir: Direction::LeftToRight,
+                main_dir: Direction::RightToLeft,
                 main_wrap: true,
                 main_align: Align::Center,
                 main_justify: true,
                 cross_align: Align::Center,
-                cross_justify: true,
+                cross_justify: false,
             }, |ui| {
                 // Easier to format as single string (want it centered)
                 ui.label(
@@ -444,7 +444,7 @@ impl eframe::App for App {
                         formatting::format_block_diameter(self.stack_blocks.get_mut(self.current_layer).unwrap().get_diameters()),
                         //self.blocks_all.get_build_sequence() //longterm: Redo build sequence, note it doesn't make sense for *tilted* superellipses (or non-centered ones?)
                     )
-                )
+                );
             })
         });
 
