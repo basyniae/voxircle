@@ -97,7 +97,7 @@ pub struct App {
     reset_zoom_once: bool,
     reset_zoom_continuous: bool,
 
-    // Lua fields
+    // Rhai fields
     // lua: Lua, // Lua instance (only initialized once)
     // Longterm: for easily adding more shapes with potentially variable inputs, make this attached to the algorithm?
     // longterm: Option to run an external lua file
