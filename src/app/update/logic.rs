@@ -3,7 +3,7 @@ use crate::app::data_structures::blocks::Blocks;
 use crate::app::data_structures::slice_parameters::SliceParameters;
 use crate::app::data_structures::zvec::ZVec;
 use crate::app::generation::Algorithm;
-use crate::app::lua_field::LuaField;
+use crate::app::rhai_field::RhaiField;
 use crate::app::sampling::sampled_parameters::LayerParameters;
 use crate::app::sampling::{SampleCombineMethod, SampleDistributeMethod};
 
@@ -16,7 +16,6 @@ pub fn sampling_points_update(
     sampling_points_control: &mut Control,
     parameters_current_layer_control: &mut Control,
     parameters_all_layers_control: &mut Control,
-
     layer_lowest: isize,
     layer_highest: isize,
 ) {
@@ -51,15 +50,13 @@ pub fn parameters_update(
     current_layer: isize,
     layer_lowest: isize,
     layer_highest: isize,
-
     single_radius: bool,
-
-    lua_field_radius_a: &mut LuaField,
-    lua_field_radius_b: &mut LuaField,
-    lua_field_tilt: &mut LuaField,
-    lua_field_center_offset_x: &mut LuaField,
-    lua_field_center_offset_y: &mut LuaField,
-    lua_field_squircle_parameter: &mut LuaField,
+    rhai_field_radius_a: &mut RhaiField,
+    rhai_field_radius_b: &mut RhaiField,
+    rhai_field_tilt: &mut RhaiField,
+    rhai_field_center_offset_x: &mut RhaiField,
+    rhai_field_center_offset_y: &mut RhaiField,
+    rhai_field_squircle_parameter: &mut RhaiField,
 ) {
     // Generate parameters to be sampled
     if parameters_current_layer_control.update() {
@@ -71,12 +68,12 @@ pub fn parameters_update(
             &stack_sampling_points.get(current_layer).unwrap(),
             stack_layer_config.get(current_layer).unwrap(),
             stack_layer_config.get(current_layer).unwrap().algorithm,
-            lua_field_radius_a,
-            lua_field_radius_b,
-            lua_field_tilt,
-            lua_field_center_offset_x,
-            lua_field_center_offset_y,
-            lua_field_squircle_parameter,
+            rhai_field_radius_a,
+            rhai_field_radius_b,
+            rhai_field_tilt,
+            rhai_field_center_offset_x,
+            rhai_field_center_offset_y,
+            rhai_field_squircle_parameter,
             single_radius,
         );
 
@@ -84,21 +81,21 @@ pub fn parameters_update(
         update_control_parameters(
             stack_layer_config.get_mut(current_layer).unwrap(),
             current_layer,
-            lua_field_radius_a,
-            lua_field_radius_b,
-            lua_field_tilt,
-            lua_field_center_offset_x,
-            lua_field_center_offset_y,
-            lua_field_squircle_parameter,
+            rhai_field_radius_a,
+            rhai_field_radius_b,
+            rhai_field_tilt,
+            rhai_field_center_offset_x,
+            rhai_field_center_offset_y,
+            rhai_field_squircle_parameter,
             single_radius,
         );
 
-        lua_field_radius_a.register_success();
-        lua_field_radius_b.register_success();
-        lua_field_tilt.register_success();
-        lua_field_center_offset_x.register_success();
-        lua_field_center_offset_y.register_success();
-        lua_field_squircle_parameter.register_success();
+        rhai_field_radius_a.register_success();
+        rhai_field_radius_b.register_success();
+        rhai_field_tilt.register_success();
+        rhai_field_center_offset_x.register_success();
+        rhai_field_center_offset_y.register_success();
+        rhai_field_squircle_parameter.register_success();
     }
 
     // Generate parameters to be sampled
@@ -112,12 +109,12 @@ pub fn parameters_update(
                 &stack_sampling_points.get(layer).unwrap(),
                 stack_layer_config.get(layer).unwrap(),
                 stack_layer_config.get(layer).unwrap().algorithm,
-                lua_field_radius_a,
-                lua_field_radius_b,
-                lua_field_tilt,
-                lua_field_center_offset_x,
-                lua_field_center_offset_y,
-                lua_field_squircle_parameter,
+                rhai_field_radius_a,
+                rhai_field_radius_b,
+                rhai_field_tilt,
+                rhai_field_center_offset_x,
+                rhai_field_center_offset_y,
+                rhai_field_squircle_parameter,
                 single_radius,
             );
 
@@ -125,22 +122,22 @@ pub fn parameters_update(
             update_control_parameters(
                 stack_layer_config.get_mut(layer).unwrap(),
                 layer,
-                lua_field_radius_a,
-                lua_field_radius_b,
-                lua_field_tilt,
-                lua_field_center_offset_x,
-                lua_field_center_offset_y,
-                lua_field_squircle_parameter,
+                rhai_field_radius_a,
+                rhai_field_radius_b,
+                rhai_field_tilt,
+                rhai_field_center_offset_x,
+                rhai_field_center_offset_y,
+                rhai_field_squircle_parameter,
                 single_radius,
             )
         }
 
-        lua_field_radius_a.register_success();
-        lua_field_radius_b.register_success();
-        lua_field_tilt.register_success();
-        lua_field_center_offset_x.register_success();
-        lua_field_center_offset_y.register_success();
-        lua_field_squircle_parameter.register_success();
+        rhai_field_radius_a.register_success();
+        rhai_field_radius_b.register_success();
+        rhai_field_tilt.register_success();
+        rhai_field_center_offset_x.register_success();
+        rhai_field_center_offset_y.register_success();
+        rhai_field_squircle_parameter.register_success();
     }
 }
 
@@ -183,91 +180,89 @@ pub fn blocks_update(
 fn update_control_parameters(
     current_layer: &mut SliceParameters,
     layer: isize,
-
-    lua_field_radius_a: &mut LuaField,
-    lua_field_radius_b: &mut LuaField,
-    lua_field_tilt: &mut LuaField,
-    lua_field_center_offset_x: &mut LuaField,
-    lua_field_center_offset_y: &mut LuaField,
-    lua_field_squircle_parameter: &mut LuaField,
+    rhai_field_radius_a: &mut RhaiField,
+    rhai_field_radius_b: &mut RhaiField,
+    rhai_field_tilt: &mut RhaiField,
+    rhai_field_center_offset_x: &mut RhaiField,
+    rhai_field_center_offset_y: &mut RhaiField,
+    rhai_field_squircle_parameter: &mut RhaiField,
     single_radius: bool,
 ) {
 
-    // evaluate the lua field at the layer
-    if let Some(radius_a) = lua_field_radius_a.eval(&(layer as f64)) {
+    // evarhaite the rhai field at the layer
+    if let Some(radius_a) = rhai_field_radius_a.eval(&(layer as f64)) {
         current_layer.radius_a = radius_a
     }
 
     if single_radius {
-        if let Some(radius_a) = lua_field_radius_a.eval(&(layer as f64)) {
+        if let Some(radius_a) = rhai_field_radius_a.eval(&(layer as f64)) {
             current_layer.radius_b = radius_a
         }
     } else {
-        if let Some(radius_b) = lua_field_radius_b.eval(&(layer as f64)) {
+        if let Some(radius_b) = rhai_field_radius_b.eval(&(layer as f64)) {
             current_layer.radius_b = radius_b
         }
     }
 
-    if let Some(tilt) = lua_field_tilt.eval(&(layer as f64)) {
+    if let Some(tilt) = rhai_field_tilt.eval(&(layer as f64)) {
         current_layer.tilt = tilt
     }
-    if let Some(center_offset_x) = lua_field_center_offset_x.eval(&(layer as f64)) {
+    if let Some(center_offset_x) = rhai_field_center_offset_x.eval(&(layer as f64)) {
         current_layer.center_offset_x = center_offset_x
     }
-    if let Some(center_offset_y) = lua_field_center_offset_y.eval(&(layer as f64)) {
+    if let Some(center_offset_y) = rhai_field_center_offset_y.eval(&(layer as f64)) {
         current_layer.center_offset_y = center_offset_y
     }
 
-    if let Some(squircle_parameter) = lua_field_squircle_parameter.eval(&(layer as f64)) {
+    if let Some(squircle_parameter) = rhai_field_squircle_parameter.eval(&(layer as f64)) {
         current_layer.squircle_parameter = squircle_parameter
     }
 }
 
-/// Update (old) input LayerParameters object with new values evaluated from the code
+/// Update (old) input LayerParameters object with new values evarhaited from the code
 fn set_parameters(
     sampled_parameters: &mut LayerParameters,
     sampling_points: &Vec<f64>,
     default_parameters: SliceParameters,
-
     algorithm: Algorithm,
-    lua_field_radius_a: &mut LuaField,
-    lua_field_radius_b: &mut LuaField,
-    lua_field_tilt: &mut LuaField,
-    lua_field_center_offset_x: &mut LuaField,
-    lua_field_center_offset_y: &mut LuaField,
-    lua_field_squircle_parameter: &mut LuaField,
+    rhai_field_radius_a: &mut RhaiField,
+    rhai_field_radius_b: &mut RhaiField,
+    rhai_field_tilt: &mut RhaiField,
+    rhai_field_center_offset_x: &mut RhaiField,
+    rhai_field_center_offset_y: &mut RhaiField,
+    rhai_field_squircle_parameter: &mut RhaiField,
     single_radius: bool,
 ) {
     // Set the algorithm & nr. of samples
     sampled_parameters.algorithm = algorithm;
     sampled_parameters.nr_samples = sampling_points.len();
 
-    // If the code evaluation failed (returned None) resort to using the default_parameters (supplied by sliders)
+    // If the code evarhaition failed (returned None) resort to using the default_parameters (supplied by sliders)
     sampled_parameters.parameters = sampling_points
         .iter()
         .map(|layer| {
             SliceParameters {
                 algorithm,
-                radius_a: lua_field_radius_a
+                radius_a: rhai_field_radius_a
                     .eval(layer)
                     .unwrap_or(default_parameters.radius_a),
                 radius_b: if single_radius {
-                    lua_field_radius_a
+                    rhai_field_radius_a
                         .eval(layer)
                         .unwrap_or(default_parameters.radius_a)
                 } else {
-                    lua_field_radius_b
+                    rhai_field_radius_b
                         .eval(layer)
                         .unwrap_or(default_parameters.radius_b)
                 },
-                tilt: lua_field_tilt.eval(layer).unwrap_or(default_parameters.tilt),
-                center_offset_x: lua_field_center_offset_x
+                tilt: rhai_field_tilt.eval(layer).unwrap_or(default_parameters.tilt),
+                center_offset_x: rhai_field_center_offset_x
                     .eval(layer)
                     .unwrap_or(default_parameters.center_offset_x),
-                center_offset_y: lua_field_center_offset_y
+                center_offset_y: rhai_field_center_offset_y
                     .eval(layer)
                     .unwrap_or(default_parameters.center_offset_y),
-                squircle_parameter: lua_field_squircle_parameter
+                squircle_parameter: rhai_field_squircle_parameter
                     .eval(layer)
                     .unwrap_or(default_parameters.squircle_parameter),
             }

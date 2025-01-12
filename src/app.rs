@@ -11,7 +11,7 @@ use data_structures::blocks::Blocks;
 use data_structures::slice_parameters::SliceParameters;
 use data_structures::symmetry_type::SymmetryType;
 use data_structures::zvec::ZVec;
-use lua_field::LuaField;
+use rhai_field::RhaiField;
 use sampling::sampled_parameters::LayerParameters;
 use sampling::{SampleCombineMethod, SampleDistributeMethod};
 use ui::generation::ui_generation;
@@ -28,7 +28,7 @@ mod control;
 mod data_structures;
 mod formatting;
 mod generation;
-mod lua_field;
+mod rhai_field;
 mod math;
 mod metrics;
 mod plotting;
@@ -97,17 +97,16 @@ pub struct App {
     reset_zoom_once: bool,
     reset_zoom_continuous: bool,
 
-    // Lua fields
-    // lua: Lua, // Lua instance (only initialized once)
+    // Rhai fields
     // Longterm: for easily adding more shapes with potentially variable inputs, make this attached to the algorithm?
-    // longterm: Option to run an external lua file
+    // longterm: Option to run an external rhai file
     // longterm: sliders for "Dummy variables" that can be referenced in code (for easier visual tweaking)
-    lua_field_radius_a: LuaField,
-    lua_field_radius_b: LuaField,
-    lua_field_tilt: LuaField,
-    lua_field_center_offset_x: LuaField,
-    lua_field_center_offset_y: LuaField,
-    lua_field_squircle_parameter: LuaField,
+    rhai_field_radius_a: RhaiField,
+    rhai_field_radius_b: RhaiField,
+    rhai_field_tilt: RhaiField,
+    rhai_field_center_offset_x: RhaiField,
+    rhai_field_center_offset_y: RhaiField,
+    rhai_field_squircle_parameter: RhaiField,
 }
 
 // longterm: save program state (with SERDE) as a JSON (for when working for multiple sessions on a single project)
@@ -119,22 +118,6 @@ impl App {
             style.spacing.combo_width = 200.0;
         });
 
-        // persist lua between layer switching and frames and so on
-        // let lua = Lua::new();
-        // // give lua as little information as possible about the configurations... handle that all in rust
-        // lua.globals().set("layer", 0).unwrap();
-        // lua.globals().set("l", 0).unwrap(); // short layer alias
-        // 
-        // // Make math functions global for easier access (so `sqrt` instead of `math.sqrt`)
-        // lua.load(
-        //     r#"
-        //         for k, v in pairs(math) do
-        //           _G[k] = v
-        //         end
-        //     "#,
-        // )
-        // .exec()
-        // .unwrap();
 
         // Defaults should be such that we get useful output on startup
         Self {
@@ -200,12 +183,12 @@ impl App {
             reset_zoom_continuous: true,
 
             // Standard initializations, finite or nonnegative as necessary and sensible for the data type
-            lua_field_radius_a: LuaField::new(true, true),
-            lua_field_radius_b: LuaField::new(true, true),
-            lua_field_tilt: LuaField::new(true, false),
-            lua_field_center_offset_x: LuaField::new(true, false),
-            lua_field_center_offset_y: LuaField::new(true, false),
-            lua_field_squircle_parameter: LuaField::new(false, true),
+            rhai_field_radius_a: RhaiField::new(true, true),
+            rhai_field_radius_b: RhaiField::new(true, true),
+            rhai_field_tilt: RhaiField::new(true, false),
+            rhai_field_center_offset_x: RhaiField::new(true, false),
+            rhai_field_center_offset_y: RhaiField::new(true, false),
+            rhai_field_squircle_parameter: RhaiField::new(false, true),
         }
     }
 }
@@ -232,12 +215,12 @@ impl eframe::App for App {
                                 .unwrap(),
                             &mut self.single_radius,
                             self.code_enabled,
-                            &mut self.lua_field_radius_a,
-                            &mut self.lua_field_radius_b,
-                            &mut self.lua_field_tilt,
-                            &mut self.lua_field_center_offset_x,
-                            &mut self.lua_field_center_offset_y,
-                            &mut self.lua_field_squircle_parameter,
+                            &mut self.rhai_field_radius_a,
+                            &mut self.rhai_field_radius_b,
+                            &mut self.rhai_field_tilt,
+                            &mut self.rhai_field_center_offset_x,
+                            &mut self.rhai_field_center_offset_y,
+                            &mut self.rhai_field_squircle_parameter,
                             &self.stack_sampling_points,
                             &mut self.parameters_current_layer_control,
                             &mut self.parameters_all_layers_control,
@@ -379,12 +362,12 @@ impl eframe::App for App {
             self.layer_lowest,
             self.layer_highest,
             self.single_radius,
-            &mut self.lua_field_radius_a,
-            &mut self.lua_field_radius_b,
-            &mut self.lua_field_tilt,
-            &mut self.lua_field_center_offset_x,
-            &mut self.lua_field_center_offset_y,
-            &mut self.lua_field_squircle_parameter,
+            &mut self.rhai_field_radius_a,
+            &mut self.rhai_field_radius_b,
+            &mut self.rhai_field_tilt,
+            &mut self.rhai_field_center_offset_x,
+            &mut self.rhai_field_center_offset_y,
+            &mut self.rhai_field_squircle_parameter,
         );
 
         blocks_update(

@@ -11,14 +11,14 @@ enum FieldState {
     Empty,
 }
 
-pub struct LuaField {
+pub struct RhaiField {
     code: String,
     field_state: FieldState,
     req_finite: bool,
     req_nonnegative: bool,
 }
 
-impl LuaField {
+impl RhaiField {
     pub fn new(req_finite: bool, req_nonnegative: bool) -> Self {
         Self {
             code: "".parse().unwrap(),
@@ -28,7 +28,7 @@ impl LuaField {
         }
     }
 
-    // TODO: button to clear the lua field
+    // TODO: button to clear the rhai field
     pub fn show(&mut self, ui: &mut Ui, sampling_points: &ZVec<Vec<f64>>) {
         let original_style = ui.style().clone();
 

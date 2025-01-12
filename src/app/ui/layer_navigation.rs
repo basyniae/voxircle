@@ -27,7 +27,7 @@ pub fn ui_layer_navigation(
                 4.0 * controls_width + 3.0 * main_width + padding * 12.0,
                 height,
             ]
-            .into(),
+                .into(),
             egui::Sense::click(),
         );
         ui.put(rect, |ui: &mut Ui| {
@@ -59,7 +59,7 @@ pub fn ui_layer_navigation(
                     ui.add(
                         egui::DragValue::new(current_layer)
                             .speed(0.05)
-                            .clamp_range(*layer_lowest..=*layer_highest),
+                            .range(*layer_lowest..=*layer_highest),
                     );
                 } else {
                     ui.add(egui::DragValue::new(current_layer).speed(0.05));

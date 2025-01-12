@@ -68,11 +68,11 @@ fn main() {
                 Ok(_) => {
                     loading_text.remove();
                 }
-                Err(e) => {
+                Err(_) => {
                     loading_text.set_inner_html(
                         "<p> The app has crashed. See the developer console for details. </p>",
                     );
-                    panic!("Failed to start eframe: {e:?}");
+                    panic!("Failed to start eframe: {_:?}");
                 }
             }
         }
