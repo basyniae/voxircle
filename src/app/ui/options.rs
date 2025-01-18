@@ -1,13 +1,14 @@
 use std::f64::consts::PI;
+use std::f64::consts::TAU;
 
 use crate::app::control::Control;
 use crate::app::data_structures::slice_parameters::SliceParameters;
 use crate::app::data_structures::zvec::ZVec;
 use crate::app::generation::Algorithm;
-use crate::app::lua_field::LuaField;
+use crate::app::rhai_field::RhaiField;
 use eframe::egui;
 use eframe::egui::{Align, Layout, Ui};
-use mlua::Lua;
+use egui::SliderClamping;
 
 // my first macro!
 // todo: there should be a way to simplify this further, there's still a lot of repetition in the code
@@ -19,20 +20,19 @@ macro_rules! outdate {
     }};
 }
 
-/// Draw ui for algorithm selection, parameters of the generation (radius etc.), and lua fields.
+/// Draw ui for algorithm selection, parameters of the generation (radius etc.), and rhai fields.
 /// Update
 pub fn ui_options(
     ui: &mut Ui,
     current_layer_config: &mut SliceParameters,
     single_radius: &mut bool,
     code_enabled: bool,
-    lua: &mut Lua,
-    lua_field_radius_a: &mut LuaField,
-    lua_field_radius_b: &mut LuaField,
-    lua_field_tilt: &mut LuaField,
-    lua_field_center_offset_x: &mut LuaField,
-    lua_field_center_offset_y: &mut LuaField,
-    lua_field_squircle_parameter: &mut LuaField,
+    rhai_field_radius_a: &mut RhaiField,
+    rhai_field_radius_b: &mut RhaiField,
+    rhai_field_tilt: &mut RhaiField,
+    rhai_field_center_offset_x: &mut RhaiField,
+    rhai_field_center_offset_y: &mut RhaiField,
+    rhai_field_squircle_parameter: &mut RhaiField,
     sampling_points: &ZVec<Vec<f64>>,
     parameters_current_layer_control: &mut Control,
     parameters_all_layers_control: &mut Control,
@@ -115,15 +115,15 @@ pub fn ui_options(
             .add(
                 egui::Slider::new(&mut current_layer_config.radius_a, 0.0..=30.0)
                     .text("Radius")
-                    .clamp_to_range(false)
+                    .clamping(SliderClamping::Never)
                     .custom_formatter(|param, _| format!("{:.02}", param))
                     .drag_value_speed(0.03),
             )
             .changed()
         {
             // the code is now invalid
-            lua_field_radius_a.update_field_state(lua, sampling_points);
-            lua_field_radius_b.update_field_state(lua, sampling_points);
+            rhai_field_radius_a.update_field_state(sampling_points);
+            rhai_field_radius_b.update_field_state(sampling_points);
 
             outdate!(
                 parameters_current_layer_control,
@@ -131,9 +131,9 @@ pub fn ui_options(
             );
         };
 
-        // lua
+        // rhai
         if code_enabled {
-            lua_field_radius_a.show(ui, lua, sampling_points);
+            rhai_field_radius_a.show(ui, sampling_points);
         }
 
         current_layer_config.radius_b = current_layer_config.radius_a;
@@ -143,20 +143,20 @@ pub fn ui_options(
             .add(
                 egui::Slider::new(&mut current_layer_config.radius_a, 0.0..=30.0)
                     .text("Radius A")
-                    .clamp_to_range(false)
+                    .clamping(SliderClamping::Never)
                     .custom_formatter(|param, _| format!("{:.02}", param))
                     .drag_value_speed(0.03),
             )
             .changed()
         {
-            lua_field_radius_a.update_field_state(lua, sampling_points);
+            rhai_field_radius_a.update_field_state(sampling_points);
             outdate!(
                 parameters_current_layer_control,
                 parameters_all_layers_control
             );
         }
         if code_enabled {
-            lua_field_radius_a.show(ui, lua, sampling_points);
+            rhai_field_radius_a.show(ui, sampling_points);
         }
 
         // radius b
@@ -164,20 +164,20 @@ pub fn ui_options(
             .add(
                 egui::Slider::new(&mut current_layer_config.radius_b, 0.0..=30.0)
                     .text("Radius B")
-                    .clamp_to_range(false)
+                    .clamping(SliderClamping::Never)
                     .custom_formatter(|param, _| format!("{:.02}", param))
                     .drag_value_speed(0.03),
             )
             .changed()
         {
-            lua_field_radius_b.update_field_state(lua, sampling_points);
+            rhai_field_radius_b.update_field_state(sampling_points);
             outdate!(
                 parameters_current_layer_control,
                 parameters_all_layers_control
             );
         }
         if code_enabled {
-            lua_field_radius_b.show(ui, lua, sampling_points);
+            rhai_field_radius_b.show(ui, sampling_points);
         }
 
         //longterm: Make circular slider for more intuitive controls (need to build this myapp probably)
@@ -186,14 +186,14 @@ pub fn ui_options(
     //tilt
     if ui
         .add(
-            egui::Slider::new(&mut current_layer_config.tilt, -6.28..=6.28)
+            egui::Slider::new(&mut current_layer_config.tilt, -TAU..=TAU)
                 .text("Tilt (radians)")
                 .fixed_decimals(2)
                 .drag_value_speed(0.01),
         )
         .changed()
     {
-        lua_field_tilt.update_field_state(lua, sampling_points);
+        rhai_field_tilt.update_field_state(sampling_points);
         outdate!(
             parameters_current_layer_control,
             parameters_all_layers_control
@@ -214,20 +214,20 @@ pub fn ui_options(
                 ("2:3", 0.66666666666666_f64.atan()),
                 ("1:4", 0.25_f64.atan()),
             ]
-            .map(|(name, value)| {
-                if ui.button(name).clicked() {
-                    current_layer_config.tilt = value;
-                    lua_field_tilt.update_field_state(lua, sampling_points);
-                    outdate!(
+                .map(|(name, value)| {
+                    if ui.button(name).clicked() {
+                        current_layer_config.tilt = value;
+                        rhai_field_tilt.update_field_state(sampling_points);
+                        outdate!(
                         parameters_current_layer_control,
                         parameters_all_layers_control
                     )
-                }
-            });
+                    }
+                });
         },
     );
     if code_enabled {
-        lua_field_tilt.show(ui, lua, sampling_points);
+        rhai_field_tilt.show(ui, sampling_points);
     }
 
     // Squircle parameter
@@ -244,7 +244,7 @@ pub fn ui_options(
             )
             .changed()
         {
-            lua_field_squircle_parameter.update_field_state(lua, sampling_points);
+            rhai_field_squircle_parameter.update_field_state(sampling_points);
             outdate!(
                 parameters_current_layer_control,
                 parameters_all_layers_control
@@ -266,23 +266,23 @@ pub fn ui_options(
                     ("Diamond", 0.5),             // "" "" 1
                     ("Square", 1.0),              // "" "" infinity
                 ]
-                .map(|(name, value)| {
-                    if ui.button(name).clicked() {
-                        squircle_ui_parameter = value;
-                        lua_field_squircle_parameter.update_field_state(lua, sampling_points);
-                        outdate!(
+                    .map(|(name, value)| {
+                        if ui.button(name).clicked() {
+                            squircle_ui_parameter = value;
+                            rhai_field_squircle_parameter.update_field_state(sampling_points);
+                            outdate!(
                             parameters_current_layer_control,
                             parameters_all_layers_control
                         );
-                    }
-                });
+                        }
+                    });
             },
         );
         current_layer_config.squircle_parameter = 1.0 / (1.0 - squircle_ui_parameter) - 1.0;
     }
     // now kill the temporary variable
     if code_enabled {
-        lua_field_squircle_parameter.show(ui, lua, sampling_points);
+        rhai_field_squircle_parameter.show(ui, sampling_points);
     }
 
     // Centerpoint
@@ -291,36 +291,36 @@ pub fn ui_options(
         .add(
             egui::Slider::new(&mut current_layer_config.center_offset_x, -1.0..=1.0)
                 .text("x offset")
-                .clamp_to_range(false),
+                .clamping(SliderClamping::Never),
         )
         .changed()
     {
-        lua_field_center_offset_x.update_field_state(lua, sampling_points);
+        rhai_field_center_offset_x.update_field_state(sampling_points);
         outdate!(
             parameters_current_layer_control,
             parameters_all_layers_control
         );
     };
     if code_enabled {
-        lua_field_center_offset_x.show(ui, lua, sampling_points);
+        rhai_field_center_offset_x.show(ui, sampling_points);
     }
 
     if ui
         .add(
             egui::Slider::new(&mut current_layer_config.center_offset_y, -1.0..=1.0)
                 .text("y offset")
-                .clamp_to_range(false),
+                .clamping(SliderClamping::Never),
         )
         .changed()
     {
-        lua_field_center_offset_y.update_field_state(lua, sampling_points);
+        rhai_field_center_offset_y.update_field_state(sampling_points);
         outdate!(
             parameters_current_layer_control,
             parameters_all_layers_control
         );
     };
     if code_enabled {
-        lua_field_center_offset_y.show(ui, lua, sampling_points);
+        rhai_field_center_offset_y.show(ui, sampling_points);
     }
 
     // Add odd and even buttons (also good so people understand what the abstraction "offset center" actually means)
@@ -341,12 +341,12 @@ pub fn ui_options(
         },
     );
 
-    if lua_field_radius_a.has_changed()
-        || lua_field_radius_b.has_changed()
-        || lua_field_tilt.has_changed()
-        || lua_field_center_offset_x.has_changed()
-        || lua_field_center_offset_y.has_changed()
-        || lua_field_squircle_parameter.has_changed()
+    if rhai_field_radius_a.has_changed()
+        || rhai_field_radius_b.has_changed()
+        || rhai_field_tilt.has_changed()
+        || rhai_field_center_offset_x.has_changed()
+        || rhai_field_center_offset_y.has_changed()
+        || rhai_field_squircle_parameter.has_changed()
     {
         outdate!(
             parameters_current_layer_control,
