@@ -4,7 +4,7 @@ use crate::app::data_structures::slice_parameters::SliceParameters;
 use egui_plot::{Line, PlotBounds, PlotPoints, Polygon};
 
 /// Specifiying the bottom left coordinates of the square.
-pub fn square_at_coords(coord: [f64; 2]) -> Polygon {
+pub fn square_at_coords(coord: [f64; 2]) -> Polygon<'static> {
     let x = coord[0];
     let y = coord[1];
 
@@ -46,7 +46,12 @@ pub fn superellipse_at_coords(slice_parameters: &SliceParameters) -> Line {
 }
 
 /// Draw a tilted line through the origin in the given bounds
-pub fn tilted_line_in_bounds(bnds: PlotBounds, tilt: f64, offset_x: f64, offset_y: f64) -> Line {
+pub fn tilted_line_in_bounds(
+    bnds: PlotBounds,
+    tilt: f64,
+    offset_x: f64,
+    offset_y: f64,
+) -> Line<'static> {
     let [min_x, min_y] = bnds.min();
     let [max_x, max_y] = bnds.max();
 
@@ -68,7 +73,7 @@ pub fn tilted_line_in_bounds(bnds: PlotBounds, tilt: f64, offset_x: f64, offset_
 }
 
 /// Plot a square given minimal and maximal points. Input: diagonally opposing corners of the square
-pub fn bounds_from_square(bounds: [[f64; 2]; 2]) -> Line {
+pub fn bounds_from_square(bounds: [[f64; 2]; 2]) -> Line<'static> {
     let [[x_1, y_1], [x_2, y_2]] = bounds;
 
     Line::new(PlotPoints::new(vec![

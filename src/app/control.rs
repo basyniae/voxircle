@@ -23,11 +23,12 @@ impl Control {
 
     /// Return true if it makes sense to update on this frame.
     pub fn update(&mut self) -> bool {
-        self.do_once = false;
         if (self.is_outdated) && (self.do_once || self.do_auto) {
             self.is_outdated = false;
+            self.do_once = false;
             true
         } else {
+            self.do_once = false;
             false
         }
     }
