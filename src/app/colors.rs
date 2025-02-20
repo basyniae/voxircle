@@ -38,6 +38,11 @@ pub const COLOR_COMPLEMENT_2D: Color32 = Color32::from_rgb(27, 73, 72);
 // yellow to match the bounds and mirrors
 pub const COLOR_CENTER_BLOCKS: Color32 = Color32::from_rgb(204, 177, 82);
 
+// UI (rhai field colors)
+pub const COLOR_RHAI_RUN_SUCCESS: Color32 = Color32::from_rgb(144, 238, 144);
+pub const COLOR_RHAI_CHANGED: Color32 = Color32::from_rgb(227, 197, 103);
+pub const COLOR_RHAI_INVALID: Color32 = Color32::from_rgb(255, 128, 128);
+
 /// convex combination in RGB
 pub fn linear_gradient(color_a: Color32, color_b: Color32, t: f64) -> Color32 {
     if t < 0.0 {

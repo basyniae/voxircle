@@ -3019,7 +3019,6 @@ dependencies = [
  "itertools",
  "log",
  "rhai",
- "serde",
  "wasm-bindgen-futures",
  "web-sys",
 ]
