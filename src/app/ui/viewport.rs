@@ -1,6 +1,7 @@
 use crate::app::colors::*;
 use crate::app::data_structures::blocks::Blocks;
 use crate::app::data_structures::slice_parameters::SliceParameters;
+use crate::app::data_structures::sparse_blocks::SparseBlocks;
 use crate::app::data_structures::symmetry_type::SymmetryType;
 use crate::app::metrics::convex_hull::line_segments_from_conv_hull;
 use crate::app::plotting::bounds_from_square;
@@ -135,6 +136,24 @@ pub fn ui_viewport(
                                     .fill_color(color),
                             );
                         }
+                    }
+                }
+            }
+
+            // draw build color help todo: think about drawing order
+            if view.build_color_help && boundary_2d.is_some() {
+                let boundary_sparse = SparseBlocks::from(boundary_2d.unwrap().clone());
+                let conn_comp = boundary_sparse.connected_components();
+                for comp in conn_comp.iter() {
+                    for [x, y] in comp.indices.iter() {
+                        plot_ui.polygon(
+                            plotting::square_at_coords([*x as f64, *y as f64])
+                                .stroke(Stroke {
+                                    width: 1.0,
+                                    color: COLOR_WIRE,
+                                })
+                                .fill_color(comp.hash_color()),
+                        )
                     }
                 }
             }

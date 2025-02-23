@@ -16,7 +16,6 @@ pub fn generate_alg_conservative(
     // the min x is -radius_a, the max y is radius_b, the min y is radius_a
     // Note point symmetry of the ellipse around 0 gives min_x = -max_x.
 
-    // FIXME: treat p = infty case separately.... though we've had no issues so far
     let extremize = |v| {
         if squircle_parameter > 1.0 {
             get_squircle_tangent_point(squircle_parameter, sqrt_quad_form * v)

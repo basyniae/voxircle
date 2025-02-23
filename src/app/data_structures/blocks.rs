@@ -83,6 +83,24 @@ impl Blocks {
 
         output_vec
     }
+
+    /// Global centered block coordinates in usize, i.e., where the origin lies at (0,0)
+    pub fn get_all_block_coords_usize(&self) -> Vec<[isize; 2]> {
+        let mut i = 0;
+        let mut output_vec = Vec::new();
+
+        for b in &self.blocks {
+            if *b {
+                output_vec.push([
+                    (i % self.grid_size) as isize - (self.origin_usize[0] as isize),
+                    (i / self.grid_size) as isize - (self.origin_usize[1] as isize),
+                ]);
+            }
+            i += 1;
+        }
+
+        output_vec
+    }
 }
 
 /// Methods for getting basic metrics

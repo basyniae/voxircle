@@ -1,7 +1,7 @@
 # Voxircle
 
-[
-_Voxircle_](https://github.com/basyniae/voxircle) is a GUI application for voxelizing circles, which is approximating
+[//]: # (todo: update)
+[_Voxircle_](https://github.com/basyniae/voxircle) is a GUI application for voxelizing circles, which is approximating
 circles by square boxes (a.k.a. blocks, squares, voxels, pixels).
 This is useful in Minecraft and other voxel/pixel art applications.
 
