@@ -83,60 +83,59 @@ impl SparseBlocks {
         )
     }
 
-    /// Is self a translate of other? I.e., is there some offset of self which transforms it into other?
-    pub fn is_translate_of(&self, other: &Self) -> bool {
-        // use bounds of the self and other to get a range for the indices to loop over
-        // short circuit if self and other contain different amounts of blocks
-        if self.indices.len() != other.indices.len() {
-            return false;
-        }
-
-        let [self_bounds_min, self_bounds_max] = self.get_bounds();
-        let [other_bounds_min, other_bounds_max] = other.get_bounds();
-
-        // short circuit if the self and other have different profile sizes
-        if self_bounds_max[0] - self_bounds_min[0] != other_bounds_max[0] - other_bounds_min[0]
-            || self_bounds_max[1] - self_bounds_min[1] != other_bounds_max[1] - other_bounds_min[1]
-        {
-            return false;
-        }
-
-        // we can calculate the necessary offset exactly from the bounds.
-        let [x_offset, y_offset] = [
-            other_bounds_min[0] - self_bounds_min[0],
-            other_bounds_min[1] - self_bounds_min[1],
-        ];
-        // do a loop over the indices in self, add the offset, then check if they're all in the other.
-        //  (this works since both sets have the same size.) short-circuiting by the use of .all()
-        self.indices
-            .iter()
-            .all(|[x, y]| !other.indices.contains(&[x + x_offset, y + y_offset]))
+    fn get_dimensions(&self) -> [usize; 2] {
+        let bounds = self.get_bounds();
+        [
+            (bounds[1][0] - bounds[0][0]) as usize,
+            (bounds[1][1] - bounds[0][1]) as usize,
+        ]
     }
 
-    /// Given a list of shapes, remove translate-duplicates (in the sense of being translates)
-    fn represent_by_translates(list: Vec<&Self>) -> Vec<&Self> {
-        let mut representatives: Vec<&Self> = vec![];
+    // this is not the right way to go about the coloring process. rather put every shape in a canonical form that we can color/hash
+    // /// Is self a translate of other? I.e., is there some offset of self which transforms it into other?
+    // pub fn is_translate_of(&self, other: &Self) -> bool {
+    //     // use bounds of the self and other to get a range for the indices to loop over
+    //     // short circuit if self and other contain different amounts of blocks
+    //     if self.indices.len() != other.indices.len() {
+    //         return false;
+    //     }
+    //
+    //     let [self_bounds_min, self_bounds_max] = self.get_bounds();
+    //     let [other_bounds_min, other_bounds_max] = other.get_bounds();
+    //
+    //     // short circuit if the self and other have different profile sizes
+    //     if self.get_dimensions() != other.get_dimensions() {
+    //         return false;
+    //     }
+    //
+    //     // we can calculate the necessary offset exactly from the bounds.
+    //     let [x_offset, y_offset] = [
+    //         other_bounds_min[0] - self_bounds_min[0],
+    //         other_bounds_min[1] - self_bounds_min[1],
+    //     ];
+    //     // do a loop over the indices in self, add the offset, then check if they're all in the other.
+    //     //  (this works since both sets have the same size.) short-circuiting by the use of .all()
+    //     self.indices
+    //         .iter()
+    //         .all(|[x, y]| !other.indices.contains(&[x + x_offset, y + y_offset]))
+    // }
 
-        for shape in list.iter() {
-            // if the shape is not a translate of any of the previously collected shapes
-            if !representatives
-                .iter()
-                .any(|repr| shape.is_translate_of(repr))
-            {
-                // collect it as a new representative
-                representatives.push(shape)
-            }
-        }
-
-        representatives
-    }
-
-    /// get unique color from shape todo: this is bad. fix (don't cast to vectors, unique per shape)
+    // todo: try to influence the colors for the small dimension like [1,1], [2,1], etc., as they're
+    //  very common and influence the look a lot
+    // todo: give the colors some theming...
+    // todo: it is possible but not common for two shapes to have the same rotated dimensions but
+    //  not being a translation/rotation/reflection of eachother, but then they still get the same
+    //  color from this function.
+    /// Get color from the rotated dimension of a shape (by a hash function)
     pub fn hash_color(&self) -> Color32 {
         let mut hasher = DefaultHasher::new();
-        let first = self.indices.iter().next().unwrap();
+        let mut first = self.get_dimensions();
+        // rotate the dimensions so the long size is the first coordinate
+        if first[0] < first[1] {
+            first = [first[1], first[0]]
+        }
         first.hash(&mut hasher);
-        let int = hasher.finish();
+        let mut int = hasher.finish();
         // get first 3 sets of 8 bits as rgb
         let r = (int & 255) as u8;
         let g = ((int & (255 * 256)) / 256) as u8;
