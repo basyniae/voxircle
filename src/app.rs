@@ -1,16 +1,16 @@
 use std::collections::VecDeque;
 use std::default::Default;
 
-use eframe::egui::{self};
-use eframe::egui::{Direction, Layout};
-use eframe::emath::Align;
-
 use crate::app::control::Control;
+use crate::app::data_structures::sparse_blocks::SparseBlocks;
 use crate::app::view::View;
 use data_structures::blocks::Blocks;
 use data_structures::slice_parameters::SliceParameters;
 use data_structures::symmetry_type::SymmetryType;
 use data_structures::zvec::ZVec;
+use eframe::egui::{self};
+use eframe::egui::{Direction, Layout};
+use eframe::emath::Align;
 use rhai_field::RhaiField;
 use sampling::sampled_parameters::LayerParameters;
 use sampling::{SampleCombineMethod, SampleDistributeMethod};
@@ -37,6 +37,8 @@ mod ui;
 mod update;
 mod view;
 
+const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 pub struct App {
     // Layer management
     current_layer: isize,
@@ -55,6 +57,7 @@ pub struct App {
     nr_blocks_interior: u64,
     nr_blocks_boundary: u64,
     boundary_2d: Blocks,
+    boundary_conn_comp: Vec<SparseBlocks>,
     interior_2d: Blocks,
     complement_2d: Blocks,
     boundary_3d: ZVec<Blocks>,
@@ -141,6 +144,7 @@ impl App {
             nr_blocks_interior: Default::default(),
             nr_blocks_boundary: Default::default(),
             boundary_2d: Default::default(),
+            boundary_conn_comp: Default::default(),
             interior_2d: Default::default(),
             complement_2d: Default::default(),
             boundary_3d: ZVec::new(VecDeque::from(vec![Blocks::default()]), 0),
@@ -402,6 +406,7 @@ impl eframe::App for App {
                 &mut self.symmetry_type,
                 &mut self.block_center_coord,
                 &mut self.global_bounding_box,
+                &mut self.boundary_conn_comp,
             )
         }
 
@@ -419,12 +424,12 @@ impl eframe::App for App {
                 ui.label(
                     format!(
                         // "nr. blocks: {}, nr. boundary blocks: {}, nr. interior blocks: {}, {}, build sequence: {:?}, program by Basyniae",
-                        "nr. blocks: {}, nr. boundary blocks: {}, nr. interior blocks: {}, {}, program by Basyniae",
+                        "nr. blocks: {}, nr. boundary blocks: {}, nr. interior blocks: {}, {}, Voxircle v{} by Basyniae",
                         formatting::format_block_count(self.nr_blocks_total),
                         formatting::format_block_count(self.nr_blocks_boundary),
                         formatting::format_block_count(self.nr_blocks_interior),
                         formatting::format_block_diameter(self.stack_blocks.get_mut(self.current_layer).unwrap().get_diameters()),
-                        //self.blocks_all.get_build_sequence() //longterm: Redo build sequence, note it doesn't make sense for *tilted* superellipses (or non-centered ones?)
+                        PKG_VERSION
                     )
                 );
             })
@@ -494,6 +499,7 @@ impl eframe::App for App {
                 &mut self.reset_zoom_once,
                 &mut self.reset_zoom_continuous,
                 Some(&self.boundary_2d),
+                Some(&self.boundary_conn_comp),
                 Some(&self.interior_2d),
                 Some(&self.complement_2d),
                 self.boundary_3d.get(self.current_layer).as_ref(),

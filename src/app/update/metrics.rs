@@ -1,12 +1,14 @@
 use crate::app;
 use crate::app::data_structures::blocks::Blocks;
 use crate::app::data_structures::slice_parameters::SliceParameters;
+use crate::app::data_structures::sparse_blocks::SparseBlocks;
 use crate::app::data_structures::symmetry_type::SymmetryType;
 use crate::app::data_structures::zvec::ZVec;
 use crate::app::math::exact_squircle_bounds::exact_squircle_bounds;
 use crate::app::math::square_max::square_max;
 use app::metrics::convex_hull::get_convex_hull;
 
+// todo: make a struct containing all these parameters for easier maintenance
 pub fn update_metrics(
     current_layer: isize,
     layer_lowest: isize,
@@ -30,11 +32,13 @@ pub fn update_metrics(
     center_coord: &mut [f64; 2],
 
     global_bounding_box: &mut [[f64; 2]; 2],
+    boundary_conn_comp: &mut Vec<SparseBlocks>,
 ) {
     // update 2d spatial metrics
     *interior_2d = current_layer_blocks.get_interior();
     *boundary_2d = current_layer_blocks.get_boundary();
     *complement_2d = current_layer_blocks.get_complement();
+    *boundary_conn_comp = (SparseBlocks::from(boundary_2d.clone())).connected_components();
 
     // update 3d spatial metrics
     *boundary_3d = app::metrics::boundary_3d::boundary_3d(

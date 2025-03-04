@@ -1,22 +1,19 @@
 use crate::app::data_structures::blocks::Blocks;
 use egui::Color32;
 use std::collections::HashSet;
+use std::fmt::{Display, Formatter};
 use std::hash::{DefaultHasher, Hash, Hasher};
 
 /// Sparse representation of a blocks object (that forgets about the origin)
 /// `indices` contains x iff there is a block at index x
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SparseBlocks {
-    pub indices: HashSet<[isize; 2]>, //todo: make private
+    indices: HashSet<[isize; 2]>, //todo: make private
 }
 
 // todo:
 //  routine function which uses this to create a building thing...
 //  (but must not forget placement on grid!)
-
-// todo:
-//  assign the same color consistently to similarly shaped blocks (translated & flipped & rotated versions)
-//  first do only translates.
 
 impl From<Blocks> for SparseBlocks {
     fn from(blocks: Blocks) -> Self {
@@ -26,7 +23,38 @@ impl From<Blocks> for SparseBlocks {
     }
 }
 
+impl From<&Blocks> for SparseBlocks {
+    fn from(blocks: &Blocks) -> Self {
+        SparseBlocks {
+            indices: HashSet::from_iter(blocks.get_all_block_coords_usize().into_iter()),
+        }
+    }
+}
+
+/// For build sequence
+impl Display for SparseBlocks {
+    /// The length of the segment if it is a segment, otherwise a random (from hash) letter
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut dim = self.get_rotated_dimensions();
+        match dim {
+            [length, 1] => write!(f, "{length}"),
+            dim => {
+                let mut hasher = DefaultHasher::new();
+                dim.hash(&mut hasher);
+                let int = hasher.finish() % 26 + 65; // mod out the alphabet length, add offset 65 to land in uppercase range.
+                println!("{dim:?} hashes to {int}");
+                let chr: char = char::from_u32(int as u32).unwrap();
+                write!(f, "{chr}",)
+            }
+        }
+    }
+}
+
 impl SparseBlocks {
+    pub fn get_coords(&self) -> std::collections::hash_set::Iter<'_, [isize; 2]> {
+        self.indices.iter()
+    }
+
     /// Return a vector of the connected components of the input
     pub fn connected_components(&self) -> Vec<Self> {
         let mut a = self.indices.clone();
@@ -87,9 +115,19 @@ impl SparseBlocks {
     fn get_dimensions(&self) -> [usize; 2] {
         let bounds = self.get_bounds();
         [
-            (bounds[1][0] - bounds[0][0]) as usize,
-            (bounds[1][1] - bounds[0][1]) as usize,
+            (bounds[1][0] - bounds[0][0] + 1) as usize,
+            (bounds[1][1] - bounds[0][1] + 1) as usize,
         ]
+    }
+
+    /// Get the dimensions rotated such that the long size is the first coordinate
+    /// For now serves as "canonical form" on which we base coloring and lettering
+    fn get_rotated_dimensions(&self) -> [usize; 2] {
+        let mut dim = self.get_dimensions();
+        if dim[0] < dim[1] {
+            dim = [dim[1], dim[0]]
+        }
+        dim
     }
 
     // this is not the right way to go about the coloring process. rather put every shape in a canonical form that we can color/hash
@@ -130,12 +168,8 @@ impl SparseBlocks {
     /// Get color from the rotated dimension of a shape (by a hash function)
     pub fn hash_color(&self) -> Color32 {
         let mut hasher = DefaultHasher::new();
-        let mut first = self.get_dimensions();
-        // rotate the dimensions so the long size is the first coordinate
-        if first[0] < first[1] {
-            first = [first[1], first[0]]
-        }
-        first.hash(&mut hasher);
+        let mut dim = self.get_rotated_dimensions();
+        dim.hash(&mut hasher);
         let int = hasher.finish();
         // get first 3 sets of 8 bits as rgb
         let r = (int & 255) as u8;

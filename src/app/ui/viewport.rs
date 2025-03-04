@@ -29,6 +29,7 @@ pub fn ui_viewport(
 
     // Metrics
     boundary_2d: Option<&Blocks>,
+    boundary_conn_comp: Option<&Vec<SparseBlocks>>,
     interior_2d: Option<&Blocks>,
     complement_2d: Option<&Blocks>,
     boundary_3d_slice: Option<&Blocks>,
@@ -141,11 +142,9 @@ pub fn ui_viewport(
             }
 
             // draw build color help
-            if view.boundary_2d_colorful && view.boundary_2d && boundary_2d.is_some() {
-                let boundary_sparse = SparseBlocks::from(boundary_2d.unwrap().clone());
-                let conn_comp = boundary_sparse.connected_components();
-                for comp in conn_comp.iter() {
-                    for [x, y] in comp.indices.iter() {
+            if view.boundary_2d_colorful && view.boundary_2d && boundary_conn_comp.is_some() {
+                for comp in boundary_conn_comp.unwrap().iter() {
+                    for [x, y] in comp.get_coords() {
                         plot_ui.polygon(
                             plotting::square_at_coords([*x as f64, *y as f64])
                                 .stroke(Stroke {

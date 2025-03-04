@@ -1,4 +1,6 @@
-# Voxircle
+<h1 align="center">
+    Voxircle
+</h1>
 
 <h3 align="center">
     <a href="https://basyniae.github.io/voxircle/">
