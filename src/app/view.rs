@@ -11,7 +11,7 @@ pub struct View {
     pub center_blocks: bool,
     pub bounds: bool,
     pub mirrors: bool,
-    pub build_color_help: bool, //todo: rename
+    pub boundary_2d_colorful: bool,
 }
 
 impl Default for View {
@@ -29,7 +29,7 @@ impl Default for View {
             center_blocks: false,
             bounds: false,
             mirrors: false,
-            build_color_help: true, // debug: default should be false
+            boundary_2d_colorful: true,
         }
     }
 }

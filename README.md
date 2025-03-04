@@ -1,13 +1,21 @@
 # Voxircle
 
+<h3 align="center">
+    <a href="https://basyniae.github.io/voxircle/">
+    Open in Browser
+    </a>
+</h3>
+
 [//]: # (todo: update)
+
 [_Voxircle_](https://github.com/basyniae/voxircle) is a GUI application for voxelizing circles, which is approximating
 circles by square boxes (a.k.a. blocks, squares, voxels, pixels).
 This is useful in Minecraft and other voxel/pixel art applications.
 
 ## Usage
 
-Download the latest release for your platform (or build the executable yourself with `cargo build --release`) and run
+Use the link above or download the latest release for your platform (or build the executable yourself with
+`cargo build --release`) and run
 it.
 On the right side of the window you will see a grid (the 'viewport'), on the right you will see some settings.
 The light gray boxes in the viewport represent the output of the algorithm.

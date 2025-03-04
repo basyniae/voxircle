@@ -27,6 +27,7 @@ impl From<Blocks> for SparseBlocks {
 }
 
 impl SparseBlocks {
+    /// Return a vector of the connected components of the input
     pub fn connected_components(&self) -> Vec<Self> {
         let mut a = self.indices.clone();
         let mut running_conn_components = Vec::new();
@@ -135,7 +136,7 @@ impl SparseBlocks {
             first = [first[1], first[0]]
         }
         first.hash(&mut hasher);
-        let mut int = hasher.finish();
+        let int = hasher.finish();
         // get first 3 sets of 8 bits as rgb
         let r = (int & 255) as u8;
         let g = ((int & (255 * 256)) / 256) as u8;

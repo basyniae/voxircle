@@ -97,7 +97,7 @@ pub fn ui_viewport(
                     view.blocks,
                     view.complement,
                     view.boundary_3d,
-                    view.boundary_2d,
+                    view.boundary_2d && !view.boundary_2d_colorful, // only draw normally if we don't do it colorfully later
                     view.interior_2d,
                     view.interior_3d,
                     view.center_blocks,
@@ -140,8 +140,8 @@ pub fn ui_viewport(
                 }
             }
 
-            // draw build color help todo: think about drawing order
-            if view.build_color_help && boundary_2d.is_some() {
+            // draw build color help
+            if view.boundary_2d_colorful && view.boundary_2d && boundary_2d.is_some() {
                 let boundary_sparse = SparseBlocks::from(boundary_2d.unwrap().clone());
                 let conn_comp = boundary_sparse.connected_components();
                 for comp in conn_comp.iter() {

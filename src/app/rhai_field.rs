@@ -70,7 +70,7 @@ impl RhaiField {
     }
 
     pub fn is_valid_expression(&self, sampling_points: &ZVec<Vec<f64>>) -> bool {
-        let mut engine = Engine::new();
+        let engine = Engine::new();
         let mut scope = Scope::new();
         let code = self.code.clone();
 

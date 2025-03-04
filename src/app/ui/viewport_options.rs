@@ -2,6 +2,8 @@ use crate::app::data_structures::symmetry_type::SymmetryType;
 use crate::app::view::View;
 use eframe::egui;
 use eframe::egui::Ui;
+use egui::Align::Min;
+use egui::{Checkbox, Layout};
 
 pub fn ui_viewport_options(
     ui: &mut Ui,
@@ -14,12 +16,24 @@ pub fn ui_viewport_options(
     ui.columns(2, |columns| {
         // Better to fully hide 3d settings
         if layers_enabled {
-            columns[0].checkbox(&mut view.boundary_2d, "Layer Boundary");
+            columns[0].with_layout(Layout::left_to_right(Min), |ui| {
+                ui.checkbox(&mut view.boundary_2d, "Layer Boundary");
+                ui.add_enabled(
+                    view.boundary_2d,
+                    Checkbox::new(&mut view.boundary_2d_colorful, "Colorful"),
+                )
+            });
             columns[0].checkbox(&mut view.interior_2d, "Layer Interior");
             columns[1].checkbox(&mut view.boundary_3d, "3D Boundary");
             columns[1].checkbox(&mut view.interior_3d, "3D Interior");
         } else {
-            columns[0].checkbox(&mut view.boundary_2d, "Boundary");
+            columns[0].with_layout(Layout::left_to_right(Min), |ui| {
+                ui.checkbox(&mut view.boundary_2d, "Boundary");
+                ui.add_enabled(
+                    view.boundary_2d,
+                    Checkbox::new(&mut view.boundary_2d_colorful, "Colorful"),
+                )
+            });
             columns[0].checkbox(&mut view.interior_2d, "Interior");
         }
     });
