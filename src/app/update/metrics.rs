@@ -31,12 +31,12 @@ pub struct Metrics {
 
 // todo: make a struct containing all these parameters for easier maintenance
 impl Metrics {
-    pub fn update_metrics(
+    pub fn update(
         &mut self,
         current_layer: isize,
         layer_lowest: isize,
         layer_highest: isize,
-        current_layer_blocks: Blocks,
+        current_layer_blocks: &Blocks,
         stack_blocks: &ZVec<Blocks>,
         stack_layer_config: &ZVec<SliceParameters>,
     ) {

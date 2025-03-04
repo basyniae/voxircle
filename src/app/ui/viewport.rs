@@ -9,17 +9,18 @@ use crate::app::update::metrics::Metrics;
 use crate::app::view::View;
 use crate::app::{generation, plotting};
 use eframe::egui::{Stroke, Ui, Vec2b};
+use egui::Color32;
 use egui_plot::{
-    uniform_grid_spacer, HLine, Line, Plot, PlotBounds, PlotPoint, PlotPoints, Points, Text, VLine,
+    uniform_grid_spacer, HLine, Line, Plot, PlotBounds, PlotPoint, PlotPoints, PlotUi, Points,
+    Text, VLine,
 };
-use itertools::izip;
 use std::f64::consts::PI;
 
 pub fn ui_viewport(
     ui: &mut Ui,
-    slice_parameters: SliceParameters,
-    sampled_parameters: LayerParameters,
-    blocks: &Option<Blocks>,
+    slice_parameters: &SliceParameters,
+    sampled_parameters: &LayerParameters,
+    blocks: &Option<&Blocks>,
     sampling_enabled: bool,
     view: &View,
     current_layer: isize,
@@ -84,53 +85,44 @@ pub fn ui_viewport(
             // then geometric overlays like the target shape, center, etc.
 
             // First draw the blocks (the for loop is to avoid duplicate code)
-            for (view, option_blocks, color) in izip!(
-                [
-                    view.blocks,
-                    view.complement,
-                    view.boundary_3d,
-                    view.boundary_2d && !view.boundary_2d_colorful, // only draw normally if we don't do it colorfully later
-                    view.interior_2d,
-                    view.interior_3d,
-                    view.center_blocks,
-                ],
-                [
-                    blocks,
-                    &Some(metrics.complement_2d),
-                    &metrics.boundary_3d.get(current_layer),
-                    &Some(metrics.boundary_2d),
-                    &Some(metrics.interior_2d),
-                    &metrics.interior_3d.get(current_layer),
-                    &blocks.map(|b| b.get_center_blocks()), // update with other metrics?
-                ],
-                [
-                    COLOR_BLOCKS,
-                    COLOR_COMPLEMENT_2D,
-                    COLOR_BOUNDARY_3D,
-                    COLOR_BOUNDARY_2D,
-                    COLOR_INTERIOR_2D,
-                    COLOR_INTERIOR_3D,
-                    COLOR_CENTER_BLOCKS,
-                ]
-            ) {
-                // test if basic culling speeds up rendering all blocks for radii ~>100
-                // test: can the per-coord blocks be made persistent (up to change of generated shape)
-                //  with ids somehow?
-                if view {
-                    if let Some(blocks) = option_blocks {
-                        for coord in blocks.get_all_block_coords() {
-                            plot_ui.polygon(
-                                plotting::square_at_coords(coord)
-                                    .stroke(Stroke {
-                                        width: 1.0,
-                                        color: COLOR_WIRE,
-                                    })
-                                    .fill_color(color),
-                            );
-                        }
-                    }
-                }
-            }
+            draw_blocks(plot_ui, view.blocks, blocks, COLOR_BLOCKS);
+            draw_blocks(
+                plot_ui,
+                view.complement,
+                &Some(&metrics.complement_2d),
+                COLOR_COMPLEMENT_2D,
+            );
+            draw_blocks(
+                plot_ui,
+                view.complement,
+                &metrics.boundary_3d.get(current_layer),
+                COLOR_BOUNDARY_3D,
+            );
+
+            draw_blocks(
+                plot_ui,
+                view.boundary_2d && !view.boundary_2d_colorful, // only draw normally if we don't do it colorfully later
+                &Some(&metrics.boundary_2d),
+                COLOR_BOUNDARY_2D,
+            );
+            draw_blocks(
+                plot_ui,
+                view.interior_2d,
+                &Some(&metrics.interior_2d),
+                COLOR_INTERIOR_2D,
+            );
+            draw_blocks(
+                plot_ui,
+                view.interior_3d,
+                &metrics.interior_3d.get(current_layer),
+                COLOR_INTERIOR_3D,
+            );
+            draw_blocks(
+                plot_ui,
+                view.center_blocks,
+                &blocks.map(|b| b.get_center_blocks()).as_ref(), // update with other metrics?
+                COLOR_CENTER_BLOCKS,
+            );
 
             // draw build color help
             if view.boundary_2d_colorful && view.boundary_2d {
@@ -242,7 +234,7 @@ pub fn ui_viewport(
             // Plot convex hull
             // Perhaps better to use the plot_ui.shape
             if view.convex_hull {
-                for i in line_segments_from_conv_hull(metrics.convex_hull.clone()) {
+                for i in line_segments_from_conv_hull(&metrics.convex_hull) {
                     let pts: PlotPoints = (0..=1).map(|t| i[t]).collect();
                     plot_ui.line(Line::new(pts).color(COLOR_CONV_HULL));
                 }
@@ -250,9 +242,9 @@ pub fn ui_viewport(
 
             // Plot outer corners of block
             if view.outer_corners {
-                for [i, j] in metrics.outer_corners {
+                for [i, j] in metrics.outer_corners.iter() {
                     plot_ui.points(
-                        Points::new(vec![[i, j]])
+                        Points::new(vec![[*i, *j]])
                             .radius(3.0)
                             .color(COLOR_OUTER_CORNERS),
                     );
@@ -389,4 +381,26 @@ pub fn ui_viewport(
                 .color(COLOR_CENTER_DOT),
             );
         });
+}
+
+pub fn draw_blocks(
+    plot_ui: &mut PlotUi,
+    view: bool,
+    option_blocks: &Option<&Blocks>,
+    color: Color32,
+) {
+    if view {
+        if let Some(blocks) = option_blocks {
+            for coord in blocks.get_all_block_coords() {
+                plot_ui.polygon(
+                    plotting::square_at_coords(coord)
+                        .stroke(Stroke {
+                            width: 1.0,
+                            color: COLOR_WIRE,
+                        })
+                        .fill_color(color),
+                )
+            }
+        }
+    }
 }

@@ -365,7 +365,7 @@ impl eframe::App for App {
 
         if self.recompute_metrics {
             self.recompute_metrics = false;
-            self.metrics.update_metrics(
+            self.metrics.update(
                 self.current_layer,
                 self.layer_lowest,
                 self.layer_highest,
@@ -422,25 +422,29 @@ impl eframe::App for App {
                         self.stack_configuration_parameters.resize(
                             self.layer_lowest,
                             self.layer_highest,
-                            &self.stack_configuration_parameters.get(old_layer).unwrap(),
+                            &self
+                                .stack_configuration_parameters
+                                .get(old_layer)
+                                .unwrap()
+                                .clone(),
                         );
 
                         self.stack_layer_parameters.resize(
                             self.layer_lowest,
                             self.layer_highest,
-                            &self.stack_layer_parameters.get(old_layer).unwrap(),
+                            &self.stack_layer_parameters.get(old_layer).unwrap().clone(),
                         );
 
                         self.stack_blocks.resize(
                             self.layer_lowest,
                             self.layer_highest,
-                            &self.stack_blocks.get(old_layer).unwrap(),
+                            &self.stack_blocks.get(old_layer).unwrap().clone(),
                         );
 
                         self.stack_sampling_points.resize(
                             self.layer_lowest,
                             self.layer_highest,
-                            &self.stack_sampling_points.get(old_layer).unwrap(),
+                            &self.stack_sampling_points.get(old_layer).unwrap().clone(),
                         );
                     }
                 }
@@ -458,22 +462,13 @@ impl eframe::App for App {
                     .get(self.current_layer)
                     .unwrap(),
                 self.stack_layer_parameters.get(self.current_layer).unwrap(),
-                self.stack_blocks.get(self.current_layer).as_ref(),
+                &self.stack_blocks.get(self.current_layer),
                 self.sampling_enabled,
                 &self.view,
+                self.current_layer,
                 &mut self.reset_zoom_once,
                 &mut self.reset_zoom_continuous,
-                Some(&self.boundary_2d),
-                Some(&self.boundary_conn_comp),
-                Some(&self.interior_2d),
-                Some(&self.complement_2d),
-                self.boundary_3d.get(self.current_layer).as_ref(),
-                self.interior_3d.get(self.current_layer).as_ref(),
-                &self.convex_hull,
-                &self.outer_corners,
-                &self.symmetry_type,
-                &self.block_center_coord,
-                &self.global_bounding_box,
+                &self.metrics,
             );
         });
     }

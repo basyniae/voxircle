@@ -77,8 +77,8 @@ impl RhaiField {
         // Check if the expression is valid at all sampling points. First unpack layers, then unpack
         // sampling points
         sampling_points
-            .clone()
             .data
+            .clone()
             .into_iter()
             .map(|layer| {
                 layer

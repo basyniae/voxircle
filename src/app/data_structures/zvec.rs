@@ -20,13 +20,13 @@ impl<T: Clone + Debug> ZVec<T> {
         }
     }
 
-    pub fn get(&self, index: isize) -> Option<T> {
+    pub fn get(&self, index: isize) -> Option<&T> {
         assert_eq!(self.maximum - self.minimum + 1, self.data.len() as isize);
 
         if index > self.maximum || index < self.minimum {
             None
         } else {
-            Some(self.data[(index - self.minimum) as usize].clone())
+            Some(&self.data[(index - self.minimum) as usize])
         }
     }
 

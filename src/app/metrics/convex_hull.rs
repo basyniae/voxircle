@@ -53,7 +53,7 @@ pub fn get_convex_hull(points: &Vec<[f64; 2]>) -> Vec<[f64; 2]> {
 }
 
 /// Convert the sequence of points forming a convex hull to easier to draw pairs of line segments
-pub fn line_segments_from_conv_hull(conv_hull: Vec<[f64; 2]>) -> Vec<[[f64; 2]; 2]> {
+pub fn line_segments_from_conv_hull(conv_hull: &Vec<[f64; 2]>) -> Vec<[[f64; 2]; 2]> {
     let mut line_segments = vec![];
     for i in 0..conv_hull.len() - 1 {
         line_segments.push([conv_hull[i], conv_hull[i + 1]]);

@@ -65,7 +65,7 @@ pub fn parameters_update(
         // Update parameters for the sampling
         set_parameters(
             stack_sampled_parameters.get_mut(current_layer).unwrap(),
-            &stack_sampling_points.get(current_layer).unwrap(),
+            stack_sampling_points.get(current_layer).unwrap(),
             stack_layer_config.get(current_layer).unwrap(),
             stack_layer_config.get(current_layer).unwrap().algorithm,
             rhai_field_radius_a,
@@ -106,7 +106,7 @@ pub fn parameters_update(
         for layer in layer_lowest..=layer_highest {
             set_parameters(
                 stack_sampled_parameters.get_mut(layer).unwrap(),
-                &stack_sampling_points.get(layer).unwrap(),
+                stack_sampling_points.get(layer).unwrap(),
                 stack_layer_config.get(layer).unwrap(),
                 stack_layer_config.get(layer).unwrap().algorithm,
                 rhai_field_radius_a,
@@ -188,8 +188,7 @@ fn update_control_parameters(
     rhai_field_squircle_parameter: &mut RhaiField,
     single_radius: bool,
 ) {
-
-    // evarhaite the rhai field at the layer
+    // evaluate the rhai field at the layer
     if let Some(radius_a) = rhai_field_radius_a.eval(&(layer as f64)) {
         current_layer.radius_a = radius_a
     }
@@ -223,7 +222,7 @@ fn update_control_parameters(
 fn set_parameters(
     sampled_parameters: &mut LayerParameters,
     sampling_points: &Vec<f64>,
-    default_parameters: SliceParameters,
+    default_parameters: &SliceParameters,
     algorithm: Algorithm,
     rhai_field_radius_a: &mut RhaiField,
     rhai_field_radius_b: &mut RhaiField,
@@ -237,35 +236,35 @@ fn set_parameters(
     sampled_parameters.algorithm = algorithm;
     sampled_parameters.nr_samples = sampling_points.len();
 
-    // If the code evarhaition failed (returned None) resort to using the default_parameters (supplied by sliders)
+    // If the code evaluation failed (returned None) resort to using the default_parameters (supplied by sliders)
     sampled_parameters.parameters = sampling_points
         .iter()
-        .map(|layer| {
-            SliceParameters {
-                algorithm,
-                radius_a: rhai_field_radius_a
+        .map(|layer| SliceParameters {
+            algorithm,
+            radius_a: rhai_field_radius_a
+                .eval(layer)
+                .unwrap_or(default_parameters.radius_a),
+            radius_b: if single_radius {
+                rhai_field_radius_a
                     .eval(layer)
-                    .unwrap_or(default_parameters.radius_a),
-                radius_b: if single_radius {
-                    rhai_field_radius_a
-                        .eval(layer)
-                        .unwrap_or(default_parameters.radius_a)
-                } else {
-                    rhai_field_radius_b
-                        .eval(layer)
-                        .unwrap_or(default_parameters.radius_b)
-                },
-                tilt: rhai_field_tilt.eval(layer).unwrap_or(default_parameters.tilt),
-                center_offset_x: rhai_field_center_offset_x
+                    .unwrap_or(default_parameters.radius_a)
+            } else {
+                rhai_field_radius_b
                     .eval(layer)
-                    .unwrap_or(default_parameters.center_offset_x),
-                center_offset_y: rhai_field_center_offset_y
-                    .eval(layer)
-                    .unwrap_or(default_parameters.center_offset_y),
-                squircle_parameter: rhai_field_squircle_parameter
-                    .eval(layer)
-                    .unwrap_or(default_parameters.squircle_parameter),
-            }
+                    .unwrap_or(default_parameters.radius_b)
+            },
+            tilt: rhai_field_tilt
+                .eval(layer)
+                .unwrap_or(default_parameters.tilt),
+            center_offset_x: rhai_field_center_offset_x
+                .eval(layer)
+                .unwrap_or(default_parameters.center_offset_x),
+            center_offset_y: rhai_field_center_offset_y
+                .eval(layer)
+                .unwrap_or(default_parameters.center_offset_y),
+            squircle_parameter: rhai_field_squircle_parameter
+                .eval(layer)
+                .unwrap_or(default_parameters.squircle_parameter),
         })
         .collect()
 }

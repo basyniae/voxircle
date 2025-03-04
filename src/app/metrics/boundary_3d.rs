@@ -13,7 +13,7 @@ pub fn boundary_3d(
 ) -> ZVec<Blocks> {
     let out = (layer_min..=layer_max)
         .map(|layer| {
-            let blocks = stack_blocks.get(layer).clone().unwrap();
+            let blocks = stack_blocks.get(layer).unwrap();
 
             Blocks::new(
                 (0..blocks.grid_size.pow(2))
@@ -71,7 +71,7 @@ pub fn interior_3d(
                     .unwrap()
                     .blocks
                     .iter()
-                    .zip(stack_blocks.get(layer).unwrap().blocks)
+                    .zip(stack_blocks.get(layer).unwrap().clone().blocks)
                     .map(|(is_bdry, is_block)| is_block && !is_bdry)
                     .collect(),
                     stack_blocks.get(layer).unwrap().grid_size,
