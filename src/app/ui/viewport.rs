@@ -1,11 +1,11 @@
 use crate::app::colors::*;
 use crate::app::data_structures::blocks::Blocks;
 use crate::app::data_structures::slice_parameters::SliceParameters;
-use crate::app::data_structures::sparse_blocks::SparseBlocks;
 use crate::app::data_structures::symmetry_type::SymmetryType;
 use crate::app::metrics::convex_hull::line_segments_from_conv_hull;
 use crate::app::plotting::bounds_from_square;
 use crate::app::sampling::sampled_parameters::LayerParameters;
+use crate::app::update::metrics::Metrics;
 use crate::app::view::View;
 use crate::app::{generation, plotting};
 use eframe::egui::{Stroke, Ui, Vec2b};
@@ -19,26 +19,17 @@ pub fn ui_viewport(
     ui: &mut Ui,
     slice_parameters: SliceParameters,
     sampled_parameters: LayerParameters,
-    blocks: Option<&Blocks>,
+    blocks: &Option<Blocks>,
     sampling_enabled: bool,
     view: &View,
+    current_layer: isize,
 
     // Zoom options (used for double click to reset zoom)
     reset_zoom_once: &mut bool,
     reset_zoom_continuous: &mut bool,
 
     // Metrics
-    boundary_2d: Option<&Blocks>,
-    boundary_conn_comp: Option<&Vec<SparseBlocks>>,
-    interior_2d: Option<&Blocks>,
-    complement_2d: Option<&Blocks>,
-    boundary_3d_slice: Option<&Blocks>,
-    interior_3d_slice: Option<&Blocks>,
-    convex_hull: &Vec<[f64; 2]>,
-    outer_corners: &Vec<[f64; 2]>,
-    symmetry_type: &SymmetryType,
-    center_coord: &[f64; 2],
-    global_bounding_box: &[[f64; 2]; 2], //todo: rename
+    metrics: &Metrics,
 ) {
     ui.visuals_mut().extreme_bg_color = COLOR_VIEWPORT_BACKGROUND;
 
@@ -68,8 +59,8 @@ pub fn ui_viewport(
             // Reset zoom (approximates default behaviour, but we get to specify the action of automatic zooming
             if *reset_zoom_once || *reset_zoom_continuous {
                 plot_ui.set_plot_bounds(PlotBounds::from_min_max(
-                    global_bounding_box[0],
-                    global_bounding_box[1],
+                    metrics.global_bounding_box[0],
+                    metrics.global_bounding_box[1],
                 ));
                 *reset_zoom_once = false
             }
@@ -105,12 +96,12 @@ pub fn ui_viewport(
                 ],
                 [
                     blocks,
-                    complement_2d,
-                    boundary_3d_slice,
-                    boundary_2d,
-                    interior_2d,
-                    interior_3d_slice,
-                    blocks.map(|b| b.get_center_blocks()).as_ref(), // update with other metrics?
+                    &Some(metrics.complement_2d),
+                    &metrics.boundary_3d.get(current_layer),
+                    &Some(metrics.boundary_2d),
+                    &Some(metrics.interior_2d),
+                    &metrics.interior_3d.get(current_layer),
+                    &blocks.map(|b| b.get_center_blocks()), // update with other metrics?
                 ],
                 [
                     COLOR_BLOCKS,
@@ -142,8 +133,8 @@ pub fn ui_viewport(
             }
 
             // draw build color help
-            if view.boundary_2d_colorful && view.boundary_2d && boundary_conn_comp.is_some() {
-                for comp in boundary_conn_comp.unwrap().iter() {
+            if view.boundary_2d_colorful && view.boundary_2d {
+                for comp in metrics.boundary_conn_comp.iter() {
                     for [x, y] in comp.get_coords() {
                         plot_ui.polygon(
                             plotting::square_at_coords([*x as f64, *y as f64])
@@ -251,7 +242,7 @@ pub fn ui_viewport(
             // Plot convex hull
             // Perhaps better to use the plot_ui.shape
             if view.convex_hull {
-                for i in line_segments_from_conv_hull(convex_hull.clone()) {
+                for i in line_segments_from_conv_hull(metrics.convex_hull.clone()) {
                     let pts: PlotPoints = (0..=1).map(|t| i[t]).collect();
                     plot_ui.line(Line::new(pts).color(COLOR_CONV_HULL));
                 }
@@ -259,9 +250,9 @@ pub fn ui_viewport(
 
             // Plot outer corners of block
             if view.outer_corners {
-                for [i, j] in outer_corners {
+                for [i, j] in metrics.outer_corners {
                     plot_ui.points(
-                        Points::new(vec![[*i, *j]])
+                        Points::new(vec![[i, j]])
                             .radius(3.0)
                             .color(COLOR_OUTER_CORNERS),
                     );
@@ -278,12 +269,20 @@ pub fn ui_viewport(
 
             // Plot mirrors
             if view.mirrors {
-                match symmetry_type {
+                match metrics.symmetry_type {
                     SymmetryType::ReflectionHorizontal => {
-                        plot_ui.hline(HLine::new(center_coord[1]).color(COLOR_MIRRORS).width(2.0));
+                        plot_ui.hline(
+                            HLine::new(metrics.center_coord[1])
+                                .color(COLOR_MIRRORS)
+                                .width(2.0),
+                        );
                     }
                     SymmetryType::ReflectionVertical => {
-                        plot_ui.vline(VLine::new(center_coord[0]).color(COLOR_MIRRORS).width(2.0));
+                        plot_ui.vline(
+                            VLine::new(metrics.center_coord[0])
+                                .color(COLOR_MIRRORS)
+                                .width(2.0),
+                        );
                     }
                     SymmetryType::ReflectionDiagonalUp => {
                         plot_ui.line(
@@ -308,8 +307,16 @@ pub fn ui_viewport(
                         );
                     }
                     SymmetryType::ReflectionsCardinals => {
-                        plot_ui.vline(VLine::new(center_coord[0]).color(COLOR_MIRRORS).width(2.0));
-                        plot_ui.hline(HLine::new(center_coord[1]).color(COLOR_MIRRORS).width(2.0));
+                        plot_ui.vline(
+                            VLine::new(metrics.center_coord[0])
+                                .color(COLOR_MIRRORS)
+                                .width(2.0),
+                        );
+                        plot_ui.hline(
+                            HLine::new(metrics.center_coord[1])
+                                .color(COLOR_MIRRORS)
+                                .width(2.0),
+                        );
                     }
                     SymmetryType::ReflectionsDiagonals => {
                         plot_ui.line(
@@ -332,8 +339,16 @@ pub fn ui_viewport(
                         );
                     }
                     SymmetryType::ReflectionsAll => {
-                        plot_ui.vline(VLine::new(center_coord[0]).color(COLOR_MIRRORS).width(2.0));
-                        plot_ui.hline(HLine::new(center_coord[1]).color(COLOR_MIRRORS).width(2.0));
+                        plot_ui.vline(
+                            VLine::new(metrics.center_coord[0])
+                                .color(COLOR_MIRRORS)
+                                .width(2.0),
+                        );
+                        plot_ui.hline(
+                            HLine::new(metrics.center_coord[1])
+                                .color(COLOR_MIRRORS)
+                                .width(2.0),
+                        );
                         plot_ui.line(
                             plotting::tilted_line_in_bounds(
                                 plot_ui.plot_bounds(),

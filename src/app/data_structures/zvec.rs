@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::fmt::Debug;
 
 /// Vector whose index is a continuous interval of the integers (Z)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ZVec<T> {
     pub data: VecDeque<T>,
     minimum: isize,

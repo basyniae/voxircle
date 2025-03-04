@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 
 //
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub enum SymmetryType {
     ReflectionHorizontal,
     ReflectionVertical,
@@ -12,6 +12,7 @@ pub enum SymmetryType {
     ReflectionsAll,
     RotationHalf,
     RotationQuarter,
+    #[default]
     NoSymmetry,
 }
 

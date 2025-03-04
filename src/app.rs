@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::default::Default;
 
 use crate::app::control::Control;
-use crate::app::data_structures::sparse_blocks::SparseBlocks;
+use crate::app::update::metrics::Metrics;
 use crate::app::view::View;
 use data_structures::blocks::Blocks;
 use data_structures::slice_parameters::SliceParameters;
@@ -21,7 +21,6 @@ use ui::sampling::ui_sampling;
 use ui::viewport::ui_viewport;
 use ui::viewport_options::ui_viewport_options;
 use update::logic::{blocks_update, parameters_update, sampling_points_update};
-use update::metrics::update_metrics;
 
 mod colors;
 mod control;
@@ -53,17 +52,7 @@ pub struct App {
     // longterm: there is no need for recompute_metrics_control right now... though it might be good if recomputing metrics gets slow later on
 
     // Metrics
-    nr_blocks_total: u64,
-    nr_blocks_interior: u64,
-    nr_blocks_boundary: u64,
-    boundary_2d: Blocks,
-    boundary_conn_comp: Vec<SparseBlocks>,
-    interior_2d: Blocks,
-    complement_2d: Blocks,
-    boundary_3d: ZVec<Blocks>,
-    interior_3d: ZVec<Blocks>,
-    convex_hull: Vec<[f64; 2]>,
-    outer_corners: Vec<[f64; 2]>,
+    metrics: Metrics,
 
     // Generate new shape on this layer automatically from the provided parameters
     blocks_current_layer_control: Control,
@@ -140,17 +129,7 @@ impl App {
             recompute_metrics: true,
 
             // Initialize empty metrics
-            nr_blocks_total: Default::default(),
-            nr_blocks_interior: Default::default(),
-            nr_blocks_boundary: Default::default(),
-            boundary_2d: Default::default(),
-            boundary_conn_comp: Default::default(),
-            interior_2d: Default::default(),
-            complement_2d: Default::default(),
-            boundary_3d: ZVec::new(VecDeque::from(vec![Blocks::default()]), 0),
-            interior_3d: ZVec::new(VecDeque::from(vec![Blocks::default()]), 0),
-            convex_hull: Default::default(),
-            outer_corners: Default::default(),
+            metrics: Default::default(),
 
             // Initialize on simplest working mode of operation
             blocks_current_layer_control: Control::AUTO_UPDATE,
@@ -386,27 +365,13 @@ impl eframe::App for App {
 
         if self.recompute_metrics {
             self.recompute_metrics = false;
-            update_metrics(
+            self.metrics.update_metrics(
                 self.current_layer,
                 self.layer_lowest,
                 self.layer_highest,
                 self.stack_blocks.get(self.current_layer).unwrap(),
                 &self.stack_blocks,
                 &self.stack_configuration_parameters,
-                &mut self.nr_blocks_total,
-                &mut self.nr_blocks_interior,
-                &mut self.nr_blocks_boundary,
-                &mut self.boundary_2d,
-                &mut self.interior_2d,
-                &mut self.complement_2d,
-                &mut self.boundary_3d,
-                &mut self.interior_3d,
-                &mut self.convex_hull,
-                &mut self.outer_corners,
-                &mut self.symmetry_type,
-                &mut self.block_center_coord,
-                &mut self.global_bounding_box,
-                &mut self.boundary_conn_comp,
             )
         }
 
@@ -425,9 +390,9 @@ impl eframe::App for App {
                     format!(
                         // "nr. blocks: {}, nr. boundary blocks: {}, nr. interior blocks: {}, {}, build sequence: {:?}, program by Basyniae",
                         "nr. blocks: {}, nr. boundary blocks: {}, nr. interior blocks: {}, {}, Voxircle v{} by Basyniae",
-                        formatting::format_block_count(self.nr_blocks_total),
-                        formatting::format_block_count(self.nr_blocks_boundary),
-                        formatting::format_block_count(self.nr_blocks_interior),
+                        formatting::format_block_count(self.metrics.nr_blocks_total),
+                        formatting::format_block_count(self.metrics.nr_blocks_boundary),
+                        formatting::format_block_count(self.metrics.nr_blocks_interior),
                         formatting::format_block_diameter(self.stack_blocks.get_mut(self.current_layer).unwrap().get_diameters()),
                         PKG_VERSION
                     )
