@@ -8,9 +8,8 @@ use crate::app::math::exact_squircle_bounds::exact_squircle_bounds;
 use crate::app::math::square_max::square_max;
 use app::metrics::convex_hull::get_convex_hull;
 
-#[derive(Default)] // todo: should probably do this manually... see previous versions of code for that
+#[derive(Default)]
 pub struct Metrics {
-    // Metrics todo: make private?
     pub nr_blocks_total: u64,
     pub nr_blocks_interior: u64,
     pub nr_blocks_boundary: u64,
@@ -29,7 +28,6 @@ pub struct Metrics {
     pub global_bounding_box: [[f64; 2]; 2],
 }
 
-// todo: make a struct containing all these parameters for easier maintenance
 impl Metrics {
     pub fn update(
         &mut self,

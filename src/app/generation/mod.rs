@@ -1,14 +1,15 @@
 // For outputting the bitmatrices + size. Always solid, we do interior removal in preprocessing. Bunch of algorithms
 
-use crate::app::data_structures::blocks::Blocks;
-use crate::app::math::linear_algebra::{Mat2, Vec2};
-use std::fmt::{Display, Formatter};
-
 use self::{
     centerpoint::generate_alg_centerpoint, conservative::generate_alg_conservative,
     contained::generate_alg_contained, empty::generate_alg_empty,
     percentage::generate_alg_percentage,
 };
+use crate::app::data_structures::blocks::Blocks;
+use crate::app::generation::Algorithm::{Centerpoint, Conservative, Contained, Percentage};
+use crate::app::math::linear_algebra::{Mat2, Vec2};
+use egui::Ui;
+use std::fmt::{Display, Formatter};
 
 mod centerpoint;
 mod conservative;
@@ -25,6 +26,45 @@ pub enum Algorithm {
     Contained,
     Percentage(f64),
     Empty,
+}
+
+impl Algorithm {
+    pub fn describe(&self) -> String {
+        match self {
+            Centerpoint => {"Include a particular block iff its centerpoint is in the ellipse".to_string()}
+            Conservative => {"Include a particular block in the voxelization iff it has nonempty intersection with the ellipse".to_string()}
+            Contained => {"Include a particular block iff it is fully contained in the ellipse".to_string()}
+            Percentage(percentage) => {format!(
+                "Include a particular block in the voxelization iff more than {:.0}% of it is contained in the circle. Ellipses and squircles not implemented.",
+                100.0 * percentage
+            )}
+            Algorithm::Empty => {"Include no blocks in the voxelization".to_string()}
+        }
+    }
+
+    fn name(&self) -> String {
+        match self {
+            Centerpoint => "Centerpoint".to_string(),
+            Conservative => "Conservative".to_string(),
+            Contained => "Contained".to_string(),
+            Percentage(_) => "Percentage".to_string(),
+            Algorithm::Empty => "Empty".to_string(),
+        }
+    }
+
+    fn all_algs() -> Vec<Self> {
+        vec![Centerpoint, Conservative, Contained, Percentage(0.5)]
+    }
+
+    pub fn combo_box(ui: &mut Ui, alg: &mut Self) {
+        egui::ComboBox::from_label("Algorithm")
+            .selected_text(format!("{:}", alg))
+            .show_ui(ui, |ui| {
+                for i in Self::all_algs() {
+                    ui.selectable_value(alg, i, i.name());
+                }
+            });
+    }
 }
 
 // Switch between algorithms

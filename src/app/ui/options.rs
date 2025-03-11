@@ -37,54 +37,24 @@ pub fn ui_options(
     parameters_current_layer_control: &mut Control,
     parameters_all_layers_control: &mut Control,
 ) {
-    // Select algorithm
-    egui::ComboBox::from_label("Algorithm")
-        .selected_text(format!("{:}", current_layer_config.algorithm))
-        // TODO: easily change algorithm for all layers
-        .show_ui(ui, |ui| {
-            ui.selectable_value(
-                &mut current_layer_config.algorithm,
-                Algorithm::Centerpoint,
-                "Centerpoint",
-            );
-            ui.selectable_value(
-                &mut current_layer_config.algorithm,
-                Algorithm::Conservative,
-                "Conservative",
-            );
-            ui.selectable_value(
-                &mut current_layer_config.algorithm,
-                Algorithm::Contained,
-                "Contained",
-            );
-            ui.selectable_value(
-                &mut current_layer_config.algorithm,
-                Algorithm::Percentage(0.5),
-                "Percentage",
-            );
-        });
+    // TODO: easily change algorithm for all layers
+    // Select algorithm (the storage is for checking changed(), this is necessary
+    //  as https://github.com/emilk/egui/discussions/923)
+    let old_alg = current_layer_config.algorithm.clone();
+    Algorithm::combo_box(ui, &mut current_layer_config.algorithm);
+    if old_alg != current_layer_config.algorithm {
+        outdate!(
+            parameters_current_layer_control,
+            parameters_all_layers_control
+        );
+    }
 
-    // additional algorithm-specific options + description
+    // algorithm description
+    ui.label(current_layer_config.algorithm.describe());
+
+    // algorithm-specific options
     match current_layer_config.algorithm {
-        Algorithm::Centerpoint => {
-            ui.label("Include a particular block iff its centerpoint is in the ellipse");
-        }
-        Algorithm::Conservative => {
-            ui.label(
-                "Include a particular block in the voxelization iff it has nonempty intersection with the ellipse"
-            );
-        }
-        Algorithm::Contained => {
-            ui.label("Include a particular block iff it is fully contained in the ellipse");
-        }
         Algorithm::Percentage(percentage) => {
-            // longterm: ellipse, superellipse
-            ui.label(
-                format!(
-                    "Include a particular block in the voxelization iff more than {:.0}% of it is contained in the circle. Ellipses and squircles not implemented.",
-                    100.0 * percentage
-                )
-            );
             let mut perc_slider = percentage.clone();
             if ui
                 .add(
@@ -100,9 +70,7 @@ pub fn ui_options(
                 current_layer_config.algorithm = Algorithm::Percentage(perc_slider);
             };
         }
-        Algorithm::Empty => {
-            ui.label("Include no blocks in the voxelization");
-        }
+        _ => {}
     }
 
     // Radius
@@ -214,16 +182,16 @@ pub fn ui_options(
                 ("2:3", 0.66666666666666_f64.atan()),
                 ("1:4", 0.25_f64.atan()),
             ]
-                .map(|(name, value)| {
-                    if ui.button(name).clicked() {
-                        current_layer_config.tilt = value;
-                        rhai_field_tilt.update_field_state(sampling_points);
-                        outdate!(
+            .map(|(name, value)| {
+                if ui.button(name).clicked() {
+                    current_layer_config.tilt = value;
+                    rhai_field_tilt.update_field_state(sampling_points);
+                    outdate!(
                         parameters_current_layer_control,
                         parameters_all_layers_control
                     )
-                    }
-                });
+                }
+            });
         },
     );
     if code_enabled {
@@ -266,16 +234,16 @@ pub fn ui_options(
                     ("Diamond", 0.5),             // "" "" 1
                     ("Square", 1.0),              // "" "" infinity
                 ]
-                    .map(|(name, value)| {
-                        if ui.button(name).clicked() {
-                            squircle_ui_parameter = value;
-                            rhai_field_squircle_parameter.update_field_state(sampling_points);
-                            outdate!(
+                .map(|(name, value)| {
+                    if ui.button(name).clicked() {
+                        squircle_ui_parameter = value;
+                        rhai_field_squircle_parameter.update_field_state(sampling_points);
+                        outdate!(
                             parameters_current_layer_control,
                             parameters_all_layers_control
                         );
-                        }
-                    });
+                    }
+                });
             },
         );
         current_layer_config.squircle_parameter = 1.0 / (1.0 - squircle_ui_parameter) - 1.0;
