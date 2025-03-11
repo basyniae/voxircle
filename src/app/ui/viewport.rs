@@ -59,10 +59,14 @@ pub fn ui_viewport(
         .show(ui, |plot_ui| {
             // Reset zoom (approximates default behaviour, but we get to specify the action of automatic zooming
             if *reset_zoom_once || *reset_zoom_continuous {
-                plot_ui.set_plot_bounds(PlotBounds::from_min_max(
-                    metrics.global_bounding_box[0],
-                    metrics.global_bounding_box[1],
-                ));
+                let plot_bounds = plot_ui.plot_bounds();
+                // this is the screen aspect ratio as we force squares to display as squares
+                let aspect_ratio = plot_bounds.width() / plot_bounds.height();
+
+                let new_bounds =
+                    fit_aspect_ratio_around_box(metrics.global_bounding_box, aspect_ratio);
+
+                plot_ui.set_plot_bounds(PlotBounds::from_min_max(new_bounds[0], new_bounds[1]));
                 *reset_zoom_once = false
             }
 
@@ -383,12 +387,7 @@ pub fn ui_viewport(
         });
 }
 
-pub fn draw_blocks(
-    plot_ui: &mut PlotUi,
-    view: bool,
-    option_blocks: &Option<&Blocks>,
-    color: Color32,
-) {
+fn draw_blocks(plot_ui: &mut PlotUi, view: bool, option_blocks: &Option<&Blocks>, color: Color32) {
     if view {
         if let Some(blocks) = option_blocks {
             for coord in blocks.get_all_block_coords() {
@@ -403,4 +402,22 @@ pub fn draw_blocks(
             }
         }
     }
+}
+
+/// Fit a box of the given aspect ratio tightly around the bounding box
+fn fit_aspect_ratio_around_box(bounding_box: [[f64; 2]; 2], aspect_ratio: f64) -> [[f64; 2]; 2] {
+    let center = [
+        0.5 * (bounding_box[0][0] + bounding_box[1][0]),
+        0.5 * (bounding_box[0][1] + bounding_box[1][1]),
+    ];
+    let bb_width = bounding_box[1][0] - bounding_box[0][0];
+    let bb_height = bounding_box[1][1] - bounding_box[0][1];
+
+    let width = bb_width.max(bb_height * aspect_ratio);
+    let height = bb_height.max(bb_width / aspect_ratio);
+
+    [
+        [center[0] - 0.5 * width, center[1] - 0.5 * height],
+        [center[0] + 0.5 * width, center[1] + 0.5 * height],
+    ]
 }

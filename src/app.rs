@@ -48,8 +48,8 @@ pub struct App {
     stack_layer_parameters: ZVec<LayerParameters>, // Store the sampled parameters for each layer, handily indexed by integers
     stack_blocks: ZVec<Blocks>,                    // Store the blocks for each layer
 
+    // todo: make control
     recompute_metrics: bool, // If the current layer has changed, recompute the metrics. By update order, this needs to be a global variable
-    // longterm: there is no need for recompute_metrics_control right now... though it might be good if recomputing metrics gets slow later on
 
     // Metrics
     metrics: Metrics,
@@ -81,9 +81,6 @@ pub struct App {
     // Viewport options
     view: View,
     symmetry_type: SymmetryType,
-    block_center_coord: [f64; 2],
-
-    global_bounding_box: [[f64; 2]; 2], // Is for viewport zoom. Update with metrics
 
     // Zoom options (used for double click to reset zoom)
     reset_zoom_once: bool,
@@ -93,6 +90,7 @@ pub struct App {
     // Longterm: for easily adding more shapes with potentially variable inputs, make this attached to the algorithm?
     // longterm: Option to run an external rhai file
     // longterm: sliders for "Dummy variables" that can be referenced in code (for easier visual tweaking)
+    // todo: collect this into single struct
     rhai_field_radius_a: RhaiField,
     rhai_field_radius_b: RhaiField,
     rhai_field_tilt: RhaiField,
@@ -156,9 +154,6 @@ impl App {
             // Simplest working configuration
             view: Default::default(),
             symmetry_type: SymmetryType::NoSymmetry,
-            block_center_coord: [0.0; 2],
-
-            global_bounding_box: [[0.0; 2]; 2],
 
             // Start with continuously updating zoom
             reset_zoom_once: false,
