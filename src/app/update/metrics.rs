@@ -1,7 +1,7 @@
 use crate::app;
 use crate::app::data_structures::blocks::Blocks;
-use crate::app::data_structures::slice_parameters::SliceParameters;
 use crate::app::data_structures::sparse_blocks::SparseBlocks;
+use crate::app::data_structures::squircle_params::SquircleParams;
 use crate::app::data_structures::symmetry_type::SymmetryType;
 use crate::app::data_structures::zvec::ZVec;
 use crate::app::math::exact_squircle_bounds::exact_squircle_bounds;
@@ -36,7 +36,7 @@ impl Metrics {
         layer_highest: isize,
         current_layer_blocks: &Blocks,
         stack_blocks: &ZVec<Blocks>,
-        stack_layer_config: &ZVec<SliceParameters>,
+        stack_layer_config: &ZVec<SquircleParams>,
     ) {
         // update 2d spatial metrics
         self.interior_2d = current_layer_blocks.get_interior();

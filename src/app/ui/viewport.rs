@@ -1,10 +1,10 @@
 use crate::app::colors::*;
 use crate::app::data_structures::blocks::Blocks;
-use crate::app::data_structures::slice_parameters::SliceParameters;
+use crate::app::data_structures::squircle_params::SquircleParams;
 use crate::app::data_structures::symmetry_type::SymmetryType;
 use crate::app::metrics::convex_hull::line_segments_from_conv_hull;
 use crate::app::plotting::bounds_from_square;
-use crate::app::sampling::sampled_parameters::LayerParameters;
+use crate::app::sampling::layer_parameters::LayerParameters;
 use crate::app::update::metrics::Metrics;
 use crate::app::view::View;
 use crate::app::{generation, plotting};
@@ -18,7 +18,7 @@ use std::f64::consts::PI;
 
 pub fn ui_viewport(
     ui: &mut Ui,
-    slice_parameters: &SliceParameters,
+    slice_parameters: &SquircleParams,
     sampled_parameters: &LayerParameters,
     blocks: &Option<&Blocks>,
     sampling_enabled: bool,

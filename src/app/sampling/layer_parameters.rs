@@ -1,7 +1,7 @@
 use crate::app::data_structures::blocks::Blocks;
-use crate::app::data_structures::slice_parameters::SliceParameters;
-use crate::app::generation::{generate_all_blocks, Algorithm};
-use crate::app::math::linear_algebra::Vec2;
+use crate::app::data_structures::squircle_params::SquircleParams;
+use crate::app::generation::shape::Shape;
+use crate::app::generation::squircle::{Squircle, SquircleAlgorithm};
 use crate::app::sampling::SampleCombineMethod;
 
 /// Sampled parameters belonging to a single layer
@@ -10,16 +10,9 @@ pub struct LayerParameters {
     // for bookkeeping
     pub nr_samples: usize,
 
-    pub algorithm: Algorithm,
+    pub algorithm: SquircleAlgorithm,
 
-    // in the order
-    // [0] radius_a
-    // [1] radius_b
-    // [2] tilt
-    // [3] center_offset_x
-    // [4] center_offset_y
-    // [5] squircle parameter
-    pub parameters: Vec<SliceParameters>,
+    pub parameters: Vec<SquircleParams>,
 }
 
 impl Default for LayerParameters {
@@ -76,19 +69,8 @@ impl LayerParameters {
             sample_combine_method,
             self.parameters
                 .iter()
-                .map(|slice_parameters| {
-                    generate_all_blocks(
-                        &self.algorithm,
-                        Vec2::from([
-                            slice_parameters.center_offset_x,
-                            slice_parameters.center_offset_y,
-                        ]),
-                        slice_parameters.get_sqrt_quad_form(),
-                        slice_parameters.squircle_parameter,
-                        slice_parameters.radius_a,
-                        slice_parameters.radius_b,
-                        grid_size,
-                    )
+                .map(|squircle_parameters| {
+                    Squircle::generate(&self.algorithm, squircle_parameters, grid_size)
                 })
                 .collect(),
         )

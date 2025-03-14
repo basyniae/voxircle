@@ -1,7 +1,7 @@
 use crate::app::control::Control;
-use crate::app::data_structures::slice_parameters::SliceParameters;
+use crate::app::data_structures::squircle_params::SquircleParams;
 use crate::app::data_structures::zvec::ZVec;
-use crate::app::generation::Algorithm;
+use crate::app::generation::squircle::SquircleAlgorithm;
 use crate::app::param_field::ParamField;
 use eframe::egui;
 use eframe::egui::{Align, Layout, Ui};
@@ -18,7 +18,7 @@ macro_rules! outdate {
 /// Update
 pub fn ui_options(
     ui: &mut Ui,
-    current_layer_config: &mut SliceParameters,
+    current_layer_config: &mut SquircleParams,
     single_radius: &mut bool,
     code_enabled: bool,
     param_field_radius_a: &mut ParamField,
@@ -34,7 +34,7 @@ pub fn ui_options(
     // TODO: easily change algorithm for all layers
     // Select algorithm (the storage is for checking changed(), this is necessary
     //  as https://github.com/emilk/egui/discussions/923)
-    if Algorithm::combo_box(ui, &mut current_layer_config.algorithm) {
+    if SquircleAlgorithm::combo_box(ui, &mut current_layer_config.algorithm) {
         outdate!(
             parameters_current_layer_control,
             parameters_all_layers_control
@@ -46,7 +46,7 @@ pub fn ui_options(
 
     // algorithm-specific options
     match current_layer_config.algorithm {
-        Algorithm::Percentage(percentage) => {
+        SquircleAlgorithm::Percentage(percentage) => {
             let mut perc_slider = percentage.clone();
             if ui
                 .add(
@@ -59,7 +59,7 @@ pub fn ui_options(
                 )
                 .changed()
             {
-                current_layer_config.algorithm = Algorithm::Percentage(perc_slider);
+                current_layer_config.algorithm = SquircleAlgorithm::Percentage(perc_slider);
             };
         }
         _ => {}

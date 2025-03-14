@@ -1,11 +1,12 @@
 use crate::app::data_structures::blocks::Blocks;
+use crate::app::param_field::ParamField;
 use egui::Ui;
 use std::fmt::{Debug, Display};
 
 /// Abstraction for a class of algorithms, which all use the same parameters (e.g., squircles, lines).
 /// The parameters are Param, these fully describe the shape to be approximated
 /// Instances of Alg are (pointers to) the algorithm, Alg is some enum.
-pub trait Shape<Alg: Debug + PartialEq + Default + Clone + Copy + Display, Param> {
+pub trait Shape<Alg: Debug + PartialEq + Default + Clone + Copy + Display, Params> {
     /// Description for info display
     fn describe(&self, alg: &Alg) -> String;
 
@@ -30,7 +31,10 @@ pub trait Shape<Alg: Debug + PartialEq + Default + Clone + Copy + Display, Param
     }
 
     /// Generate the blocks with the given algorithm and parameters
-    fn generate(&self, alg: &Alg, params: &Param) -> Blocks;
+    fn generate(alg: &Alg, params: &Params, grid_size: usize) -> Blocks;
 
-    // Need some parameter fields here (as the type of Rhai field depends on the parameters)
+    /// Initialize new rhai fields
+    fn get_new_param_fields(&self) -> Vec<ParamField>;
+
+    // todo: additional presets for use in options UI (like the 'odd' and 'even' buttons)
 }

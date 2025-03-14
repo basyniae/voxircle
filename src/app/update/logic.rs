@@ -1,10 +1,10 @@
 use crate::app::control::Control;
 use crate::app::data_structures::blocks::Blocks;
-use crate::app::data_structures::slice_parameters::SliceParameters;
+use crate::app::data_structures::squircle_params::SquircleParams;
 use crate::app::data_structures::zvec::ZVec;
-use crate::app::generation::Algorithm;
+use crate::app::generation::squircle::SquircleAlgorithm;
 use crate::app::param_field::ParamField;
-use crate::app::sampling::sampled_parameters::LayerParameters;
+use crate::app::sampling::layer_parameters::LayerParameters;
 use crate::app::sampling::{SampleCombineMethod, SampleDistributeMethod};
 
 pub fn sampling_points_update(
@@ -39,7 +39,7 @@ pub fn sampling_points_update(
 }
 
 pub fn parameters_update(
-    stack_layer_config: &mut ZVec<SliceParameters>,
+    stack_layer_config: &mut ZVec<SquircleParams>,
     stack_sampled_parameters: &mut ZVec<LayerParameters>, // Store the configuration for each layer, handily indexed by integers
     stack_sampling_points: &ZVec<Vec<f64>>,
     parameters_current_layer_control: &mut Control,
@@ -178,7 +178,7 @@ pub fn blocks_update(
 }
 
 fn update_control_parameters(
-    current_layer: &mut SliceParameters,
+    current_layer: &mut SquircleParams,
     layer: isize,
     param_field_radius_a: &mut ParamField,
     param_field_radius_b: &mut ParamField,
@@ -222,8 +222,8 @@ fn update_control_parameters(
 fn set_parameters(
     sampled_parameters: &mut LayerParameters,
     sampling_points: &Vec<f64>,
-    default_parameters: &SliceParameters,
-    algorithm: Algorithm,
+    default_parameters: &SquircleParams,
+    algorithm: SquircleAlgorithm,
     param_field_radius_a: &mut ParamField,
     param_field_radius_b: &mut ParamField,
     param_field_tilt: &mut ParamField,
@@ -239,7 +239,7 @@ fn set_parameters(
     // If the code evaluation failed (returned None) resort to using the default_parameters (supplied by sliders)
     sampled_parameters.parameters = sampling_points
         .iter()
-        .map(|layer| SliceParameters {
+        .map(|layer| SquircleParams {
             algorithm,
             radius_a: param_field_radius_a
                 .eval(layer)

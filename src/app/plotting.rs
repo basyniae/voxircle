@@ -1,6 +1,6 @@
 use std::f64::consts::PI;
 
-use crate::app::data_structures::slice_parameters::SliceParameters;
+use crate::app::data_structures::squircle_params::SquircleParams;
 use egui_plot::{Line, PlotBounds, PlotPoints, Polygon};
 
 /// Specifiying the bottom left coordinates of the square.
@@ -18,7 +18,7 @@ pub fn square_at_coords(coord: [f64; 2]) -> Polygon<'static> {
     Polygon::new(square_pts).name("square".to_owned())
 }
 
-pub fn superellipse_at_coords(slice_parameters: &SliceParameters) -> Line {
+pub fn superellipse_at_coords(slice_parameters: &SquircleParams) -> Line {
     let radius_a = slice_parameters.radius_a;
     let radius_b = slice_parameters.radius_b;
     let tilt = slice_parameters.tilt;

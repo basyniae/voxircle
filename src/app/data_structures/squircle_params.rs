@@ -1,10 +1,10 @@
-use crate::app::generation::Algorithm;
+use crate::app::generation::squircle::SquircleAlgorithm;
 use crate::app::math::linear_algebra::{Mat2, Vec2};
 
 /// All parameters necessary to run the generation algorithm
 #[derive(Debug, Clone)]
-pub struct SliceParameters {
-    pub algorithm: Algorithm,
+pub struct SquircleParams {
+    pub algorithm: SquircleAlgorithm,
 
     pub radius_a: f64, // These two are specified (a is the x-axis if tilt = 0)
     pub radius_b: f64,
@@ -17,10 +17,10 @@ pub struct SliceParameters {
     pub squircle_parameter: f64,
 }
 
-impl Default for SliceParameters {
+impl Default for SquircleParams {
     fn default() -> Self {
         Self {
-            algorithm: Algorithm::Centerpoint, // default: Centerpoint
+            algorithm: SquircleAlgorithm::Centerpoint, // default: Centerpoint
 
             // Have two sets of parameters, one for "control", i.e., setting the parameter by hand,
             // the other for setting the parameter by code (called sampled_-)
@@ -38,7 +38,7 @@ impl Default for SliceParameters {
     }
 }
 
-impl SliceParameters {
+impl SquircleParams {
     /// Compute the sqrt_quad_form for the configuration `self`
     pub fn get_sqrt_quad_form(&self) -> Mat2 {
         // Compute a square root of the PSD symmetric quadratic form X defining the ellipse:
@@ -51,6 +51,7 @@ impl SliceParameters {
         )
     }
 
+    // todo: is now obsolete. remove
     /// Get the squircle ui parameter (used for the slider) from the configuration `self`
     pub fn get_squircle_ui_parameter(&self) -> f64 {
         1.0 - 1.0 / (1.0 + self.squircle_parameter)

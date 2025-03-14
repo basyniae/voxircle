@@ -2,14 +2,14 @@ use crate::app::control::Control;
 use crate::app::update::metrics::Metrics;
 use crate::app::view::View;
 use data_structures::blocks::Blocks;
-use data_structures::slice_parameters::SliceParameters;
+use data_structures::squircle_params::SquircleParams;
 use data_structures::symmetry_type::SymmetryType;
 use data_structures::zvec::ZVec;
 use eframe::egui::{self};
 use eframe::egui::{Direction, Layout};
 use eframe::emath::Align;
 use param_field::ParamField;
-use sampling::sampled_parameters::LayerParameters;
+use sampling::layer_parameters::LayerParameters;
 use sampling::{SampleCombineMethod, SampleDistributeMethod};
 use std::collections::VecDeque;
 use std::default::Default;
@@ -44,7 +44,7 @@ pub struct App {
     layer_lowest: isize,
     layer_highest: isize,
 
-    stack_configuration_parameters: ZVec<SliceParameters>, // Store the configuration for each layer, handily indexed by integers
+    stack_configuration_parameters: ZVec<SquircleParams>, // Store the configuration for each layer, handily indexed by integers
     stack_layer_parameters: ZVec<LayerParameters>, // Store the sampled parameters for each layer, handily indexed by integers
     stack_blocks: ZVec<Blocks>,                    // Store the blocks for each layer
 
@@ -117,7 +117,7 @@ impl App {
 
             // Initialize for single layer (it will get overridden on the first update)
             stack_configuration_parameters: ZVec::new(
-                VecDeque::from(vec![SliceParameters::default()]),
+                VecDeque::from(vec![SquircleParams::default()]),
                 0,
             ),
             stack_layer_parameters: ZVec::new(VecDeque::from(vec![LayerParameters::default()]), 0),
