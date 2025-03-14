@@ -8,7 +8,6 @@ use egui::{Checkbox, Layout};
 pub fn ui_viewport_options(
     ui: &mut Ui,
     layers_enabled: bool,
-    single_radius: bool,
     symmetry_type: &SymmetryType,
     view: &mut View,
 ) {
@@ -49,12 +48,9 @@ pub fn ui_viewport_options(
         ui.checkbox(&mut view.complement, "Complement");
         ui.checkbox(&mut view.convex_hull, "Convex hull");
         ui.checkbox(&mut view.outer_corners, "Outer corners");
-        ui.add_enabled(
-            single_radius,
-            egui::Checkbox::new(
-                &mut view.intersect_area,
-                "Intersect area (only for circles)",
-            ),
+        ui.checkbox(
+            &mut view.intersect_area,
+            "Intersect area (only for circles)",
         );
     });
 }

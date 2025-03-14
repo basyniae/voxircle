@@ -4,6 +4,8 @@ use crate::app::data_structures::sparse_blocks::SparseBlocks;
 use crate::app::data_structures::squircle_params::SquircleParams;
 use crate::app::data_structures::symmetry_type::SymmetryType;
 use crate::app::data_structures::zvec::ZVec;
+use crate::app::generation::shape::Shape;
+use crate::app::generation::squircle::Squircle;
 use crate::app::math::exact_squircle_bounds::exact_squircle_bounds;
 use crate::app::math::square_max::square_max;
 use app::metrics::convex_hull::get_convex_hull;
@@ -73,7 +75,7 @@ impl Metrics {
         self.global_bounding_box = stack_layer_config
             .data
             .iter()
-            .map(|g_c| exact_squircle_bounds(g_c, 1.1))
+            .map(|g_c| Squircle::bounds(g_c, 1.1))
             .fold(
                 [
                     [f64::INFINITY, f64::INFINITY],

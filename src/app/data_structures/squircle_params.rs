@@ -1,11 +1,8 @@
-use crate::app::generation::squircle::SquircleAlgorithm;
 use crate::app::math::linear_algebra::{Mat2, Vec2};
 
-/// All parameters necessary to run the generation algorithm
+/// All parameters necessary to completely describe a squircle
 #[derive(Debug, Clone)]
 pub struct SquircleParams {
-    pub algorithm: SquircleAlgorithm,
-
     pub radius_a: f64, // These two are specified (a is the x-axis if tilt = 0)
     pub radius_b: f64,
 
@@ -20,8 +17,6 @@ pub struct SquircleParams {
 impl Default for SquircleParams {
     fn default() -> Self {
         Self {
-            algorithm: SquircleAlgorithm::Centerpoint, // default: Centerpoint
-
             // Have two sets of parameters, one for "control", i.e., setting the parameter by hand,
             // the other for setting the parameter by code (called sampled_-)
             radius_a: 5.0, // default: 5.0
@@ -49,11 +44,5 @@ impl SquircleParams {
             1.0 / self.radius_a * Vec2::from([c, s]),
             1.0 / self.radius_b * Vec2::from([-s, c]),
         )
-    }
-
-    // todo: is now obsolete. remove
-    /// Get the squircle ui parameter (used for the slider) from the configuration `self`
-    pub fn get_squircle_ui_parameter(&self) -> f64 {
-        1.0 - 1.0 / (1.0 + self.squircle_parameter)
     }
 }

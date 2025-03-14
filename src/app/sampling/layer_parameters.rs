@@ -4,6 +4,7 @@ use crate::app::generation::shape::Shape;
 use crate::app::generation::squircle::{Squircle, SquircleAlgorithm};
 use crate::app::sampling::SampleCombineMethod;
 
+// todo: generalize to taking <Alg, Params> instead of hardcoded squircle
 /// Sampled parameters belonging to a single layer
 #[derive(Debug, Clone)]
 pub struct LayerParameters {

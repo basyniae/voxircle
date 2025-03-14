@@ -2,7 +2,7 @@ use crate::app::control::Control;
 use crate::app::data_structures::blocks::Blocks;
 use crate::app::data_structures::squircle_params::SquircleParams;
 use crate::app::data_structures::zvec::ZVec;
-use crate::app::generation::squircle::SquircleAlgorithm;
+use crate::app::generation::squircle::{Squircle, SquircleAlgorithm};
 use crate::app::param_field::ParamField;
 use crate::app::sampling::layer_parameters::LayerParameters;
 use crate::app::sampling::{SampleCombineMethod, SampleDistributeMethod};
@@ -39,8 +39,8 @@ pub fn sampling_points_update(
 }
 
 pub fn parameters_update(
-    stack_layer_config: &mut ZVec<SquircleParams>,
-    stack_sampled_parameters: &mut ZVec<LayerParameters>, // Store the configuration for each layer, handily indexed by integers
+    stack_layer_shape: &mut ZVec<SquircleParams>,
+    stack_layer_parameters: &mut ZVec<LayerParameters>, // Store the configuration for each layer, handily indexed by integers
     stack_sampling_points: &ZVec<Vec<f64>>,
     parameters_current_layer_control: &mut Control,
     parameters_all_layers_control: &mut Control,
@@ -50,52 +50,37 @@ pub fn parameters_update(
     current_layer: isize,
     layer_lowest: isize,
     layer_highest: isize,
-    single_radius: bool,
-    param_field_radius_a: &mut ParamField,
-    param_field_radius_b: &mut ParamField,
-    param_field_tilt: &mut ParamField,
-    param_field_center_offset_x: &mut ParamField,
-    param_field_center_offset_y: &mut ParamField,
-    param_field_squircle_parameter: &mut ParamField,
+    param_fields: &mut Vec<ParamField>,
+    squircle: &Squircle,
 ) {
+    let single_radius = squircle.single_radius;
     // Generate parameters to be sampled
     if parameters_current_layer_control.update() {
         blocks_current_layer_control.set_outdated();
+        // todo: make systematic
+        let layer_alg = stack_layer_parameters.get(current_layer).unwrap().algorithm;
 
         // Update parameters for the sampling
         set_parameters(
-            stack_sampled_parameters.get_mut(current_layer).unwrap(),
+            stack_layer_parameters.get_mut(current_layer).unwrap(),
             stack_sampling_points.get(current_layer).unwrap(),
-            stack_layer_config.get(current_layer).unwrap(),
-            stack_layer_config.get(current_layer).unwrap().algorithm,
-            param_field_radius_a,
-            param_field_radius_b,
-            param_field_tilt,
-            param_field_center_offset_x,
-            param_field_center_offset_y,
-            param_field_squircle_parameter,
+            stack_layer_shape.get(current_layer).unwrap(),
+            layer_alg,
+            param_fields,
             single_radius,
         );
 
         // Update parameters for the sliders
         update_control_parameters(
-            stack_layer_config.get_mut(current_layer).unwrap(),
+            stack_layer_shape.get_mut(current_layer).unwrap(),
             current_layer,
-            param_field_radius_a,
-            param_field_radius_b,
-            param_field_tilt,
-            param_field_center_offset_x,
-            param_field_center_offset_y,
-            param_field_squircle_parameter,
+            param_fields,
             single_radius,
         );
 
-        param_field_radius_a.register_success();
-        param_field_radius_b.register_success();
-        param_field_tilt.register_success();
-        param_field_center_offset_x.register_success();
-        param_field_center_offset_y.register_success();
-        param_field_squircle_parameter.register_success();
+        for param_field in param_fields.into_iter() {
+            param_field.register_success()
+        }
     }
 
     // Generate parameters to be sampled
@@ -104,45 +89,35 @@ pub fn parameters_update(
 
         // Update parameters for the sampling
         for layer in layer_lowest..=layer_highest {
+            // todo: make systematic
+            let layer_alg = stack_layer_parameters.get(layer).unwrap().algorithm;
+
             set_parameters(
-                stack_sampled_parameters.get_mut(layer).unwrap(),
+                stack_layer_parameters.get_mut(layer).unwrap(),
                 stack_sampling_points.get(layer).unwrap(),
-                stack_layer_config.get(layer).unwrap(),
-                stack_layer_config.get(layer).unwrap().algorithm,
-                param_field_radius_a,
-                param_field_radius_b,
-                param_field_tilt,
-                param_field_center_offset_x,
-                param_field_center_offset_y,
-                param_field_squircle_parameter,
+                stack_layer_shape.get(layer).unwrap(),
+                layer_alg,
+                param_fields,
                 single_radius,
             );
 
             // Update parameters for the sliders
             update_control_parameters(
-                stack_layer_config.get_mut(layer).unwrap(),
+                stack_layer_shape.get_mut(layer).unwrap(),
                 layer,
-                param_field_radius_a,
-                param_field_radius_b,
-                param_field_tilt,
-                param_field_center_offset_x,
-                param_field_center_offset_y,
-                param_field_squircle_parameter,
+                param_fields,
                 single_radius,
             )
         }
 
-        param_field_radius_a.register_success();
-        param_field_radius_b.register_success();
-        param_field_tilt.register_success();
-        param_field_center_offset_x.register_success();
-        param_field_center_offset_y.register_success();
-        param_field_squircle_parameter.register_success();
+        for param_field in param_fields.into_iter() {
+            param_field.register_success()
+        }
     }
 }
 
 pub fn blocks_update(
-    stack_sampled_parameters: &ZVec<LayerParameters>, // Store the configuration for each layer, handily indexed by integers
+    stack_layer_parameters: &ZVec<LayerParameters>, // Store the configuration for each layer, handily indexed by integers
     stack_blocks: &mut ZVec<Blocks>,
     blocks_current_layer_control: &mut Control,
     blocks_all_layers_control: &mut Control,
@@ -156,7 +131,7 @@ pub fn blocks_update(
 
         stack_blocks.set(
             current_layer,
-            stack_sampled_parameters
+            stack_layer_parameters
                 .get(current_layer)
                 .unwrap()
                 .generate(sample_combine_method),
@@ -167,7 +142,7 @@ pub fn blocks_update(
         *recompute_metrics = true;
 
         *stack_blocks = ZVec::new(
-            stack_sampled_parameters
+            stack_layer_parameters
                 .data
                 .iter()
                 .map(|config| config.generate(sample_combine_method))
@@ -178,93 +153,80 @@ pub fn blocks_update(
 }
 
 fn update_control_parameters(
-    current_layer: &mut SquircleParams,
+    current_layer_shape: &mut SquircleParams,
     layer: isize,
-    param_field_radius_a: &mut ParamField,
-    param_field_radius_b: &mut ParamField,
-    param_field_tilt: &mut ParamField,
-    param_field_center_offset_x: &mut ParamField,
-    param_field_center_offset_y: &mut ParamField,
-    param_field_squircle_parameter: &mut ParamField,
+    param_fields: &mut Vec<ParamField>,
     single_radius: bool,
 ) {
     // evaluate the rhai field at the layer
-    if let Some(radius_a) = param_field_radius_a.eval(&(layer as f64)) {
-        current_layer.radius_a = radius_a
+    if let Some(radius_a) = param_fields[0].eval(&(layer as f64)) {
+        current_layer_shape.radius_a = radius_a
     }
 
     if single_radius {
-        if let Some(radius_a) = param_field_radius_a.eval(&(layer as f64)) {
-            current_layer.radius_b = radius_a
+        if let Some(radius_a) = param_fields[0].eval(&(layer as f64)) {
+            current_layer_shape.radius_b = radius_a
         }
     } else {
-        if let Some(radius_b) = param_field_radius_b.eval(&(layer as f64)) {
-            current_layer.radius_b = radius_b
+        if let Some(radius_b) = param_fields[1].eval(&(layer as f64)) {
+            current_layer_shape.radius_b = radius_b
         }
     }
 
-    if let Some(tilt) = param_field_tilt.eval(&(layer as f64)) {
-        current_layer.tilt = tilt
+    if let Some(tilt) = param_fields[2].eval(&(layer as f64)) {
+        current_layer_shape.tilt = tilt
     }
-    if let Some(center_offset_x) = param_field_center_offset_x.eval(&(layer as f64)) {
-        current_layer.center_offset_x = center_offset_x
+    if let Some(center_offset_x) = param_fields[3].eval(&(layer as f64)) {
+        current_layer_shape.center_offset_x = center_offset_x
     }
-    if let Some(center_offset_y) = param_field_center_offset_y.eval(&(layer as f64)) {
-        current_layer.center_offset_y = center_offset_y
+    if let Some(center_offset_y) = param_fields[4].eval(&(layer as f64)) {
+        current_layer_shape.center_offset_y = center_offset_y
     }
 
-    if let Some(squircle_parameter) = param_field_squircle_parameter.eval(&(layer as f64)) {
-        current_layer.squircle_parameter = squircle_parameter
+    if let Some(squircle_parameter) = param_fields[5].eval(&(layer as f64)) {
+        current_layer_shape.squircle_parameter = squircle_parameter
     }
 }
 
 /// Update (old) input LayerParameters object with new values evaluated from the code
 fn set_parameters(
-    sampled_parameters: &mut LayerParameters,
+    layer_parameters: &mut LayerParameters,
     sampling_points: &Vec<f64>,
-    default_parameters: &SquircleParams,
+    default_shape: &SquircleParams,
     algorithm: SquircleAlgorithm,
-    param_field_radius_a: &mut ParamField,
-    param_field_radius_b: &mut ParamField,
-    param_field_tilt: &mut ParamField,
-    param_field_center_offset_x: &mut ParamField,
-    param_field_center_offset_y: &mut ParamField,
-    param_field_squircle_parameter: &mut ParamField,
+    param_fields: &mut Vec<ParamField>,
     single_radius: bool,
 ) {
     // Set the algorithm & nr. of samples
-    sampled_parameters.algorithm = algorithm;
-    sampled_parameters.nr_samples = sampling_points.len();
+    layer_parameters.algorithm = algorithm;
+    layer_parameters.nr_samples = sampling_points.len();
 
     // If the code evaluation failed (returned None) resort to using the default_parameters (supplied by sliders)
-    sampled_parameters.parameters = sampling_points
+    layer_parameters.parameters = sampling_points
         .iter()
         .map(|layer| SquircleParams {
-            algorithm,
-            radius_a: param_field_radius_a
+            radius_a: param_fields[0]
                 .eval(layer)
-                .unwrap_or(default_parameters.radius_a),
+                .unwrap_or(default_shape.radius_a),
             radius_b: if single_radius {
-                param_field_radius_a
+                param_fields[0]
                     .eval(layer)
-                    .unwrap_or(default_parameters.radius_a)
+                    .unwrap_or(default_shape.radius_a)
             } else {
-                param_field_radius_b
+                param_fields[1]
                     .eval(layer)
-                    .unwrap_or(default_parameters.radius_b)
+                    .unwrap_or(default_shape.radius_b)
             },
-            tilt: param_field_tilt
+            tilt: param_fields[2].eval(layer).unwrap_or(default_shape.tilt),
+            center_offset_x: param_fields[3]
                 .eval(layer)
-                .unwrap_or(default_parameters.tilt),
-            center_offset_x: param_field_center_offset_x
+                .unwrap_or(default_shape.center_offset_x),
+            center_offset_y: param_fields[4]
                 .eval(layer)
-                .unwrap_or(default_parameters.center_offset_x),
-            center_offset_y: param_field_center_offset_y
+                .unwrap_or(default_shape.center_offset_y),
+            squircle_parameter: param_fields[5]
                 .eval(layer)
-                .unwrap_or(default_parameters.center_offset_y),
-            squircle_parameter: param_field_squircle_parameter
-                .eval(layer)
-                .unwrap_or(default_parameters.squircle_parameter),
+                .unwrap_or(default_shape.squircle_parameter),
         })
         .collect()
 }

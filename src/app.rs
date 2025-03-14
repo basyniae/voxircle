@@ -1,4 +1,6 @@
 use crate::app::control::Control;
+use crate::app::generation::shape::Shape;
+use crate::app::generation::squircle::Squircle;
 use crate::app::update::metrics::Metrics;
 use crate::app::view::View;
 use data_structures::blocks::Blocks;
@@ -13,7 +15,6 @@ use sampling::layer_parameters::LayerParameters;
 use sampling::{SampleCombineMethod, SampleDistributeMethod};
 use std::collections::VecDeque;
 use std::default::Default;
-use std::f64::consts::{PI, TAU};
 use ui::generation::ui_generation;
 use ui::layer_navigation::ui_layer_navigation;
 use ui::options::ui_options;
@@ -44,9 +45,9 @@ pub struct App {
     layer_lowest: isize,
     layer_highest: isize,
 
-    stack_configuration_parameters: ZVec<SquircleParams>, // Store the configuration for each layer, handily indexed by integers
-    stack_layer_parameters: ZVec<LayerParameters>, // Store the sampled parameters for each layer, handily indexed by integers
-    stack_blocks: ZVec<Blocks>,                    // Store the blocks for each layer
+    stack_shape: ZVec<SquircleParams>, // Store the squircle shape (given by the ui parameters) for each layer
+    stack_layer_parameters: ZVec<LayerParameters>, // Store the sampled parameters for each layer
+    stack_blocks: ZVec<Blocks>,        // Store the blocks for each layer
 
     // todo: make control
     recompute_metrics: bool, // If the current layer has changed, recompute the metrics. By update order, this needs to be a global variable
@@ -59,7 +60,6 @@ pub struct App {
 
     blocks_all_layers_control: Control,
 
-    single_radius: bool,
     layers_enabled: bool,
     lock_stack_size: bool,
 
@@ -90,13 +90,8 @@ pub struct App {
     // Longterm: for easily adding more shapes with potentially variable inputs, make this attached to the algorithm?
     // longterm: Option to run an external rhai file
     // longterm: sliders for "Dummy variables" that can be referenced in code (for easier visual tweaking)
-    // todo: collect this into single struct
-    param_field_radius_a: ParamField,
-    param_field_radius_b: ParamField,
-    param_field_tilt: ParamField,
-    param_field_center_offset_x: ParamField,
-    param_field_center_offset_y: ParamField,
-    param_field_squircle_parameter: ParamField,
+    param_fields: Vec<ParamField>,
+    squircle: Squircle,
 }
 
 // longterm: save program state (with SERDE) as a JSON (for when working for multiple sessions on a single project)
@@ -116,10 +111,7 @@ impl App {
             layer_highest: 0,
 
             // Initialize for single layer (it will get overridden on the first update)
-            stack_configuration_parameters: ZVec::new(
-                VecDeque::from(vec![SquircleParams::default()]),
-                0,
-            ),
+            stack_shape: ZVec::new(VecDeque::from(vec![SquircleParams::default()]), 0),
             stack_layer_parameters: ZVec::new(VecDeque::from(vec![LayerParameters::default()]), 0),
             stack_blocks: ZVec::new(VecDeque::from(vec![Blocks::default()]), 0),
 
@@ -132,7 +124,6 @@ impl App {
             // Initialize on simplest working mode of operation
             blocks_current_layer_control: Control::AUTO_UPDATE,
             blocks_all_layers_control: Control::FIRST_FRAME_UPDATE,
-            single_radius: true,
             layers_enabled: false,
             lock_stack_size: false,
 
@@ -160,69 +151,8 @@ impl App {
             reset_zoom_continuous: true,
 
             // Standard initializations, finite or nonnegative as necessary and sensible for the data type
-            param_field_radius_a: ParamField::new(
-                true,
-                true,
-                "Radius A".to_string(),
-                [0.0, 30.0],
-                0.03,
-                vec![],
-            ),
-            param_field_radius_b: ParamField::new(
-                true,
-                true,
-                "Radius B".to_string(),
-                [0.0, 30.0],
-                0.03,
-                vec![],
-            ),
-            param_field_tilt: ParamField::new(
-                true,
-                false,
-                "Tilt".to_string(),
-                [-TAU, TAU],
-                0.01,
-                vec![
-                    ("0°".to_string(), 0.0),
-                    ("30°".to_string(), PI / 6.0),
-                    ("45°".to_string(), PI / 4.0),
-                    ("1:2".to_string(), 0.5_f64.atan()),
-                    ("1:3".to_string(), 0.33333333333333_f64.atan()),
-                    ("2:3".to_string(), 0.66666666666666_f64.atan()),
-                    ("1:4".to_string(), 0.25_f64.atan()),
-                ],
-            ),
-            param_field_center_offset_x: ParamField::new(
-                true,
-                false,
-                "x offset".to_string(),
-                [-1.0, 1.0],
-                0.03,
-                vec![],
-            ),
-            param_field_center_offset_y: ParamField::new(
-                true,
-                false,
-                "y offset".to_string(),
-                [-1.0, 1.0],
-                0.03,
-                vec![],
-            ),
-            param_field_squircle_parameter: ParamField::new_param_func(
-                false,
-                true,
-                "Squircleness".to_string(),
-                [0.0, 1.0],
-                0.01,
-                vec![
-                    ("Circle".to_string(), 2.0),              // Squircle parameter 2
-                    ("Astroid".to_string(), 0.6666666666666), // "" "" 2/3
-                    ("Diamond".to_string(), 1.0),             // "" "" 1
-                    ("Square".to_string(), f64::INFINITY),    // "" "" infinity
-                ],
-                |x| 1.0 / (1.0 - x) - 1.0,
-                |p| 1.0 - 1.0 / (p + 1.0),
-            ),
+            param_fields: Squircle::get_new_param_fields(),
+            squircle: Default::default(),
         }
     }
 }
@@ -244,20 +174,18 @@ impl eframe::App for App {
                 .body(|ui| {
                     ui_options(
                         ui,
-                        self.stack_configuration_parameters
+                        self.stack_shape.get_mut(self.current_layer).unwrap(),
+                        &mut self
+                            .stack_layer_parameters
                             .get_mut(self.current_layer)
-                            .unwrap(),
-                        &mut self.single_radius,
+                            .unwrap()
+                            .algorithm,
                         self.code_enabled,
-                        &mut self.param_field_radius_a,
-                        &mut self.param_field_radius_b,
-                        &mut self.param_field_tilt,
-                        &mut self.param_field_center_offset_x,
-                        &mut self.param_field_center_offset_y,
-                        &mut self.param_field_squircle_parameter,
+                        &mut self.param_fields,
                         &self.stack_sampling_points,
                         &mut self.parameters_current_layer_control,
                         &mut self.parameters_all_layers_control,
+                        &mut self.squircle,
                     );
                 });
 
@@ -350,7 +278,6 @@ impl eframe::App for App {
                     ui_viewport_options(
                         ui,
                         self.layers_enabled,
-                        self.single_radius,
                         &self.symmetry_type,
                         &mut self.view,
                     )
@@ -385,7 +312,7 @@ impl eframe::App for App {
         );
 
         parameters_update(
-            &mut self.stack_configuration_parameters,
+            &mut self.stack_shape,
             &mut self.stack_layer_parameters,
             &self.stack_sampling_points,
             &mut self.parameters_current_layer_control,
@@ -395,13 +322,8 @@ impl eframe::App for App {
             self.current_layer,
             self.layer_lowest,
             self.layer_highest,
-            self.single_radius,
-            &mut self.param_field_radius_a,
-            &mut self.param_field_radius_b,
-            &mut self.param_field_tilt,
-            &mut self.param_field_center_offset_x,
-            &mut self.param_field_center_offset_y,
-            &mut self.param_field_squircle_parameter,
+            &mut self.param_fields,
+            &self.squircle,
         );
 
         blocks_update(
@@ -423,7 +345,7 @@ impl eframe::App for App {
                 self.layer_highest,
                 self.stack_blocks.get(self.current_layer).unwrap(),
                 &self.stack_blocks,
-                &self.stack_configuration_parameters,
+                &self.stack_shape,
             )
         }
 
@@ -471,14 +393,10 @@ impl eframe::App for App {
 
                     // Resize all the stack objects
                     {
-                        self.stack_configuration_parameters.resize(
+                        self.stack_shape.resize(
                             self.layer_lowest,
                             self.layer_highest,
-                            &self
-                                .stack_configuration_parameters
-                                .get(old_layer)
-                                .unwrap()
-                                .clone(),
+                            &self.stack_shape.get(old_layer).unwrap().clone(),
                         );
 
                         self.stack_layer_parameters.resize(
@@ -510,9 +428,7 @@ impl eframe::App for App {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui_viewport(
                 ui,
-                self.stack_configuration_parameters
-                    .get(self.current_layer)
-                    .unwrap(),
+                self.stack_shape.get(self.current_layer).unwrap(),
                 self.stack_layer_parameters.get(self.current_layer).unwrap(),
                 &self.stack_blocks.get(self.current_layer),
                 self.sampling_enabled,
