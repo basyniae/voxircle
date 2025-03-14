@@ -40,9 +40,7 @@ pub fn ui_options(
     // TODO: easily change algorithm for all layers
     // Select algorithm (the storage is for checking changed(), this is necessary
     //  as https://github.com/emilk/egui/discussions/923)
-    let old_alg = current_layer_config.algorithm.clone();
-    Algorithm::combo_box(ui, &mut current_layer_config.algorithm);
-    if old_alg != current_layer_config.algorithm {
+    if Algorithm::combo_box(ui, &mut current_layer_config.algorithm) {
         outdate!(
             parameters_current_layer_control,
             parameters_all_layers_control

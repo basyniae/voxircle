@@ -16,6 +16,7 @@ mod conservative;
 mod contained;
 mod empty;
 pub mod percentage; // want it public because we use the circle intersection area as a widget
+mod shape;
 mod square;
 
 #[derive(Debug, PartialEq, Default, Clone, Copy)]
@@ -29,6 +30,7 @@ pub enum Algorithm {
 }
 
 impl Algorithm {
+    /// Description for info display
     pub fn describe(&self) -> String {
         match self {
             Centerpoint => {"Include a particular block iff its centerpoint is in the ellipse".to_string()}
@@ -42,6 +44,7 @@ impl Algorithm {
         }
     }
 
+    /// Name of algorithms (for combobox display)
     fn name(&self) -> String {
         match self {
             Centerpoint => "Centerpoint".to_string(),
@@ -52,11 +55,15 @@ impl Algorithm {
         }
     }
 
+    /// List of all algorithms that we want to make selectable
     fn all_algs() -> Vec<Self> {
         vec![Centerpoint, Conservative, Contained, Percentage(0.5)]
     }
 
-    pub fn combo_box(ui: &mut Ui, alg: &mut Self) {
+    /// Generate a combo box to pick from all the algorithms. Return true if
+    /// the value has changed (this frame).
+    pub fn combo_box(ui: &mut Ui, alg: &mut Self) -> bool {
+        let old_alg = alg.clone();
         egui::ComboBox::from_label("Algorithm")
             .selected_text(format!("{:}", alg))
             .show_ui(ui, |ui| {
@@ -64,6 +71,7 @@ impl Algorithm {
                     ui.selectable_value(alg, i, i.name());
                 }
             });
+        old_alg != *alg
     }
 }
 
