@@ -1,6 +1,3 @@
-use std::collections::VecDeque;
-use std::default::Default;
-
 use crate::app::control::Control;
 use crate::app::update::metrics::Metrics;
 use crate::app::view::View;
@@ -11,9 +8,12 @@ use data_structures::zvec::ZVec;
 use eframe::egui::{self};
 use eframe::egui::{Direction, Layout};
 use eframe::emath::Align;
-use rhai_field::RhaiField;
+use param_field::ParamField;
 use sampling::sampled_parameters::LayerParameters;
 use sampling::{SampleCombineMethod, SampleDistributeMethod};
+use std::collections::VecDeque;
+use std::default::Default;
+use std::f64::consts::{PI, TAU};
 use ui::generation::ui_generation;
 use ui::layer_navigation::ui_layer_navigation;
 use ui::options::ui_options;
@@ -29,8 +29,8 @@ mod formatting;
 mod generation;
 mod math;
 mod metrics;
+mod param_field;
 mod plotting;
-mod rhai_field;
 mod sampling;
 mod ui;
 mod update;
@@ -86,17 +86,17 @@ pub struct App {
     reset_zoom_once: bool,
     reset_zoom_continuous: bool,
 
-    // Rhai fields
+    // Parameter fields
     // Longterm: for easily adding more shapes with potentially variable inputs, make this attached to the algorithm?
     // longterm: Option to run an external rhai file
     // longterm: sliders for "Dummy variables" that can be referenced in code (for easier visual tweaking)
     // todo: collect this into single struct
-    rhai_field_radius_a: RhaiField,
-    rhai_field_radius_b: RhaiField,
-    rhai_field_tilt: RhaiField,
-    rhai_field_center_offset_x: RhaiField,
-    rhai_field_center_offset_y: RhaiField,
-    rhai_field_squircle_parameter: RhaiField,
+    param_field_radius_a: ParamField,
+    param_field_radius_b: ParamField,
+    param_field_tilt: ParamField,
+    param_field_center_offset_x: ParamField,
+    param_field_center_offset_y: ParamField,
+    param_field_squircle_parameter: ParamField,
 }
 
 // longterm: save program state (with SERDE) as a JSON (for when working for multiple sessions on a single project)
@@ -160,12 +160,69 @@ impl App {
             reset_zoom_continuous: true,
 
             // Standard initializations, finite or nonnegative as necessary and sensible for the data type
-            rhai_field_radius_a: RhaiField::new(true, true),
-            rhai_field_radius_b: RhaiField::new(true, true),
-            rhai_field_tilt: RhaiField::new(true, false),
-            rhai_field_center_offset_x: RhaiField::new(true, false),
-            rhai_field_center_offset_y: RhaiField::new(true, false),
-            rhai_field_squircle_parameter: RhaiField::new(false, true),
+            param_field_radius_a: ParamField::new(
+                true,
+                true,
+                "Radius A".to_string(),
+                [0.0, 30.0],
+                0.03,
+                vec![],
+            ),
+            param_field_radius_b: ParamField::new(
+                true,
+                true,
+                "Radius B".to_string(),
+                [0.0, 30.0],
+                0.03,
+                vec![],
+            ),
+            param_field_tilt: ParamField::new(
+                true,
+                false,
+                "Tilt".to_string(),
+                [-TAU, TAU],
+                0.01,
+                vec![
+                    ("0°".to_string(), 0.0),
+                    ("30°".to_string(), PI / 6.0),
+                    ("45°".to_string(), PI / 4.0),
+                    ("1:2".to_string(), 0.5_f64.atan()),
+                    ("1:3".to_string(), 0.33333333333333_f64.atan()),
+                    ("2:3".to_string(), 0.66666666666666_f64.atan()),
+                    ("1:4".to_string(), 0.25_f64.atan()),
+                ],
+            ),
+            param_field_center_offset_x: ParamField::new(
+                true,
+                false,
+                "x offset".to_string(),
+                [-1.0, 1.0],
+                0.03,
+                vec![],
+            ),
+            param_field_center_offset_y: ParamField::new(
+                true,
+                false,
+                "y offset".to_string(),
+                [-1.0, 1.0],
+                0.03,
+                vec![],
+            ),
+            param_field_squircle_parameter: ParamField::new_param_func(
+                false,
+                true,
+                "Squircleness".to_string(),
+                [0.0, 1.0],
+                0.01,
+                vec![
+                    ("Circle".to_string(), 2.0),              // Squircle parameter 2
+                    ("Astroid".to_string(), 0.6666666666666), // "" "" 2/3
+                    ("Diamond".to_string(), 1.0),             // "" "" 1
+                    ("Square".to_string(), f64::INFINITY),    // "" "" infinity
+                ],
+                |x| 1.0 / (1.0 - x) - 1.0,
+                |p| 1.0 - 1.0 / (p + 1.0),
+            ),
         }
     }
 }
@@ -192,12 +249,12 @@ impl eframe::App for App {
                             .unwrap(),
                         &mut self.single_radius,
                         self.code_enabled,
-                        &mut self.rhai_field_radius_a,
-                        &mut self.rhai_field_radius_b,
-                        &mut self.rhai_field_tilt,
-                        &mut self.rhai_field_center_offset_x,
-                        &mut self.rhai_field_center_offset_y,
-                        &mut self.rhai_field_squircle_parameter,
+                        &mut self.param_field_radius_a,
+                        &mut self.param_field_radius_b,
+                        &mut self.param_field_tilt,
+                        &mut self.param_field_center_offset_x,
+                        &mut self.param_field_center_offset_y,
+                        &mut self.param_field_squircle_parameter,
                         &self.stack_sampling_points,
                         &mut self.parameters_current_layer_control,
                         &mut self.parameters_all_layers_control,
@@ -339,12 +396,12 @@ impl eframe::App for App {
             self.layer_lowest,
             self.layer_highest,
             self.single_radius,
-            &mut self.rhai_field_radius_a,
-            &mut self.rhai_field_radius_b,
-            &mut self.rhai_field_tilt,
-            &mut self.rhai_field_center_offset_x,
-            &mut self.rhai_field_center_offset_y,
-            &mut self.rhai_field_squircle_parameter,
+            &mut self.param_field_radius_a,
+            &mut self.param_field_radius_b,
+            &mut self.param_field_tilt,
+            &mut self.param_field_center_offset_x,
+            &mut self.param_field_center_offset_y,
+            &mut self.param_field_squircle_parameter,
         );
 
         blocks_update(

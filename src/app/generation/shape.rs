@@ -32,5 +32,5 @@ pub trait Shape<Alg: Debug + PartialEq + Default + Clone + Copy + Display, Param
     /// Generate the blocks with the given algorithm and parameters
     fn generate(&self, alg: &Alg, params: &Param) -> Blocks;
 
-    // Need some rhai field here (as the type of Rhai field depends on the parameters)
+    // Need some parameter fields here (as the type of Rhai field depends on the parameters)
 }
