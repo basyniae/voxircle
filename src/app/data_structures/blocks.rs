@@ -1,5 +1,5 @@
-use crate::app::data_structures::symmetry_type::SymmetryType;
 use crate::app::math::linear_algebra::Vec2;
+use crate::app::metrics::symmetry_type::SymmetryType;
 use crate::app::sampling::SampleCombineMethod;
 use itertools::Itertools;
 

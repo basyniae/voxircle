@@ -35,7 +35,7 @@ impl From<&Blocks> for SparseBlocks {
 impl Display for SparseBlocks {
     /// The length of the segment if it is a segment, otherwise a random (from hash) letter
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut dim = self.get_rotated_dimensions();
+        let dim = self.get_rotated_dimensions();
         match dim {
             [length, 1] => write!(f, "{length}"),
             dim => {
@@ -168,7 +168,7 @@ impl SparseBlocks {
     /// Get color from the rotated dimension of a shape (by a hash function)
     pub fn hash_color(&self) -> Color32 {
         let mut hasher = DefaultHasher::new();
-        let mut dim = self.get_rotated_dimensions();
+        let dim = self.get_rotated_dimensions();
         dim.hash(&mut hasher);
         let int = hasher.finish();
         // get first 3 sets of 8 bits as rgb

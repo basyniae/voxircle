@@ -1,4 +1,4 @@
-use crate::app::data_structures::squircle_params::SquircleParams;
+use crate::app::generation::squircle::squircle_params::SquircleParams;
 use crate::app::math::circle_geometry::get_squircle_tangent_point;
 use crate::app::math::linear_algebra::Vec2;
 

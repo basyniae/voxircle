@@ -1,8 +1,8 @@
 use crate::app::data_structures::blocks::Blocks;
-use crate::app::generation::square::Square;
 use crate::app::math::circle_geometry::get_squircle_tangent_point;
 use crate::app::math::linear_algebra::{Mat2, Vec2};
 use crate::app::math::linear_geometry::intersect_complemented_ray_segment;
+use crate::app::math::square::Square;
 
 /// Return blocks object with block contained in the squircle defined by the parameters
 pub fn generate_alg_contained(

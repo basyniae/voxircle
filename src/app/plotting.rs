@@ -1,6 +1,6 @@
 use std::f64::consts::PI;
 
-use crate::app::data_structures::squircle_params::SquircleParams;
+use crate::app::generation::squircle::squircle_params::SquircleParams;
 use egui_plot::{Line, PlotBounds, PlotPoints, Polygon};
 
 /// Specifiying the bottom left coordinates of the square.

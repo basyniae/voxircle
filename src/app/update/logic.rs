@@ -1,7 +1,7 @@
 use crate::app::control::Control;
 use crate::app::data_structures::blocks::Blocks;
-use crate::app::data_structures::squircle_params::SquircleParams;
 use crate::app::data_structures::zvec::ZVec;
+use crate::app::generation::squircle::squircle_params::SquircleParams;
 use crate::app::generation::squircle::{Squircle, SquircleAlgorithm};
 use crate::app::param_field::ParamField;
 use crate::app::sampling::layer_parameters::LayerParameters;

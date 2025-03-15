@@ -1,23 +1,30 @@
 use crate::app::control::Control;
 use crate::app::data_structures::blocks::Blocks;
-use crate::app::data_structures::squircle_params::SquircleParams;
 use crate::app::data_structures::zvec::ZVec;
-use crate::app::generation::centerpoint::generate_alg_centerpoint;
-use crate::app::generation::conservative::generate_alg_conservative;
-use crate::app::generation::contained::generate_alg_contained;
-use crate::app::generation::empty::generate_alg_empty;
-use crate::app::generation::percentage::generate_alg_percentage;
 use crate::app::generation::shape::Shape;
-use crate::app::generation::squircle::SquircleAlgorithm::{
-    Centerpoint, Conservative, Contained, Empty, Percentage,
-};
-use crate::app::math::exact_squircle_bounds::exact_squircle_bounds;
 use crate::app::math::linear_algebra::Vec2;
 use crate::app::param_field::ParamField;
+use centerpoint::generate_alg_centerpoint;
+use conservative::generate_alg_conservative;
+use contained::generate_alg_contained;
 use eframe::emath::Align;
 use egui::{Layout, Ui};
+use empty::generate_alg_empty;
+use exact_squircle_bounds::exact_squircle_bounds;
+use percentage::generate_alg_percentage;
+use squircle_params::SquircleParams;
 use std::f64::consts::{PI, TAU};
 use std::fmt::{Display, Formatter};
+use SquircleAlgorithm::{Centerpoint, Conservative, Contained, Empty, Percentage};
+
+mod centerpoint;
+mod conservative;
+mod contained;
+mod empty;
+// want it public because we use the circle intersection area as a widget
+pub mod exact_squircle_bounds;
+pub mod percentage;
+pub mod squircle_params;
 
 /// Squircle shape struct. It's values are globally constant options for how a squircle can be made
 ///  from how the parameters are displayed
@@ -308,68 +315,22 @@ pub enum SquircleAlgorithm {
     Empty,
 }
 
-impl SquircleAlgorithm {
-    /// Description for info display
-    pub fn describe(&self) -> String {
-        match self {
-            Centerpoint => {"Include a particular block iff its centerpoint is in the ellipse".to_string()}
-            Conservative => {"Include a particular block in the voxelization iff it has nonempty intersection with the ellipse".to_string()}
-            Contained => {"Include a particular block iff it is fully contained in the ellipse".to_string()}
-            Percentage(percentage) => {format!(
-                "Include a particular block in the voxelization iff more than {:.0}% of it is contained in the circle. Ellipses and squircles not implemented.",
-                100.0 * percentage
-            )}
-            Empty => {"Include no blocks in the voxelization".to_string()}
-        }
-    }
-
-    /// Name of algorithms (for combobox display)
-    fn name(&self) -> String {
-        match self {
-            Centerpoint => "Centerpoint".to_string(),
-            Conservative => "Conservative".to_string(),
-            Contained => "Contained".to_string(),
-            Percentage(_) => "Percentage".to_string(),
-            Empty => "Empty".to_string(),
-        }
-    }
-
-    /// List of all algorithms that we want to make selectable
-    fn all_algs() -> Vec<Self> {
-        vec![Centerpoint, Conservative, Contained, Percentage(0.5)]
-    }
-
-    /// Generate a combo box to pick from all the algorithms. Return true if
-    /// the value has changed (this frame).
-    pub fn combo_box(ui: &mut Ui, alg: &mut Self) -> bool {
-        let old_alg = alg.clone();
-        egui::ComboBox::from_label("Algorithm")
-            .selected_text(format!("{:}", alg))
-            .show_ui(ui, |ui| {
-                for i in Self::all_algs() {
-                    ui.selectable_value(alg, i, i.name());
-                }
-            });
-        old_alg != *alg
-    }
-}
-
 impl Display for SquircleAlgorithm {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            SquircleAlgorithm::Centerpoint => {
+            Centerpoint => {
                 write!(f, "Centerpoint")
             }
-            SquircleAlgorithm::Conservative => {
+            Conservative => {
                 write!(f, "Conservative")
             }
-            SquircleAlgorithm::Contained => {
+            Contained => {
                 write!(f, "Contained")
             }
-            SquircleAlgorithm::Percentage(percentage) => {
+            Percentage(percentage) => {
                 write!(f, "Percentage, {:.0}%", percentage * 100.0)
             }
-            SquircleAlgorithm::Empty => {
+            Empty => {
                 write!(f, "Empty")
             }
         }

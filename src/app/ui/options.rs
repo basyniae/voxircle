@@ -1,7 +1,7 @@
 use crate::app::control::Control;
-use crate::app::data_structures::squircle_params::SquircleParams;
 use crate::app::data_structures::zvec::ZVec;
 use crate::app::generation::shape::Shape;
+use crate::app::generation::squircle::squircle_params::SquircleParams;
 use crate::app::generation::squircle::{Squircle, SquircleAlgorithm};
 use crate::app::param_field::ParamField;
 use eframe::egui;
@@ -31,7 +31,7 @@ pub fn ui_options(
     // TODO: easily change algorithm for all layers
     // Select algorithm (the storage is for checking changed(), this is necessary
     //  as https://github.com/emilk/egui/discussions/923)
-    if SquircleAlgorithm::combo_box(ui, current_layer_alg) {
+    if Squircle::combo_box(ui, current_layer_alg) {
         outdate!(
             parameters_current_layer_control,
             parameters_all_layers_control
@@ -39,7 +39,7 @@ pub fn ui_options(
     }
 
     // algorithm description
-    ui.label(current_layer_alg.describe());
+    ui.label(Squircle::describe(current_layer_alg));
 
     // algorithm-specific options
     match current_layer_alg {

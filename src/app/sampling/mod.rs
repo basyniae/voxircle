@@ -70,7 +70,7 @@ pub fn determine_sampling_points(
             }
 
             SampleDistributeMethod::ExcludeEndpoints => {
-                let sample_size = 1.0 / (nr_samples_per_layer) as f64;
+                let sample_size = 1.0 / nr_samples_per_layer as f64;
 
                 ZVec::new(
                     (layer_lowest..=layer_highest)

@@ -1,13 +1,14 @@
 use crate::app::colors::*;
 use crate::app::data_structures::blocks::Blocks;
-use crate::app::data_structures::squircle_params::SquircleParams;
-use crate::app::data_structures::symmetry_type::SymmetryType;
+use crate::app::generation::squircle;
+use crate::app::generation::squircle::squircle_params::SquircleParams;
 use crate::app::metrics::convex_hull::line_segments_from_conv_hull;
+use crate::app::metrics::symmetry_type::SymmetryType;
+use crate::app::plotting;
 use crate::app::plotting::bounds_from_square;
 use crate::app::sampling::layer_parameters::LayerParameters;
 use crate::app::update::metrics::Metrics;
 use crate::app::view::View;
-use crate::app::{generation, plotting};
 use eframe::egui::{Stroke, Ui, Vec2b};
 use egui::Color32;
 use egui_plot::{
@@ -219,7 +220,7 @@ pub fn ui_viewport(
                     }
 
                     plot_ui.text(Text::new(PlotPoint::from(cell_center), {
-                        let value = generation::percentage::cell_disk_intersection_area(
+                        let value = squircle::percentage::cell_disk_intersection_area(
                             slice_parameters.radius_a.max(slice_parameters.radius_b),
                             x_center,
                             y_center,

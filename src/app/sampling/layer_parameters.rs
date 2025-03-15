@@ -1,6 +1,6 @@
 use crate::app::data_structures::blocks::Blocks;
-use crate::app::data_structures::squircle_params::SquircleParams;
 use crate::app::generation::shape::Shape;
+use crate::app::generation::squircle::squircle_params::SquircleParams;
 use crate::app::generation::squircle::{Squircle, SquircleAlgorithm};
 use crate::app::sampling::SampleCombineMethod;
 

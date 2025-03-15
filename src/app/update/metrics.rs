@@ -1,13 +1,13 @@
 use crate::app;
 use crate::app::data_structures::blocks::Blocks;
-use crate::app::data_structures::sparse_blocks::SparseBlocks;
-use crate::app::data_structures::squircle_params::SquircleParams;
-use crate::app::data_structures::symmetry_type::SymmetryType;
 use crate::app::data_structures::zvec::ZVec;
 use crate::app::generation::shape::Shape;
+use crate::app::generation::squircle::exact_squircle_bounds::exact_squircle_bounds;
+use crate::app::generation::squircle::squircle_params::SquircleParams;
 use crate::app::generation::squircle::Squircle;
-use crate::app::math::exact_squircle_bounds::exact_squircle_bounds;
 use crate::app::math::square_max::square_max;
+use crate::app::metrics::sparse_blocks::SparseBlocks;
+use crate::app::metrics::symmetry_type::SymmetryType;
 use app::metrics::convex_hull::get_convex_hull;
 
 #[derive(Default)]
@@ -45,7 +45,7 @@ impl Metrics {
         self.boundary_2d = current_layer_blocks.get_boundary();
         self.complement_2d = current_layer_blocks.get_complement();
         self.boundary_conn_comp =
-            (SparseBlocks::from(self.boundary_2d.clone())).connected_components();
+            SparseBlocks::from(self.boundary_2d.clone()).connected_components();
 
         // update 3d spatial metrics
         self.boundary_3d = app::metrics::boundary_3d::boundary_3d(
