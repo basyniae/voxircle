@@ -1,20 +1,25 @@
+use crate::app::colors::{
+    COLOR_CENTER_DOT, COLOR_TILTED_X_AXIS, COLOR_TILTED_Y_AXIS, COLOR_X_AXIS, COLOR_Y_AXIS,
+};
 use crate::app::control::Control;
 use crate::app::data_structures::blocks::Blocks;
 use crate::app::data_structures::zvec::ZVec;
 use crate::app::generation::shape::Shape;
 use crate::app::math::linear_algebra::Vec2;
 use crate::app::param_field::ParamField;
+use crate::app::plotting;
 use centerpoint::generate_alg_centerpoint;
 use conservative::generate_alg_conservative;
 use contained::generate_alg_contained;
 use eframe::emath::Align;
-use egui::{Layout, Ui};
+use egui::{Color32, Layout, Ui};
+use egui_plot::{HLine, PlotUi, Points, VLine};
 use empty::generate_alg_empty;
 use exact_squircle_bounds::exact_squircle_bounds;
 use percentage::generate_alg_percentage;
 use squircle_params::SquircleParams;
 use std::f64::consts::{PI, TAU};
-use std::fmt::{Display, Formatter};
+use std::fmt::Display;
 use SquircleAlgorithm::{Centerpoint, Conservative, Contained, Empty, Percentage};
 
 mod centerpoint;
@@ -38,6 +43,16 @@ impl Default for Squircle {
             single_radius: true,
         }
     }
+}
+
+#[derive(Debug, PartialEq, Default, Clone, Copy)]
+pub enum SquircleAlgorithm {
+    #[default]
+    Centerpoint,
+    Conservative,
+    Contained,
+    Percentage(f64),
+    Empty,
 }
 
 impl Shape<SquircleAlgorithm, SquircleParams> for Squircle {
@@ -66,6 +81,39 @@ impl Shape<SquircleAlgorithm, SquircleParams> for Squircle {
 
     fn all_algs() -> Vec<SquircleAlgorithm> {
         vec![Centerpoint, Conservative, Contained, Percentage(0.5)]
+    }
+
+    fn grid_size(all_params: &Vec<SquircleParams>) -> usize {
+        // Determine grid size
+        // The major radius should be included, for some metrics we need at least one layer of padding
+        //  around the generated figure. Assuming a square figure (squircle parameter infinity), we
+        //  need an x side length of 2.0 * sqrt(2) * radius_major. Add 4 for a padding of at least 2
+        //  on each side.
+
+        // Compute the largest radii for all shapes on this layer
+        let largest_radius_a = all_params
+            .iter()
+            .fold(f64::NEG_INFINITY, |a, b| a.max(b.radius_a));
+        let largest_radius_b = all_params
+            .iter()
+            .fold(f64::NEG_INFINITY, |a, b| a.max(b.radius_b));
+
+        // Compute the largest offset for all shapes on this layer
+        let largest_offset_x = all_params
+            .iter()
+            .fold(f64::NEG_INFINITY, |a, b| a.max(b.center_offset_x));
+        let largest_offset_y = all_params
+            .iter()
+            .fold(f64::NEG_INFINITY, |a, b| a.max(b.center_offset_y));
+
+        // Note that this method works but is kind of stupid. Ideally we'd want to have a grid that's
+        //  a lot smaller but still contains all the shapes (it can't be centered at the origin then anymore)
+        let grid_size = ((2.0 * 1.42 * f64::max(largest_radius_a, largest_radius_b)).ceil()
+            + 2.0 * largest_offset_x.abs().max(largest_offset_y.abs()).ceil())
+            as usize
+            + 4;
+
+        grid_size
     }
 
     fn generate(alg: &SquircleAlgorithm, params: &SquircleParams, grid_size: usize) -> Blocks {
@@ -130,8 +178,8 @@ impl Shape<SquircleAlgorithm, SquircleParams> for Squircle {
                     ("30°".to_string(), PI / 6.0),
                     ("45°".to_string(), PI / 4.0),
                     ("1:2".to_string(), 0.5_f64.atan()),
-                    ("1:3".to_string(), 0.33333333333333_f64.atan()),
-                    ("2:3".to_string(), 0.66666666666666_f64.atan()),
+                    ("1:3".to_string(), (1.0_f64 / 3.0).atan()),
+                    ("2:3".to_string(), (2.0_f64 / 3.0).atan()),
                     ("1:4".to_string(), 0.25_f64.atan()),
                 ],
             ),
@@ -178,11 +226,32 @@ impl Shape<SquircleAlgorithm, SquircleParams> for Squircle {
         ui: &mut Ui,
         params: &mut SquircleParams,
         param_fields: &mut Vec<ParamField>,
+        alg: &mut SquircleAlgorithm,
         parameters_current_layer_control: &mut Control,
         parameters_all_layers_control: &mut Control,
         sampling_points: &ZVec<Vec<f64>>,
         code_enabled: bool,
     ) {
+        // algorithm-specific options
+        match alg {
+            Percentage(percentage) => {
+                let mut perc_slider = percentage.clone();
+                if ui
+                    .add(
+                        egui::Slider::new(&mut perc_slider, 0.0..=1.0)
+                            .text("")
+                            .fixed_decimals(2)
+                            .custom_formatter(|n, _| {
+                                format!("{:.0}%", n * 100.0) //  formatting of percentage slider
+                            }),
+                    )
+                    .changed()
+                {
+                    *alg = Percentage(perc_slider);
+                };
+            }
+            _ => {}
+        }
         // order:
         //  [0] <-> radius_a
         //  [1] <-> radius_b
@@ -303,36 +372,94 @@ impl Shape<SquircleAlgorithm, SquircleParams> for Squircle {
             parameters_all_layers_control.set_outdated()
         }
     }
-}
 
-#[derive(Debug, PartialEq, Default, Clone, Copy)]
-pub enum SquircleAlgorithm {
-    #[default]
-    Centerpoint,
-    Conservative,
-    Contained,
-    Percentage(f64),
-    Empty,
-}
+    fn draw(plot_ui: &mut PlotUi, params: SquircleParams, color: Color32) {
+        plot_ui.line(plotting::superellipse_at_coords(params).color(color))
+    }
 
-impl Display for SquircleAlgorithm {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Centerpoint => {
-                write!(f, "Centerpoint")
-            }
-            Conservative => {
-                write!(f, "Conservative")
-            }
-            Contained => {
-                write!(f, "Contained")
-            }
-            Percentage(percentage) => {
-                write!(f, "Percentage, {:.0}%", percentage * 100.0)
-            }
-            Empty => {
-                write!(f, "Empty")
-            }
+    fn draw_widgets(plot_ui: &mut PlotUi, params: SquircleParams) {
+        // Plot x and y axes through the center of the shape
+        plot_ui.hline(
+            HLine::new(params.center_offset_y)
+                .color(COLOR_X_AXIS)
+                .width(2.0),
+        );
+        plot_ui.vline(
+            VLine::new(params.center_offset_x)
+                .color(COLOR_Y_AXIS)
+                .width(2.0),
+        );
+
+        // Plot rotated x and y axes for nonzero tilt (dark orange and purple)
+        if params.tilt != 0.0 {
+            plot_ui.line(
+                plotting::tilted_line_in_bounds(
+                    plot_ui.plot_bounds(),
+                    params.tilt,
+                    params.center_offset_x,
+                    params.center_offset_y,
+                )
+                .color(COLOR_TILTED_X_AXIS),
+            );
+            plot_ui.line(
+                plotting::tilted_line_in_bounds(
+                    plot_ui.plot_bounds(),
+                    params.tilt + PI / 2.0,
+                    params.center_offset_x,
+                    params.center_offset_y,
+                )
+                .color(COLOR_TILTED_Y_AXIS),
+            );
         }
+
+        // todo: reimplement
+        // // Plot intersect area
+        // if view.intersect_area {
+        //     let grid_size =
+        //         (2.0 * 1.42 * f64::max(shape_parameters.radius_a, shape_parameters.radius_b))
+        //             .ceil() as usize
+        //             + 4;
+        //
+        //     let square = Blocks::new((0..grid_size.pow(2)).map(|_| true).collect(), grid_size);
+        //
+        //     for coord in square.get_all_block_coords() {
+        //         let cell_center = [coord[0] + 0.5, coord[1] + 0.5];
+        //         let mut x_center = cell_center[0] - shape_parameters.center_offset_x;
+        //         let mut y_center = cell_center[1] - shape_parameters.center_offset_y;
+        //
+        //         // Dihedral symmetry swaps (see percentage.rs for explanation)
+        //         if x_center < 0.0 {
+        //             x_center = -x_center;
+        //         }
+        //         if y_center < 0.0 {
+        //             y_center = -y_center;
+        //         }
+        //         if x_center > y_center {
+        //             (y_center, x_center) = (x_center, y_center);
+        //         }
+        //
+        //         plot_ui.text(Text::new(PlotPoint::from(cell_center), {
+        //             let value = squircle::percentage::cell_disk_intersection_area(
+        //                 shape_parameters.radius_a.max(shape_parameters.radius_b),
+        //                 x_center,
+        //                 y_center,
+        //             );
+        //
+        //             if value == 0.0 {
+        //                 // Don't show zero intersect area
+        //                 "".to_string()
+        //             } else {
+        //                 format!("{:.2}", value)
+        //             }
+        //         }));
+        //     }
+        // }
+
+        // Plot center dot
+        plot_ui.points(
+            Points::new(vec![[params.center_offset_x, params.center_offset_y]])
+                .radius(5.0)
+                .color(COLOR_CENTER_DOT),
+        );
     }
 }

@@ -2,13 +2,14 @@ use crate::app::control::Control;
 use crate::app::data_structures::blocks::Blocks;
 use crate::app::data_structures::zvec::ZVec;
 use crate::app::param_field::ParamField;
-use egui::Ui;
+use egui::{Color32, Ui};
+use egui_plot::PlotUi;
 use std::fmt::{Debug, Display};
 
 /// Abstraction for a class of algorithms, which all use the same parameters (e.g., squircles, lines).
 /// The parameters are Param, these fully describe the shape to be approximated
 /// Instances of Alg are (pointers to) the algorithm, Alg is some enum.
-pub trait Shape<Alg: Debug + PartialEq + Default + Clone + Copy + Display, Params> {
+pub trait Shape<Alg: Debug + PartialEq + Default + Clone + Copy, Params: Default> {
     /// Description for info display
     fn describe(alg: &Alg) -> String;
 
@@ -23,7 +24,7 @@ pub trait Shape<Alg: Debug + PartialEq + Default + Clone + Copy + Display, Param
     fn combo_box(ui: &mut Ui, alg: &mut Alg) -> bool {
         let old_alg = alg.clone();
         egui::ComboBox::from_label("Algorithm")
-            .selected_text(format!("{:}", alg))
+            .selected_text(format!("{:}", Self::name(alg)))
             .show_ui(ui, |ui| {
                 for i in Self::all_algs() {
                     ui.selectable_value(alg, i, Self::name(&i));
@@ -31,6 +32,8 @@ pub trait Shape<Alg: Debug + PartialEq + Default + Clone + Copy + Display, Param
             });
         old_alg != *alg
     }
+
+    fn grid_size(all_params: &Vec<Params>) -> usize;
 
     /// Generate the blocks with the given algorithm and parameters
     fn generate(alg: &Alg, params: &Params, grid_size: usize) -> Blocks;
@@ -47,9 +50,16 @@ pub trait Shape<Alg: Debug + PartialEq + Default + Clone + Copy + Display, Param
         ui: &mut Ui,
         params: &mut Params,
         param_fields: &mut Vec<ParamField>,
+        alg: &mut Alg,
         parameters_current_layer_control: &mut Control,
         parameters_all_layers_control: &mut Control,
         sampling_points: &ZVec<Vec<f64>>,
         code_enabled: bool,
     );
+
+    /// Draw the shape
+    fn draw(plot_ui: &mut PlotUi, params: Params, color: Color32);
+
+    /// Draw widgets horizontal and vertical line through the center of the shape, and diagonals
+    fn draw_widgets(plot_ui: &mut PlotUi, params: Params);
 }

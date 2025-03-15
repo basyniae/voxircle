@@ -1,7 +1,6 @@
 use crate::app::colors::*;
 use crate::app::data_structures::blocks::Blocks;
-use crate::app::generation::squircle;
-use crate::app::generation::squircle::squircle_params::SquircleParams;
+use crate::app::generation::shape::Shape;
 use crate::app::metrics::convex_hull::line_segments_from_conv_hull;
 use crate::app::metrics::symmetry_type::SymmetryType;
 use crate::app::plotting;
@@ -12,15 +11,19 @@ use crate::app::view::View;
 use eframe::egui::{Stroke, Ui, Vec2b};
 use egui::Color32;
 use egui_plot::{
-    uniform_grid_spacer, HLine, Line, Plot, PlotBounds, PlotPoint, PlotPoints, PlotUi, Points,
-    Text, VLine,
+    uniform_grid_spacer, HLine, Line, Plot, PlotBounds, PlotPoints, PlotUi, Points, VLine,
 };
-use std::f64::consts::PI;
+use std::fmt::Debug;
 
-pub fn ui_viewport(
+// todo: rename parameters
+pub fn ui_viewport<
+    Alg: Debug + PartialEq + Default + Clone + Copy,
+    Params: Default + Clone,
+    Sh: Shape<Alg, Params> + Default + Clone,
+>(
     ui: &mut Ui,
-    slice_parameters: &SquircleParams,
-    sampled_parameters: &LayerParameters,
+    shape_parameters: &Params,
+    sampled_parameters: &LayerParameters<Alg, Params, Sh>,
     blocks: &Option<&Blocks>,
     sampling_enabled: bool,
     view: &View,
@@ -148,91 +151,15 @@ pub fn ui_viewport(
             // Plot onion skinned samples
             if sampling_enabled {
                 for i in 0..sampled_parameters.nr_samples {
-                    plot_ui.line(
-                        plotting::superellipse_at_coords(&sampled_parameters.parameters[i]).color(
-                            linear_gradient(
-                                COLOR_SAMPLE_A,
-                                COLOR_SAMPLE_B,
-                                i as f64 / (sampled_parameters.nr_samples as f64 - 1.0),
-                            ),
+                    Sh::draw(
+                        plot_ui,
+                        sampled_parameters.parameters[i].clone(),
+                        linear_gradient(
+                            COLOR_SAMPLE_A,
+                            COLOR_SAMPLE_B,
+                            i as f64 / (sampled_parameters.nr_samples as f64 - 1.0),
                         ),
                     );
-                }
-            }
-
-            // Plot x and y axes through the center of the shape
-            plot_ui.hline(
-                HLine::new(slice_parameters.center_offset_y)
-                    .color(COLOR_X_AXIS)
-                    .width(2.0),
-            );
-            plot_ui.vline(
-                VLine::new(slice_parameters.center_offset_x)
-                    .color(COLOR_Y_AXIS)
-                    .width(2.0),
-            );
-
-            // Plot rotated x and y axes for nonzero tilt (dark orange and purple)
-            if slice_parameters.tilt != 0.0 {
-                plot_ui.line(
-                    plotting::tilted_line_in_bounds(
-                        plot_ui.plot_bounds(),
-                        slice_parameters.tilt,
-                        slice_parameters.center_offset_x,
-                        slice_parameters.center_offset_y,
-                    )
-                    .color(COLOR_TILTED_X_AXIS),
-                );
-                plot_ui.line(
-                    plotting::tilted_line_in_bounds(
-                        plot_ui.plot_bounds(),
-                        slice_parameters.tilt + PI / 2.0,
-                        slice_parameters.center_offset_x,
-                        slice_parameters.center_offset_y,
-                    )
-                    .color(COLOR_TILTED_Y_AXIS),
-                );
-            }
-
-            // Plot intersect area
-            if view.intersect_area {
-                let grid_size =
-                    (2.0 * 1.42 * f64::max(slice_parameters.radius_a, slice_parameters.radius_b))
-                        .ceil() as usize
-                        + 4;
-
-                let square = Blocks::new((0..grid_size.pow(2)).map(|_| true).collect(), grid_size);
-
-                for coord in square.get_all_block_coords() {
-                    let cell_center = [coord[0] + 0.5, coord[1] + 0.5];
-                    let mut x_center = cell_center[0] - slice_parameters.center_offset_x;
-                    let mut y_center = cell_center[1] - slice_parameters.center_offset_y;
-
-                    // Dihedral symmetry swaps (see percentage.rs for explanation)
-                    if x_center < 0.0 {
-                        x_center = -x_center;
-                    }
-                    if y_center < 0.0 {
-                        y_center = -y_center;
-                    }
-                    if x_center > y_center {
-                        (y_center, x_center) = (x_center, y_center);
-                    }
-
-                    plot_ui.text(Text::new(PlotPoint::from(cell_center), {
-                        let value = squircle::percentage::cell_disk_intersection_area(
-                            slice_parameters.radius_a.max(slice_parameters.radius_b),
-                            x_center,
-                            y_center,
-                        );
-
-                        if value == 0.0 {
-                            // Don't show zero intersect area
-                            "".to_string()
-                        } else {
-                            format!("{:.2}", value)
-                        }
-                    }));
                 }
             }
 
@@ -286,8 +213,8 @@ pub fn ui_viewport(
                             plotting::tilted_line_in_bounds(
                                 plot_ui.plot_bounds(),
                                 std::f64::consts::FRAC_PI_4,
-                                slice_parameters.center_offset_x,
-                                slice_parameters.center_offset_y,
+                                metrics.center_coord[0],
+                                metrics.center_coord[1],
                             )
                             .color(COLOR_MIRRORS),
                         );
@@ -297,8 +224,8 @@ pub fn ui_viewport(
                             plotting::tilted_line_in_bounds(
                                 plot_ui.plot_bounds(),
                                 -std::f64::consts::FRAC_PI_4,
-                                slice_parameters.center_offset_x,
-                                slice_parameters.center_offset_y,
+                                metrics.center_coord[0],
+                                metrics.center_coord[1],
                             )
                             .color(COLOR_MIRRORS),
                         );
@@ -320,8 +247,8 @@ pub fn ui_viewport(
                             plotting::tilted_line_in_bounds(
                                 plot_ui.plot_bounds(),
                                 std::f64::consts::FRAC_PI_4,
-                                slice_parameters.center_offset_x,
-                                slice_parameters.center_offset_y,
+                                metrics.center_coord[0],
+                                metrics.center_coord[1],
                             )
                             .color(COLOR_MIRRORS),
                         );
@@ -329,8 +256,8 @@ pub fn ui_viewport(
                             plotting::tilted_line_in_bounds(
                                 plot_ui.plot_bounds(),
                                 -std::f64::consts::FRAC_PI_4,
-                                slice_parameters.center_offset_x,
-                                slice_parameters.center_offset_y,
+                                metrics.center_coord[0],
+                                metrics.center_coord[1],
                             )
                             .color(COLOR_MIRRORS),
                         );
@@ -350,8 +277,8 @@ pub fn ui_viewport(
                             plotting::tilted_line_in_bounds(
                                 plot_ui.plot_bounds(),
                                 std::f64::consts::FRAC_PI_4,
-                                slice_parameters.center_offset_x,
-                                slice_parameters.center_offset_y,
+                                metrics.center_coord[0],
+                                metrics.center_coord[1],
                             )
                             .color(COLOR_MIRRORS),
                         );
@@ -359,8 +286,8 @@ pub fn ui_viewport(
                             plotting::tilted_line_in_bounds(
                                 plot_ui.plot_bounds(),
                                 -std::f64::consts::FRAC_PI_4,
-                                slice_parameters.center_offset_x,
-                                slice_parameters.center_offset_y,
+                                metrics.center_coord[0],
+                                metrics.center_coord[1],
                             )
                             .color(COLOR_MIRRORS),
                         );
@@ -372,19 +299,7 @@ pub fn ui_viewport(
             }
 
             // Plot target shape
-            plot_ui.line(
-                plotting::superellipse_at_coords(&slice_parameters).color(COLOR_TARGET_SHAPE),
-            );
-
-            // Plot center dot
-            plot_ui.points(
-                Points::new(vec![[
-                    slice_parameters.center_offset_x,
-                    slice_parameters.center_offset_y,
-                ]])
-                .radius(5.0)
-                .color(COLOR_CENTER_DOT),
-            );
+            Sh::draw(plot_ui, shape_parameters.clone(), COLOR_TARGET_SHAPE)
         });
 }
 

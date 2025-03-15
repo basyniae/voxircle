@@ -1,11 +1,9 @@
 use crate::app::control::Control;
 use crate::app::data_structures::zvec::ZVec;
 use crate::app::generation::shape::Shape;
-use crate::app::generation::squircle::squircle_params::SquircleParams;
-use crate::app::generation::squircle::{Squircle, SquircleAlgorithm};
 use crate::app::param_field::ParamField;
-use eframe::egui;
 use eframe::egui::Ui;
+use std::fmt::Debug;
 
 // my first macro!
 /// Mark the inputted control variables as outdated
@@ -17,21 +15,29 @@ macro_rules! outdate {
 
 /// Draw ui for algorithm selection, parameters fields for describing the shape.
 /// Update
-pub fn ui_options(
+pub fn ui_options<
+    Alg: Debug + PartialEq + Default + Clone + Copy,
+    Params: Default + Clone,
+    Sh: Shape<Alg, Params> + Default + Clone,
+>(
     ui: &mut Ui,
-    current_layer_shape: &mut SquircleParams,
-    current_layer_alg: &mut SquircleAlgorithm,
+    current_layer_shape: &mut Params,
+    current_layer_alg: &mut Alg,
     code_enabled: bool,
+    // todo: a *vector* of ParamField is not very safe! maybe (yet) another struct for it
     param_fields: &mut Vec<ParamField>,
     sampling_points: &ZVec<Vec<f64>>,
     parameters_current_layer_control: &mut Control,
     parameters_all_layers_control: &mut Control,
-    squircle: &mut Squircle,
+    shape: &mut Sh,
 ) {
+    // pick Shape here
+    ui.separator();
+
     // TODO: easily change algorithm for all layers
     // Select algorithm (the storage is for checking changed(), this is necessary
     //  as https://github.com/emilk/egui/discussions/923)
-    if Squircle::combo_box(ui, current_layer_alg) {
+    if Sh::combo_box(ui, current_layer_alg) {
         outdate!(
             parameters_current_layer_control,
             parameters_all_layers_control
@@ -39,36 +45,16 @@ pub fn ui_options(
     }
 
     // algorithm description
-    ui.label(Squircle::describe(current_layer_alg));
-
-    // algorithm-specific options
-    match current_layer_alg {
-        SquircleAlgorithm::Percentage(percentage) => {
-            let mut perc_slider = percentage.clone();
-            if ui
-                .add(
-                    egui::Slider::new(&mut perc_slider, 0.0..=1.0)
-                        .text("")
-                        .fixed_decimals(2)
-                        .custom_formatter(|n, _| {
-                            format!("{:.0}%", n * 100.0) //  formatting of percentage slider
-                        }),
-                )
-                .changed()
-            {
-                *current_layer_alg = SquircleAlgorithm::Percentage(perc_slider);
-            };
-        }
-        _ => {}
-    }
+    ui.label(Sh::describe(current_layer_alg));
 
     // Radius
     ui.separator();
 
-    squircle.show_options(
+    shape.show_options(
         ui,
         current_layer_shape,
         param_fields,
+        current_layer_alg,
         parameters_current_layer_control,
         parameters_all_layers_control,
         sampling_points,

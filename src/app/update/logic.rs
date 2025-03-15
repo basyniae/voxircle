@@ -1,11 +1,12 @@
 use crate::app::control::Control;
 use crate::app::data_structures::blocks::Blocks;
 use crate::app::data_structures::zvec::ZVec;
+use crate::app::generation::shape::Shape;
 use crate::app::generation::squircle::squircle_params::SquircleParams;
-use crate::app::generation::squircle::{Squircle, SquircleAlgorithm};
 use crate::app::param_field::ParamField;
 use crate::app::sampling::layer_parameters::LayerParameters;
 use crate::app::sampling::{SampleCombineMethod, SampleDistributeMethod};
+use std::fmt::Debug;
 
 pub fn sampling_points_update(
     only_sample_half_of_bottom_layer: bool,
@@ -38,9 +39,13 @@ pub fn sampling_points_update(
     }
 }
 
-pub fn parameters_update(
-    stack_layer_shape: &mut ZVec<SquircleParams>,
-    stack_layer_parameters: &mut ZVec<LayerParameters>, // Store the configuration for each layer, handily indexed by integers
+pub fn parameters_update<
+    Alg: Debug + PartialEq + Default + Clone + Copy,
+    Params: Default + Clone,
+    Sh: Shape<Alg, Params> + Clone + Default,
+>(
+    stack_layer_shape: &mut ZVec<Params>,
+    stack_layer_parameters: &mut ZVec<LayerParameters<Alg, Params, Sh>>, // Store the configuration for each layer, handily indexed by integers
     stack_sampling_points: &ZVec<Vec<f64>>,
     parameters_current_layer_control: &mut Control,
     parameters_all_layers_control: &mut Control,
@@ -51,7 +56,7 @@ pub fn parameters_update(
     layer_lowest: isize,
     layer_highest: isize,
     param_fields: &mut Vec<ParamField>,
-    squircle: &Squircle,
+    squircle: &Sh,
 ) {
     let single_radius = squircle.single_radius;
     // Generate parameters to be sampled
@@ -116,8 +121,12 @@ pub fn parameters_update(
     }
 }
 
-pub fn blocks_update(
-    stack_layer_parameters: &ZVec<LayerParameters>, // Store the configuration for each layer, handily indexed by integers
+pub fn blocks_update<
+    Alg: Debug + PartialEq + Default + Clone + Copy,
+    Params: Default + Clone,
+    Sh: Shape<Alg, Params> + Clone + Default,
+>(
+    stack_layer_parameters: &ZVec<LayerParameters<Alg, Params, Sh>>, // Store the configuration for each layer, handily indexed by integers
     stack_blocks: &mut ZVec<Blocks>,
     blocks_current_layer_control: &mut Control,
     blocks_all_layers_control: &mut Control,
@@ -152,8 +161,12 @@ pub fn blocks_update(
     }
 }
 
-fn update_control_parameters(
-    current_layer_shape: &mut SquircleParams,
+fn update_control_parameters<
+    Alg: Debug + PartialEq + Default + Clone + Copy,
+    Params: Default + Clone,
+    Sh: Shape<Alg, Params> + Clone + Default,
+>(
+    current_layer_shape: &mut Params,
     layer: isize,
     param_fields: &mut Vec<ParamField>,
     single_radius: bool,
@@ -189,11 +202,15 @@ fn update_control_parameters(
 }
 
 /// Update (old) input LayerParameters object with new values evaluated from the code
-fn set_parameters(
-    layer_parameters: &mut LayerParameters,
+fn set_parameters<
+    Alg: Debug + PartialEq + Default + Clone + Copy,
+    Params: Default + Clone,
+    Sh: Shape<Alg, Params> + Clone + Default,
+>(
+    layer_parameters: &mut LayerParameters<Alg, Params, Sh>,
     sampling_points: &Vec<f64>,
-    default_shape: &SquircleParams,
-    algorithm: SquircleAlgorithm,
+    default_shape: &Params,
+    algorithm: Alg,
     param_fields: &mut Vec<ParamField>,
     single_radius: bool,
 ) {
