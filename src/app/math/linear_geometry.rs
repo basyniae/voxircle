@@ -98,3 +98,12 @@ pub fn intervals_contains(interval_one: [f64; 2], interval_two: [f64; 2]) -> boo
     // Case on if b_1 is in the interval or b_2 is in the interval
     (a_1 <= b_1) && (b_2 <= a_2)
 }
+
+pub fn dist_to_line(pt: Vec2, rise: f64, run: f64, offset_y: f64) -> f64 {
+    let p = pt + Vec2::from([0.0, offset_y]);
+    let rr = Vec2::from([run, rise]);
+
+    let projection_factor = p.ip(rr) / rr.normsq();
+
+    (p - projection_factor * rr).norm()
+}
