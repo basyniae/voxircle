@@ -15,7 +15,6 @@ use egui_plot::{
 };
 use std::fmt::Debug;
 
-// todo: rename parameters
 pub fn ui_viewport<
     Alg: Debug + PartialEq + Default + Clone + Copy,
     Params: Default + Clone,
@@ -24,7 +23,7 @@ pub fn ui_viewport<
 >(
     ui: &mut Ui,
     shape_parameters: &Params,
-    sampled_parameters: &LayerParameters<Alg, Params, Fields, Sh>,
+    layer_parameters: &LayerParameters<Alg, Params, Fields, Sh>,
     blocks: &Option<&Blocks>,
     sampling_enabled: bool,
     view: &View,
@@ -151,14 +150,14 @@ pub fn ui_viewport<
 
             // Plot onion skinned samples
             if sampling_enabled {
-                for i in 0..sampled_parameters.nr_samples {
+                for i in 0..layer_parameters.nr_samples {
                     Sh::draw(
                         plot_ui,
-                        sampled_parameters.parameters[i].clone(),
+                        layer_parameters.parameters[i].clone(),
                         linear_gradient(
                             COLOR_SAMPLE_A,
                             COLOR_SAMPLE_B,
-                            i as f64 / (sampled_parameters.nr_samples as f64 - 1.0),
+                            i as f64 / (layer_parameters.nr_samples as f64 - 1.0),
                         ),
                     );
                 }

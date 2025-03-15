@@ -212,6 +212,7 @@ impl eframe::App for App {
                         self.parameters_all_layers_control.set_outdated();
                     }
 
+                    // todo: ugly code
                     match self.shape {
                         AnyShape::Squircle => {
                             ui_options(
@@ -438,6 +439,8 @@ impl eframe::App for App {
                 self.stack_blocks.get(self.current_layer).unwrap(),
                 &self.stack_blocks,
                 &self.stack_squircle_shape,
+                &self.stack_line_shape,
+                self.shape,
             )
         }
 

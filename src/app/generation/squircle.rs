@@ -61,8 +61,8 @@ pub struct SquircleFields {
     pub radius_a: ParamField,
     pub radius_b: ParamField,
     pub tilt: ParamField,
-    pub center_offset_x: ParamField,
-    pub center_offset_y: ParamField,
+    pub offset_x: ParamField,
+    pub offset_y: ParamField,
     pub squircle_parameter: ParamField,
 }
 
@@ -101,20 +101,20 @@ impl Default for SquircleFields {
                     ("1:4".to_string(), 0.25_f64.atan()),
                 ],
             ),
-            center_offset_x: ParamField::new(
+            offset_x: ParamField::new(
                 true,
                 false,
                 "x offset".to_string(),
                 [-1.0, 1.0],
-                0.03,
+                0.01,
                 vec![],
             ),
-            center_offset_y: ParamField::new(
+            offset_y: ParamField::new(
                 true,
                 false,
                 "y offset".to_string(),
                 [-1.0, 1.0],
-                0.03,
+                0.01,
                 vec![],
             ),
             squircle_parameter: ParamField::new_param_func(
@@ -141,8 +141,8 @@ impl ShapeFields for SquircleFields {
         self.radius_a.register_success();
         self.radius_b.register_success();
         self.tilt.register_success();
-        self.center_offset_x.register_success();
-        self.center_offset_y.register_success();
+        self.offset_x.register_success();
+        self.offset_y.register_success();
         self.squircle_parameter.register_success();
     }
 
@@ -150,8 +150,8 @@ impl ShapeFields for SquircleFields {
         self.radius_a.has_changed()
             || self.radius_b.has_changed()
             || self.tilt.has_changed()
-            || self.center_offset_x.has_changed()
-            || self.center_offset_y.has_changed()
+            || self.offset_x.has_changed()
+            || self.offset_y.has_changed()
             || self.squircle_parameter.has_changed()
     }
 }
@@ -202,10 +202,10 @@ impl Shape<SquircleAlgorithm, SquircleParams, SquircleFields> for Squircle {
         // Compute the largest offset for all shapes on this layer
         let largest_offset_x = all_params
             .iter()
-            .fold(f64::NEG_INFINITY, |a, b| a.max(b.center_offset_x));
+            .fold(f64::NEG_INFINITY, |a, b| a.max(b.offset_x));
         let largest_offset_y = all_params
             .iter()
-            .fold(f64::NEG_INFINITY, |a, b| a.max(b.center_offset_y));
+            .fold(f64::NEG_INFINITY, |a, b| a.max(b.offset_y));
 
         // Note that this method works but is kind of stupid. Ideally we'd want to have a grid that's
         //  a lot smaller but still contains all the shapes (it can't be centered at the origin then anymore)
@@ -218,7 +218,7 @@ impl Shape<SquircleAlgorithm, SquircleParams, SquircleFields> for Squircle {
     }
 
     fn generate(alg: &SquircleAlgorithm, params: &SquircleParams, grid_size: usize) -> Blocks {
-        let center_offset = Vec2::from([params.center_offset_x, params.center_offset_y]);
+        let center_offset = Vec2::from([params.offset_x, params.offset_y]);
         let sqrt_quad_form = params.get_sqrt_quad_form();
 
         match alg {
@@ -285,13 +285,6 @@ impl Shape<SquircleAlgorithm, SquircleParams, SquircleFields> for Squircle {
             }
             _ => {}
         }
-        // order:
-        //  [0] <-> radius_a
-        //  [1] <-> radius_b
-        //  [2] <-> tilt
-        //  [3] <-> center_offset_x
-        //  [4] <-> center_offset_y
-        //  [5] <-> squircle parameter
 
         ui.checkbox(&mut self.single_radius, "Single radius");
 
@@ -356,8 +349,8 @@ impl Shape<SquircleAlgorithm, SquircleParams, SquircleFields> for Squircle {
 
         // Centerpoint
         ui.separator();
-        param_fields.center_offset_x.show(
-            &mut params.center_offset_x,
+        param_fields.offset_x.show(
+            &mut params.offset_x,
             ui,
             &code_enabled,
             sampling_points,
@@ -366,8 +359,8 @@ impl Shape<SquircleAlgorithm, SquircleParams, SquircleFields> for Squircle {
             None,
         );
 
-        param_fields.center_offset_y.show(
-            &mut params.center_offset_y,
+        param_fields.offset_y.show(
+            &mut params.offset_y,
             ui,
             &code_enabled,
             sampling_points,
@@ -384,8 +377,8 @@ impl Shape<SquircleAlgorithm, SquircleParams, SquircleFields> for Squircle {
             |ui| {
                 [("Even center", 0.0, 0.0), ("Odd center", 0.5, 0.5)].map(|(name, x, y)| {
                     if ui.button(name).clicked() {
-                        params.center_offset_x = x;
-                        params.center_offset_y = y;
+                        params.offset_x = x;
+                        params.offset_y = y;
 
                         parameters_current_layer_control.set_outdated();
                         parameters_all_layers_control.set_outdated();
@@ -406,16 +399,8 @@ impl Shape<SquircleAlgorithm, SquircleParams, SquircleFields> for Squircle {
 
     fn draw_widgets(plot_ui: &mut PlotUi, params: SquircleParams) {
         // Plot x and y axes through the center of the shape
-        plot_ui.hline(
-            HLine::new(params.center_offset_y)
-                .color(COLOR_X_AXIS)
-                .width(2.0),
-        );
-        plot_ui.vline(
-            VLine::new(params.center_offset_x)
-                .color(COLOR_Y_AXIS)
-                .width(2.0),
-        );
+        plot_ui.hline(HLine::new(params.offset_y).color(COLOR_X_AXIS).width(2.0));
+        plot_ui.vline(VLine::new(params.offset_x).color(COLOR_Y_AXIS).width(2.0));
 
         // Plot rotated x and y axes for nonzero tilt (dark orange and purple)
         if params.tilt != 0.0 {
@@ -423,8 +408,8 @@ impl Shape<SquircleAlgorithm, SquircleParams, SquircleFields> for Squircle {
                 plotting::tilted_line_in_bounds(
                     plot_ui.plot_bounds(),
                     params.tilt,
-                    params.center_offset_x,
-                    params.center_offset_y,
+                    params.offset_x,
+                    params.offset_y,
                 )
                 .color(COLOR_TILTED_X_AXIS),
             );
@@ -432,8 +417,8 @@ impl Shape<SquircleAlgorithm, SquircleParams, SquircleFields> for Squircle {
                 plotting::tilted_line_in_bounds(
                     plot_ui.plot_bounds(),
                     params.tilt + PI / 2.0,
-                    params.center_offset_x,
-                    params.center_offset_y,
+                    params.offset_x,
+                    params.offset_y,
                 )
                 .color(COLOR_TILTED_Y_AXIS),
             );
@@ -484,7 +469,7 @@ impl Shape<SquircleAlgorithm, SquircleParams, SquircleFields> for Squircle {
 
         // Plot center dot
         plot_ui.points(
-            Points::new(vec![[params.center_offset_x, params.center_offset_y]])
+            Points::new(vec![[params.offset_x, params.offset_y]])
                 .radius(5.0)
                 .color(COLOR_CENTER_DOT),
         );
@@ -528,14 +513,14 @@ impl Shape<SquircleAlgorithm, SquircleParams, SquircleFields> for Squircle {
                         .unwrap_or(default_shape.radius_b)
                 },
                 tilt: fields.tilt.eval(layer).unwrap_or(default_shape.tilt),
-                center_offset_x: fields
-                    .center_offset_x
+                offset_x: fields
+                    .offset_x
                     .eval(layer)
-                    .unwrap_or(default_shape.center_offset_x),
-                center_offset_y: fields
-                    .center_offset_y
+                    .unwrap_or(default_shape.offset_x),
+                offset_y: fields
+                    .offset_y
                     .eval(layer)
-                    .unwrap_or(default_shape.center_offset_y),
+                    .unwrap_or(default_shape.offset_y),
                 squircle_parameter: fields
                     .squircle_parameter
                     .eval(layer)
@@ -568,11 +553,11 @@ impl Shape<SquircleAlgorithm, SquircleParams, SquircleFields> for Squircle {
         if let Some(tilt) = fields.tilt.eval(&(layer as f64)) {
             current_layer_shape.tilt = tilt
         }
-        if let Some(center_offset_x) = fields.center_offset_x.eval(&(layer as f64)) {
-            current_layer_shape.center_offset_x = center_offset_x
+        if let Some(center_offset_x) = fields.offset_x.eval(&(layer as f64)) {
+            current_layer_shape.offset_x = center_offset_x
         }
-        if let Some(center_offset_y) = fields.center_offset_y.eval(&(layer as f64)) {
-            current_layer_shape.center_offset_y = center_offset_y
+        if let Some(center_offset_y) = fields.offset_y.eval(&(layer as f64)) {
+            current_layer_shape.offset_y = center_offset_y
         }
 
         if let Some(squircle_parameter) = fields.squircle_parameter.eval(&(layer as f64)) {
