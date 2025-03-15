@@ -73,7 +73,7 @@ pub fn parameters_update<
         );
 
         // Update parameters for the sliders
-        shape.update_control_parameters(
+        shape.update_slider_parameters(
             stack_layer_shape.get_mut(current_layer).unwrap(),
             current_layer,
             param_fields,
@@ -100,7 +100,7 @@ pub fn parameters_update<
             );
 
             // Update parameters for the sliders
-            shape.update_control_parameters(
+            shape.update_slider_parameters(
                 stack_layer_shape.get_mut(layer).unwrap(),
                 layer,
                 param_fields,

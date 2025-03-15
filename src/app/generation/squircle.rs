@@ -544,7 +544,7 @@ impl Shape<SquircleAlgorithm, SquircleParams, SquircleFields> for Squircle {
             .collect()
     }
 
-    fn update_control_parameters(
+    fn update_slider_parameters(
         &self,
         current_layer_shape: &mut SquircleParams,
         layer: isize,

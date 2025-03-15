@@ -38,6 +38,7 @@ impl Metrics {
         layer_highest: isize,
         current_layer_blocks: &Blocks,
         stack_blocks: &ZVec<Blocks>,
+        //todo: why does metrics use the squircle params?
         stack_layer_config: &ZVec<SquircleParams>,
     ) {
         // update 2d spatial metrics

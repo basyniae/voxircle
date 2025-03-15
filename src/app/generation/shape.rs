@@ -65,7 +65,6 @@ pub trait Shape<
     /// Draw widgets horizontal and vertical line through the center of the shape, and diagonals
     fn draw_widgets(plot_ui: &mut PlotUi, params: Params);
 
-    // todo: rename to "update_slider_parameters"
     fn set_parameters(
         &self,
         layer_parameters: &mut LayerParameters<Alg, Params, Fields, Self>,
@@ -76,7 +75,7 @@ pub trait Shape<
     ) where
         Self: Clone + Default;
 
-    fn update_control_parameters(
+    fn update_slider_parameters(
         &self,
         current_layer_shape: &mut Params,
         layer: isize,
