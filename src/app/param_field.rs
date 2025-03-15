@@ -3,7 +3,7 @@ use crate::app::control::Control;
 use crate::app::data_structures::zvec::ZVec;
 use eframe::egui;
 use eframe::egui::Ui;
-use egui::{Align, Color32, Layout};
+use egui::{Align, Color32, Layout, SliderClamping};
 use rhai::{Engine, Scope};
 
 #[derive(Clone, Eq, PartialEq)]
@@ -104,7 +104,8 @@ impl ParamField {
                     // How a text-input value should be interpreted as a slider parameter
                     // s is (a string) in parameter space, t is (a f64) in parameter space,
                     //  the output is in slider space
-                    .custom_parser(|s| s.parse::<f64>().map(|t| (self.inv_param_func)(t)).ok()),
+                    .custom_parser(|s| s.parse::<f64>().map(|t| (self.inv_param_func)(t)).ok())
+                    .clamping(SliderClamping::Never),
                 )
                 .changed()
             {

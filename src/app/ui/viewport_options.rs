@@ -50,7 +50,7 @@ pub fn ui_viewport_options(
         ui.checkbox(&mut view.outer_corners, "Outer corners");
         ui.checkbox(
             &mut view.intersect_area,
-            "Intersect area (only for circles)",
+            "Intersect area (not in this version)",
         );
     });
 }

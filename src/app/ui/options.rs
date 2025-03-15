@@ -24,7 +24,6 @@ pub fn ui_options<
     current_layer_shape: &mut Params,
     current_layer_alg: &mut Alg,
     code_enabled: bool,
-    // todo: a *vector* of ParamField is not very safe! maybe (yet) another struct for it
     squircle_fields: &mut Fields,
     sampling_points: &ZVec<Vec<f64>>,
     parameters_current_layer_control: &mut Control,

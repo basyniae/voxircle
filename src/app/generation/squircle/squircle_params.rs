@@ -8,8 +8,8 @@ pub struct SquircleParams {
 
     pub tilt: f64,
 
-    pub center_offset_x: f64,
-    pub center_offset_y: f64,
+    pub offset_x: f64,
+    pub offset_y: f64,
 
     pub squircle_parameter: f64,
 }
@@ -25,8 +25,8 @@ impl Default for SquircleParams {
             tilt: 0.0, // default: 0.0
 
             // sqrt_quad_form: Mat2::from([1.0, 0.0, 0.0, 1.0]),
-            center_offset_x: 0.0, // default: 0.0, 0.0 (even circle)
-            center_offset_y: 0.0,
+            offset_x: 0.0, // default: 0.0, 0.0 (even circle)
+            offset_y: 0.0,
 
             squircle_parameter: 2.0, // default: 2.0 (circle / ellipse)
         }

@@ -68,6 +68,18 @@ impl Vec2 {
     pub fn pnormalize(&self, p: f64) -> Vec2 {
         1.0 / self.pnorm(p) * *self
     }
+
+    pub fn normalize(&self) -> Vec2 {
+        self.pnormalize(2.0)
+    }
+
+    pub fn rot_90_CCW(&self) -> Vec2 {
+        Vec2::from([self.y, -self.x])
+    }
+
+    pub fn as_arr(&self) -> [f64; 2] {
+        [self.x, self.y]
+    }
 }
 
 impl ops::Add<Vec2> for Vec2 {

@@ -5,8 +5,8 @@ use crate::app::math::linear_algebra::Vec2;
 pub fn exact_squircle_bounds(gen_config: &SquircleParams, pad_factor: f64) -> [[f64; 2]; 2] {
     let squircle_parameter = gen_config.squircle_parameter;
     let sqrt_quad_form = gen_config.get_sqrt_quad_form();
-    let center_offset_x = gen_config.center_offset_x;
-    let center_offset_y = gen_config.center_offset_y;
+    let center_offset_x = gen_config.offset_x;
+    let center_offset_y = gen_config.offset_y;
 
     if gen_config.radius_a == 0.0 || gen_config.radius_b == 0.0 {
         [

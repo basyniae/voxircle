@@ -22,8 +22,8 @@ pub fn superellipse_at_coords(slice_parameters: SquircleParams) -> Line<'static>
     let radius_a = slice_parameters.radius_a;
     let radius_b = slice_parameters.radius_b;
     let tilt = slice_parameters.tilt;
-    let center_x = slice_parameters.center_offset_x;
-    let center_y = slice_parameters.center_offset_y;
+    let center_x = slice_parameters.offset_x;
+    let center_y = slice_parameters.offset_y;
     let squircle_parameter = slice_parameters.squircle_parameter;
 
     let circlepts: PlotPoints = (0..=1005)

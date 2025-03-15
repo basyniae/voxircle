@@ -45,7 +45,6 @@ pub trait Shape<
 
     fn bounds(params: &Params, pad_factor: f64) -> [[f64; 2]; 2];
 
-    // todo: additional presets for use in options UI (like the 'odd' and 'even' buttons)
     /// Captures layout of the options (editing *only* the parameters, not the algorithm)
     fn show_options(
         &mut self,

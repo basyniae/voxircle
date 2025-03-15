@@ -60,7 +60,6 @@ pub fn parameters_update<
     // Generate parameters to be sampled
     if parameters_current_layer_control.update() {
         blocks_current_layer_control.set_outdated();
-        // todo: make systematic
         let layer_alg = stack_layer_parameters.get(current_layer).unwrap().algorithm;
 
         // Update parameters for the sampling
@@ -88,7 +87,6 @@ pub fn parameters_update<
 
         // Update parameters for the sampling
         for layer in layer_lowest..=layer_highest {
-            // todo: make systematic
             let layer_alg = stack_layer_parameters.get(layer).unwrap().algorithm;
 
             shape.set_parameters(

@@ -1,8 +1,10 @@
 use crate::app;
 use crate::app::data_structures::blocks::Blocks;
 use crate::app::data_structures::zvec::ZVec;
+use crate::app::generation::any_shape::AnyShape;
+use crate::app::generation::line::line_params::LineParams;
+use crate::app::generation::line::Line;
 use crate::app::generation::shape::Shape;
-use crate::app::generation::squircle::exact_squircle_bounds::exact_squircle_bounds;
 use crate::app::generation::squircle::squircle_params::SquircleParams;
 use crate::app::generation::squircle::Squircle;
 use crate::app::math::square_max::square_max;
@@ -38,8 +40,9 @@ impl Metrics {
         layer_highest: isize,
         current_layer_blocks: &Blocks,
         stack_blocks: &ZVec<Blocks>,
-        //todo: why does metrics use the squircle params?
-        stack_layer_config: &ZVec<SquircleParams>,
+        stack_squircle_layer_config: &ZVec<SquircleParams>,
+        stack_line_layer_config: &ZVec<LineParams>,
+        shape: AnyShape,
     ) {
         // update 2d spatial metrics
         self.interior_2d = current_layer_blocks.get_interior();
@@ -73,17 +76,35 @@ impl Metrics {
         self.outer_corners = current_layer_blocks.get_outer_corners();
         self.convex_hull = get_convex_hull(&self.outer_corners);
 
-        self.global_bounding_box = stack_layer_config
-            .data
-            .iter()
-            .map(|g_c| Squircle::bounds(g_c, 1.1))
-            .fold(
-                [
-                    [f64::INFINITY, f64::INFINITY],
-                    [f64::NEG_INFINITY, f64::NEG_INFINITY],
-                ],
-                |a, b| square_max(a, b),
-            );
+        // todo: i don't like that the conditioning happens inside this function
+        match shape {
+            AnyShape::Squircle => {
+                self.global_bounding_box = stack_squircle_layer_config
+                    .data
+                    .iter()
+                    .map(|g_c| Squircle::bounds(g_c, 1.1))
+                    .fold(
+                        [
+                            [f64::INFINITY, f64::INFINITY],
+                            [f64::NEG_INFINITY, f64::NEG_INFINITY],
+                        ],
+                        |a, b| square_max(a, b),
+                    );
+            }
+            AnyShape::Line => {
+                self.global_bounding_box = stack_line_layer_config
+                    .data
+                    .iter()
+                    .map(|g_c| Line::bounds(g_c, 1.1))
+                    .fold(
+                        [
+                            [f64::INFINITY, f64::INFINITY],
+                            [f64::NEG_INFINITY, f64::NEG_INFINITY],
+                        ],
+                        |a, b| square_max(a, b),
+                    );
+            }
+        }
 
         self.symmetry_type = current_layer_blocks.get_symmetry_type();
 
@@ -91,7 +112,15 @@ impl Metrics {
 
         self.global_bounding_box = square_max(
             self.global_bounding_box,
-            exact_squircle_bounds(&stack_layer_config.get(current_layer).unwrap(), 1.1),
+            match shape {
+                AnyShape::Squircle => Squircle::bounds(
+                    &stack_squircle_layer_config.get(current_layer).unwrap(),
+                    1.1,
+                ),
+                AnyShape::Line => {
+                    Line::bounds(&stack_line_layer_config.get(current_layer).unwrap(), 1.1)
+                }
+            },
         );
     }
 }
