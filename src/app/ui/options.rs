@@ -1,7 +1,6 @@
 use crate::app::control::Control;
 use crate::app::data_structures::zvec::ZVec;
-use crate::app::generation::shape::Shape;
-use crate::app::param_field::ParamField;
+use crate::app::generation::shape::{Shape, ShapeFields};
 use eframe::egui::Ui;
 use std::fmt::Debug;
 
@@ -18,14 +17,15 @@ macro_rules! outdate {
 pub fn ui_options<
     Alg: Debug + PartialEq + Default + Clone + Copy,
     Params: Default + Clone,
-    Sh: Shape<Alg, Params> + Default + Clone,
+    Fields: Default + ShapeFields,
+    Sh: Shape<Alg, Params, Fields> + Default + Clone,
 >(
     ui: &mut Ui,
     current_layer_shape: &mut Params,
     current_layer_alg: &mut Alg,
     code_enabled: bool,
     // todo: a *vector* of ParamField is not very safe! maybe (yet) another struct for it
-    param_fields: &mut Vec<ParamField>,
+    squircle_fields: &mut Fields,
     sampling_points: &ZVec<Vec<f64>>,
     parameters_current_layer_control: &mut Control,
     parameters_all_layers_control: &mut Control,
@@ -53,7 +53,7 @@ pub fn ui_options<
     shape.show_options(
         ui,
         current_layer_shape,
-        param_fields,
+        squircle_fields,
         current_layer_alg,
         parameters_current_layer_control,
         parameters_all_layers_control,

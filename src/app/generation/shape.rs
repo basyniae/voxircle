@@ -1,7 +1,7 @@
 use crate::app::control::Control;
 use crate::app::data_structures::blocks::Blocks;
 use crate::app::data_structures::zvec::ZVec;
-use crate::app::param_field::ParamField;
+use crate::app::sampling::layer_parameters::LayerParameters;
 use egui::{Color32, Ui};
 use egui_plot::PlotUi;
 use std::fmt::{Debug, Display};
@@ -9,7 +9,12 @@ use std::fmt::{Debug, Display};
 /// Abstraction for a class of algorithms, which all use the same parameters (e.g., squircles, lines).
 /// The parameters are Param, these fully describe the shape to be approximated
 /// Instances of Alg are (pointers to) the algorithm, Alg is some enum.
-pub trait Shape<Alg: Debug + PartialEq + Default + Clone + Copy, Params: Default> {
+pub trait Shape<
+    Alg: PartialEq + Default + Clone + Copy,
+    Params: Default + Clone,
+    Fields: Default + ShapeFields,
+>
+{
     /// Description for info display
     fn describe(alg: &Alg) -> String;
 
@@ -38,9 +43,6 @@ pub trait Shape<Alg: Debug + PartialEq + Default + Clone + Copy, Params: Default
     /// Generate the blocks with the given algorithm and parameters
     fn generate(alg: &Alg, params: &Params, grid_size: usize) -> Blocks;
 
-    /// Initialize new rhai fields
-    fn get_new_param_fields() -> Vec<ParamField>;
-
     fn bounds(params: &Params, pad_factor: f64) -> [[f64; 2]; 2];
 
     // todo: additional presets for use in options UI (like the 'odd' and 'even' buttons)
@@ -49,7 +51,7 @@ pub trait Shape<Alg: Debug + PartialEq + Default + Clone + Copy, Params: Default
         &mut self,
         ui: &mut Ui,
         params: &mut Params,
-        param_fields: &mut Vec<ParamField>,
+        param_fields: &mut Fields,
         alg: &mut Alg,
         parameters_current_layer_control: &mut Control,
         parameters_all_layers_control: &mut Control,
@@ -62,4 +64,28 @@ pub trait Shape<Alg: Debug + PartialEq + Default + Clone + Copy, Params: Default
 
     /// Draw widgets horizontal and vertical line through the center of the shape, and diagonals
     fn draw_widgets(plot_ui: &mut PlotUi, params: Params);
+
+    // todo: rename to "update_slider_parameters"
+    fn set_parameters(
+        &self,
+        layer_parameters: &mut LayerParameters<Alg, Params, Fields, Self>,
+        sampling_points: &Vec<f64>,
+        default_shape: &Params,
+        algorithm: Alg,
+        fields: &mut Fields,
+    ) where
+        Self: Clone + Default;
+
+    fn update_control_parameters(
+        &self,
+        current_layer_shape: &mut Params,
+        layer: isize,
+        fields: &mut Fields,
+    );
+}
+
+pub trait ShapeFields {
+    fn all_register_success(&mut self);
+
+    fn has_any_changed(&mut self) -> bool;
 }

@@ -1,9 +1,7 @@
 use crate::app::control::Control;
 use crate::app::data_structures::blocks::Blocks;
 use crate::app::data_structures::zvec::ZVec;
-use crate::app::generation::shape::Shape;
-use crate::app::generation::squircle::squircle_params::SquircleParams;
-use crate::app::param_field::ParamField;
+use crate::app::generation::shape::{Shape, ShapeFields};
 use crate::app::sampling::layer_parameters::LayerParameters;
 use crate::app::sampling::{SampleCombineMethod, SampleDistributeMethod};
 use std::fmt::Debug;
@@ -40,12 +38,13 @@ pub fn sampling_points_update(
 }
 
 pub fn parameters_update<
-    Alg: Debug + PartialEq + Default + Clone + Copy,
+    Alg: PartialEq + Default + Clone + Copy,
     Params: Default + Clone,
-    Sh: Shape<Alg, Params> + Clone + Default,
+    Fields: Default + ShapeFields,
+    Sh: Shape<Alg, Params, Fields> + Clone + Default,
 >(
     stack_layer_shape: &mut ZVec<Params>,
-    stack_layer_parameters: &mut ZVec<LayerParameters<Alg, Params, Sh>>, // Store the configuration for each layer, handily indexed by integers
+    stack_layer_parameters: &mut ZVec<LayerParameters<Alg, Params, Fields, Sh>>, // Store the configuration for each layer, handily indexed by integers
     stack_sampling_points: &ZVec<Vec<f64>>,
     parameters_current_layer_control: &mut Control,
     parameters_all_layers_control: &mut Control,
@@ -55,10 +54,9 @@ pub fn parameters_update<
     current_layer: isize,
     layer_lowest: isize,
     layer_highest: isize,
-    param_fields: &mut Vec<ParamField>,
-    squircle: &Sh,
+    param_fields: &mut Fields,
+    shape: &Sh,
 ) {
-    let single_radius = squircle.single_radius;
     // Generate parameters to be sampled
     if parameters_current_layer_control.update() {
         blocks_current_layer_control.set_outdated();
@@ -66,26 +64,22 @@ pub fn parameters_update<
         let layer_alg = stack_layer_parameters.get(current_layer).unwrap().algorithm;
 
         // Update parameters for the sampling
-        set_parameters(
+        shape.set_parameters(
             stack_layer_parameters.get_mut(current_layer).unwrap(),
             stack_sampling_points.get(current_layer).unwrap(),
             stack_layer_shape.get(current_layer).unwrap(),
             layer_alg,
             param_fields,
-            single_radius,
         );
 
         // Update parameters for the sliders
-        update_control_parameters(
+        shape.update_control_parameters(
             stack_layer_shape.get_mut(current_layer).unwrap(),
             current_layer,
             param_fields,
-            single_radius,
         );
 
-        for param_field in param_fields.into_iter() {
-            param_field.register_success()
-        }
+        param_fields.all_register_success()
     }
 
     // Generate parameters to be sampled
@@ -97,36 +91,33 @@ pub fn parameters_update<
             // todo: make systematic
             let layer_alg = stack_layer_parameters.get(layer).unwrap().algorithm;
 
-            set_parameters(
+            shape.set_parameters(
                 stack_layer_parameters.get_mut(layer).unwrap(),
                 stack_sampling_points.get(layer).unwrap(),
                 stack_layer_shape.get(layer).unwrap(),
                 layer_alg,
                 param_fields,
-                single_radius,
             );
 
             // Update parameters for the sliders
-            update_control_parameters(
+            shape.update_control_parameters(
                 stack_layer_shape.get_mut(layer).unwrap(),
                 layer,
                 param_fields,
-                single_radius,
             )
         }
 
-        for param_field in param_fields.into_iter() {
-            param_field.register_success()
-        }
+        param_fields.all_register_success();
     }
 }
 
 pub fn blocks_update<
-    Alg: Debug + PartialEq + Default + Clone + Copy,
+    Alg: PartialEq + Default + Clone + Copy,
     Params: Default + Clone,
-    Sh: Shape<Alg, Params> + Clone + Default,
+    Fields: Default + ShapeFields,
+    Sh: Shape<Alg, Params, Fields> + Clone + Default,
 >(
-    stack_layer_parameters: &ZVec<LayerParameters<Alg, Params, Sh>>, // Store the configuration for each layer, handily indexed by integers
+    stack_layer_parameters: &ZVec<LayerParameters<Alg, Params, Fields, Sh>>, // Store the configuration for each layer, handily indexed by integers
     stack_blocks: &mut ZVec<Blocks>,
     blocks_current_layer_control: &mut Control,
     blocks_all_layers_control: &mut Control,
@@ -159,91 +150,4 @@ pub fn blocks_update<
             layer_lowest,
         );
     }
-}
-
-fn update_control_parameters<
-    Alg: Debug + PartialEq + Default + Clone + Copy,
-    Params: Default + Clone,
-    Sh: Shape<Alg, Params> + Clone + Default,
->(
-    current_layer_shape: &mut Params,
-    layer: isize,
-    param_fields: &mut Vec<ParamField>,
-    single_radius: bool,
-) {
-    // evaluate the rhai field at the layer
-    if let Some(radius_a) = param_fields[0].eval(&(layer as f64)) {
-        current_layer_shape.radius_a = radius_a
-    }
-
-    if single_radius {
-        if let Some(radius_a) = param_fields[0].eval(&(layer as f64)) {
-            current_layer_shape.radius_b = radius_a
-        }
-    } else {
-        if let Some(radius_b) = param_fields[1].eval(&(layer as f64)) {
-            current_layer_shape.radius_b = radius_b
-        }
-    }
-
-    if let Some(tilt) = param_fields[2].eval(&(layer as f64)) {
-        current_layer_shape.tilt = tilt
-    }
-    if let Some(center_offset_x) = param_fields[3].eval(&(layer as f64)) {
-        current_layer_shape.center_offset_x = center_offset_x
-    }
-    if let Some(center_offset_y) = param_fields[4].eval(&(layer as f64)) {
-        current_layer_shape.center_offset_y = center_offset_y
-    }
-
-    if let Some(squircle_parameter) = param_fields[5].eval(&(layer as f64)) {
-        current_layer_shape.squircle_parameter = squircle_parameter
-    }
-}
-
-/// Update (old) input LayerParameters object with new values evaluated from the code
-fn set_parameters<
-    Alg: Debug + PartialEq + Default + Clone + Copy,
-    Params: Default + Clone,
-    Sh: Shape<Alg, Params> + Clone + Default,
->(
-    layer_parameters: &mut LayerParameters<Alg, Params, Sh>,
-    sampling_points: &Vec<f64>,
-    default_shape: &Params,
-    algorithm: Alg,
-    param_fields: &mut Vec<ParamField>,
-    single_radius: bool,
-) {
-    // Set the algorithm & nr. of samples
-    layer_parameters.algorithm = algorithm;
-    layer_parameters.nr_samples = sampling_points.len();
-
-    // If the code evaluation failed (returned None) resort to using the default_parameters (supplied by sliders)
-    layer_parameters.parameters = sampling_points
-        .iter()
-        .map(|layer| SquircleParams {
-            radius_a: param_fields[0]
-                .eval(layer)
-                .unwrap_or(default_shape.radius_a),
-            radius_b: if single_radius {
-                param_fields[0]
-                    .eval(layer)
-                    .unwrap_or(default_shape.radius_a)
-            } else {
-                param_fields[1]
-                    .eval(layer)
-                    .unwrap_or(default_shape.radius_b)
-            },
-            tilt: param_fields[2].eval(layer).unwrap_or(default_shape.tilt),
-            center_offset_x: param_fields[3]
-                .eval(layer)
-                .unwrap_or(default_shape.center_offset_x),
-            center_offset_y: param_fields[4]
-                .eval(layer)
-                .unwrap_or(default_shape.center_offset_y),
-            squircle_parameter: param_fields[5]
-                .eval(layer)
-                .unwrap_or(default_shape.squircle_parameter),
-        })
-        .collect()
 }

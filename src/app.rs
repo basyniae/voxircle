@@ -1,6 +1,6 @@
 use crate::app::control::Control;
 use crate::app::generation::shape::Shape;
-use crate::app::generation::squircle::Squircle;
+use crate::app::generation::squircle::{Squircle, SquircleAlgorithm, SquircleFields};
 use crate::app::update::metrics::Metrics;
 use crate::app::view::View;
 use data_structures::blocks::Blocks;
@@ -10,7 +10,6 @@ use eframe::egui::{Direction, Layout};
 use eframe::emath::Align;
 use generation::squircle::squircle_params::SquircleParams;
 use metrics::symmetry_type::SymmetryType;
-use param_field::ParamField;
 use sampling::layer_parameters::LayerParameters;
 use sampling::{SampleCombineMethod, SampleDistributeMethod};
 use std::collections::VecDeque;
@@ -45,9 +44,14 @@ pub struct App {
     layer_lowest: isize,
     layer_highest: isize,
 
-    stack_shape: ZVec<SquircleParams>, // Store the squircle shape (given by the ui parameters) for each layer
-    stack_layer_parameters: ZVec<LayerParameters>, // Store the sampled parameters for each layer
-    stack_blocks: ZVec<Blocks>,        // Store the blocks for each layer
+    // repeat for each shape? that's the best I can think of right now (and maybe the best we can do,
+    //  noting that the trait-based approach does not allow dynamically switching of types, i.e.,
+    //  we can not sometimes store SquircleParams and other times LineParams)
+    stack_squircle_shape: ZVec<SquircleParams>, // Store the squircle shape (given by the ui parameters) for each layer
+    stack_squircle_layer_parameters:
+        ZVec<LayerParameters<SquircleAlgorithm, SquircleParams, SquircleFields, Squircle>>, // Store the sampled parameters for each layer
+
+    stack_blocks: ZVec<Blocks>, // Store the blocks for each layer
 
     // todo: make control
     recompute_metrics: bool, // If the current layer has changed, recompute the metrics. By update order, this needs to be a global variable
@@ -90,8 +94,8 @@ pub struct App {
     // Longterm: for easily adding more shapes with potentially variable inputs, make this attached to the algorithm?
     // longterm: Option to run an external rhai file
     // longterm: sliders for "Dummy variables" that can be referenced in code (for easier visual tweaking)
-    param_fields: Vec<ParamField>,
-    squircle: Squircle,
+    squircle_fields: SquircleFields,
+    squircle: Squircle, // additional global configuration data, now only `single_radius`
 }
 
 // longterm: save program state (with SERDE) as a JSON (for when working for multiple sessions on a single project)
@@ -111,8 +115,12 @@ impl App {
             layer_highest: 0,
 
             // Initialize for single layer (it will get overridden on the first update)
-            stack_shape: ZVec::new(VecDeque::from(vec![SquircleParams::default()]), 0),
-            stack_layer_parameters: ZVec::new(VecDeque::from(vec![LayerParameters::default()]), 0),
+            stack_squircle_shape: ZVec::new(VecDeque::from(vec![SquircleParams::default()]), 0),
+            stack_squircle_layer_parameters: ZVec::new(
+                VecDeque::from(vec![LayerParameters::default()]),
+                0,
+            ),
+
             stack_blocks: ZVec::new(VecDeque::from(vec![Blocks::default()]), 0),
 
             // Compute the metrics on the first update
@@ -151,7 +159,7 @@ impl App {
             reset_zoom_continuous: true,
 
             // Standard initializations, finite or nonnegative as necessary and sensible for the data type
-            param_fields: Squircle::get_new_param_fields(),
+            squircle_fields: SquircleFields::default(),
             squircle: Default::default(),
         }
     }
@@ -174,14 +182,16 @@ impl eframe::App for App {
                 .body(|ui| {
                     ui_options(
                         ui,
-                        self.stack_shape.get_mut(self.current_layer).unwrap(),
+                        self.stack_squircle_shape
+                            .get_mut(self.current_layer)
+                            .unwrap(),
                         &mut self
-                            .stack_layer_parameters
+                            .stack_squircle_layer_parameters
                             .get_mut(self.current_layer)
                             .unwrap()
                             .algorithm,
                         self.code_enabled,
-                        &mut self.param_fields,
+                        &mut self.squircle_fields,
                         &self.stack_sampling_points,
                         &mut self.parameters_current_layer_control,
                         &mut self.parameters_all_layers_control,
@@ -312,8 +322,8 @@ impl eframe::App for App {
         );
 
         parameters_update(
-            &mut self.stack_shape,
-            &mut self.stack_layer_parameters,
+            &mut self.stack_squircle_shape,
+            &mut self.stack_squircle_layer_parameters,
             &self.stack_sampling_points,
             &mut self.parameters_current_layer_control,
             &mut self.parameters_all_layers_control,
@@ -322,12 +332,12 @@ impl eframe::App for App {
             self.current_layer,
             self.layer_lowest,
             self.layer_highest,
-            &mut self.param_fields,
+            &mut self.squircle_fields,
             &self.squircle,
         );
 
         blocks_update(
-            &self.stack_layer_parameters,
+            &self.stack_squircle_layer_parameters,
             &mut self.stack_blocks,
             &mut self.blocks_current_layer_control,
             &mut self.blocks_all_layers_control,
@@ -345,7 +355,7 @@ impl eframe::App for App {
                 self.layer_highest,
                 self.stack_blocks.get(self.current_layer).unwrap(),
                 &self.stack_blocks,
-                &self.stack_shape,
+                &self.stack_squircle_shape,
             )
         }
 
@@ -393,16 +403,20 @@ impl eframe::App for App {
 
                     // Resize all the stack objects
                     {
-                        self.stack_shape.resize(
+                        self.stack_squircle_shape.resize(
                             self.layer_lowest,
                             self.layer_highest,
-                            &self.stack_shape.get(old_layer).unwrap().clone(),
+                            &self.stack_squircle_shape.get(old_layer).unwrap().clone(),
                         );
 
-                        self.stack_layer_parameters.resize(
+                        self.stack_squircle_layer_parameters.resize(
                             self.layer_lowest,
                             self.layer_highest,
-                            &self.stack_layer_parameters.get(old_layer).unwrap().clone(),
+                            &self
+                                .stack_squircle_layer_parameters
+                                .get(old_layer)
+                                .unwrap()
+                                .clone(),
                         );
 
                         self.stack_blocks.resize(
@@ -428,8 +442,10 @@ impl eframe::App for App {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui_viewport(
                 ui,
-                self.stack_shape.get(self.current_layer).unwrap(),
-                self.stack_layer_parameters.get(self.current_layer).unwrap(),
+                self.stack_squircle_shape.get(self.current_layer).unwrap(),
+                self.stack_squircle_layer_parameters
+                    .get(self.current_layer)
+                    .unwrap(),
                 &self.stack_blocks.get(self.current_layer),
                 self.sampling_enabled,
                 &self.view,

@@ -1,15 +1,14 @@
 use std::collections::VecDeque;
-use std::fmt::Debug;
 
 /// Vector whose index is a continuous interval of the integers (Z)
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Default)]
 pub struct ZVec<T> {
     pub data: VecDeque<T>,
     minimum: isize,
     maximum: isize,
 }
 #[allow(dead_code)]
-impl<T: Clone + Debug> ZVec<T> {
+impl<T: Clone> ZVec<T> {
     pub fn new(data: VecDeque<T>, minimum: isize) -> Self {
         let data_length = data.len();
 

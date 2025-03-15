@@ -1,6 +1,6 @@
 use crate::app::colors::*;
 use crate::app::data_structures::blocks::Blocks;
-use crate::app::generation::shape::Shape;
+use crate::app::generation::shape::{Shape, ShapeFields};
 use crate::app::metrics::convex_hull::line_segments_from_conv_hull;
 use crate::app::metrics::symmetry_type::SymmetryType;
 use crate::app::plotting;
@@ -19,11 +19,12 @@ use std::fmt::Debug;
 pub fn ui_viewport<
     Alg: Debug + PartialEq + Default + Clone + Copy,
     Params: Default + Clone,
-    Sh: Shape<Alg, Params> + Default + Clone,
+    Fields: Default + ShapeFields,
+    Sh: Shape<Alg, Params, Fields> + Default + Clone,
 >(
     ui: &mut Ui,
     shape_parameters: &Params,
-    sampled_parameters: &LayerParameters<Alg, Params, Sh>,
+    sampled_parameters: &LayerParameters<Alg, Params, Fields, Sh>,
     blocks: &Option<&Blocks>,
     sampling_enabled: bool,
     view: &View,
@@ -299,7 +300,9 @@ pub fn ui_viewport<
             }
 
             // Plot target shape
-            Sh::draw(plot_ui, shape_parameters.clone(), COLOR_TARGET_SHAPE)
+            Sh::draw(plot_ui, shape_parameters.clone(), COLOR_TARGET_SHAPE);
+
+            Sh::draw_widgets(plot_ui, shape_parameters.clone())
         });
 }
 

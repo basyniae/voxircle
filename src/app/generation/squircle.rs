@@ -4,10 +4,11 @@ use crate::app::colors::{
 use crate::app::control::Control;
 use crate::app::data_structures::blocks::Blocks;
 use crate::app::data_structures::zvec::ZVec;
-use crate::app::generation::shape::Shape;
+use crate::app::generation::shape::{Shape, ShapeFields};
 use crate::app::math::linear_algebra::Vec2;
 use crate::app::param_field::ParamField;
 use crate::app::plotting;
+use crate::app::sampling::layer_parameters::LayerParameters;
 use centerpoint::generate_alg_centerpoint;
 use conservative::generate_alg_conservative;
 use contained::generate_alg_contained;
@@ -33,6 +34,7 @@ pub mod squircle_params;
 
 /// Squircle shape struct. It's values are globally constant options for how a squircle can be made
 ///  from how the parameters are displayed
+#[derive(Clone, Copy)]
 pub struct Squircle {
     pub single_radius: bool,
 }
@@ -55,7 +57,106 @@ pub enum SquircleAlgorithm {
     Empty,
 }
 
-impl Shape<SquircleAlgorithm, SquircleParams> for Squircle {
+pub struct SquircleFields {
+    pub radius_a: ParamField,
+    pub radius_b: ParamField,
+    pub tilt: ParamField,
+    pub center_offset_x: ParamField,
+    pub center_offset_y: ParamField,
+    pub squircle_parameter: ParamField,
+}
+
+impl Default for SquircleFields {
+    fn default() -> Self {
+        Self {
+            radius_a: ParamField::new(
+                true,
+                true,
+                "Radius A".to_string(),
+                [0.0, 30.0],
+                0.03,
+                vec![],
+            ),
+            radius_b: ParamField::new(
+                true,
+                true,
+                "Radius B".to_string(),
+                [0.0, 30.0],
+                0.03,
+                vec![],
+            ),
+            tilt: ParamField::new(
+                true,
+                false,
+                "Tilt".to_string(),
+                [-TAU, TAU],
+                0.01,
+                vec![
+                    ("0°".to_string(), 0.0),
+                    ("30°".to_string(), PI / 6.0),
+                    ("45°".to_string(), PI / 4.0),
+                    ("1:2".to_string(), 0.5_f64.atan()),
+                    ("1:3".to_string(), (1.0_f64 / 3.0).atan()),
+                    ("2:3".to_string(), (2.0_f64 / 3.0).atan()),
+                    ("1:4".to_string(), 0.25_f64.atan()),
+                ],
+            ),
+            center_offset_x: ParamField::new(
+                true,
+                false,
+                "x offset".to_string(),
+                [-1.0, 1.0],
+                0.03,
+                vec![],
+            ),
+            center_offset_y: ParamField::new(
+                true,
+                false,
+                "y offset".to_string(),
+                [-1.0, 1.0],
+                0.03,
+                vec![],
+            ),
+            squircle_parameter: ParamField::new_param_func(
+                false,
+                true,
+                "Squircleness".to_string(),
+                [0.0, 1.0],
+                0.01,
+                vec![
+                    ("Circle".to_string(), 2.0),              // Squircle parameter 2
+                    ("Astroid".to_string(), 0.6666666666666), // "" "" 2/3
+                    ("Diamond".to_string(), 1.0),             // "" "" 1
+                    ("Square".to_string(), f64::INFINITY),    // "" "" infinity
+                ],
+                |x| 1.0 / (1.0 - x) - 1.0,
+                |p| 1.0 - 1.0 / (p + 1.0),
+            ),
+        }
+    }
+}
+
+impl ShapeFields for SquircleFields {
+    fn all_register_success(&mut self) {
+        self.radius_a.register_success();
+        self.radius_b.register_success();
+        self.tilt.register_success();
+        self.center_offset_x.register_success();
+        self.center_offset_y.register_success();
+        self.squircle_parameter.register_success();
+    }
+
+    fn has_any_changed(&mut self) -> bool {
+        self.radius_a.has_changed()
+            || self.radius_b.has_changed()
+            || self.tilt.has_changed()
+            || self.center_offset_x.has_changed()
+            || self.center_offset_y.has_changed()
+            || self.squircle_parameter.has_changed()
+    }
+}
+
+impl Shape<SquircleAlgorithm, SquircleParams, SquircleFields> for Squircle {
     fn describe(alg: &SquircleAlgorithm) -> String {
         match alg {
             Centerpoint => {"Include a particular block iff its centerpoint is in the ellipse".to_string()}
@@ -149,74 +250,6 @@ impl Shape<SquircleAlgorithm, SquircleParams> for Squircle {
         }
     }
 
-    fn get_new_param_fields() -> Vec<ParamField> {
-        vec![
-            ParamField::new(
-                true,
-                true,
-                "Radius A".to_string(),
-                [0.0, 30.0],
-                0.03,
-                vec![],
-            ),
-            ParamField::new(
-                true,
-                true,
-                "Radius B".to_string(),
-                [0.0, 30.0],
-                0.03,
-                vec![],
-            ),
-            ParamField::new(
-                true,
-                false,
-                "Tilt".to_string(),
-                [-TAU, TAU],
-                0.01,
-                vec![
-                    ("0°".to_string(), 0.0),
-                    ("30°".to_string(), PI / 6.0),
-                    ("45°".to_string(), PI / 4.0),
-                    ("1:2".to_string(), 0.5_f64.atan()),
-                    ("1:3".to_string(), (1.0_f64 / 3.0).atan()),
-                    ("2:3".to_string(), (2.0_f64 / 3.0).atan()),
-                    ("1:4".to_string(), 0.25_f64.atan()),
-                ],
-            ),
-            ParamField::new(
-                true,
-                false,
-                "x offset".to_string(),
-                [-1.0, 1.0],
-                0.03,
-                vec![],
-            ),
-            ParamField::new(
-                true,
-                false,
-                "y offset".to_string(),
-                [-1.0, 1.0],
-                0.03,
-                vec![],
-            ),
-            ParamField::new_param_func(
-                false,
-                true,
-                "Squircleness".to_string(),
-                [0.0, 1.0],
-                0.01,
-                vec![
-                    ("Circle".to_string(), 2.0),              // Squircle parameter 2
-                    ("Astroid".to_string(), 0.6666666666666), // "" "" 2/3
-                    ("Diamond".to_string(), 1.0),             // "" "" 1
-                    ("Square".to_string(), f64::INFINITY),    // "" "" infinity
-                ],
-                |x| 1.0 / (1.0 - x) - 1.0,
-                |p| 1.0 - 1.0 / (p + 1.0),
-            ),
-        ]
-    }
-
     fn bounds(params: &SquircleParams, pad_factor: f64) -> [[f64; 2]; 2] {
         exact_squircle_bounds(params, pad_factor)
     }
@@ -225,7 +258,7 @@ impl Shape<SquircleAlgorithm, SquircleParams> for Squircle {
         &mut self,
         ui: &mut Ui,
         params: &mut SquircleParams,
-        param_fields: &mut Vec<ParamField>,
+        param_fields: &mut SquircleFields,
         alg: &mut SquircleAlgorithm,
         parameters_current_layer_control: &mut Control,
         parameters_all_layers_control: &mut Control,
@@ -263,7 +296,7 @@ impl Shape<SquircleAlgorithm, SquircleParams> for Squircle {
         ui.checkbox(&mut self.single_radius, "Single radius");
 
         if self.single_radius {
-            param_fields[0].show(
+            param_fields.radius_a.show(
                 &mut params.radius_a,
                 ui,
                 &code_enabled,
@@ -275,7 +308,7 @@ impl Shape<SquircleAlgorithm, SquircleParams> for Squircle {
             params.radius_b = params.radius_a;
         } else {
             // radius a
-            param_fields[0].show(
+            param_fields.radius_a.show(
                 &mut params.radius_a,
                 ui,
                 &code_enabled,
@@ -286,7 +319,7 @@ impl Shape<SquircleAlgorithm, SquircleParams> for Squircle {
             );
 
             // radius b
-            param_fields[1].show(
+            param_fields.radius_b.show(
                 &mut params.radius_b,
                 ui,
                 &code_enabled,
@@ -300,7 +333,7 @@ impl Shape<SquircleAlgorithm, SquircleParams> for Squircle {
         }
 
         //tilt
-        param_fields[2].show(
+        param_fields.tilt.show(
             &mut params.tilt,
             ui,
             &code_enabled,
@@ -311,7 +344,7 @@ impl Shape<SquircleAlgorithm, SquircleParams> for Squircle {
         );
 
         // Squircle parameter
-        param_fields[5].show(
+        param_fields.squircle_parameter.show(
             &mut params.squircle_parameter,
             ui,
             &code_enabled,
@@ -323,7 +356,7 @@ impl Shape<SquircleAlgorithm, SquircleParams> for Squircle {
 
         // Centerpoint
         ui.separator();
-        param_fields[3].show(
+        param_fields.center_offset_x.show(
             &mut params.center_offset_x,
             ui,
             &code_enabled,
@@ -333,7 +366,7 @@ impl Shape<SquircleAlgorithm, SquircleParams> for Squircle {
             None,
         );
 
-        param_fields[4].show(
+        param_fields.center_offset_y.show(
             &mut params.center_offset_y,
             ui,
             &code_enabled,
@@ -361,13 +394,7 @@ impl Shape<SquircleAlgorithm, SquircleParams> for Squircle {
             },
         );
 
-        if param_fields[0].has_changed()
-            || param_fields[1].has_changed()
-            || param_fields[2].has_changed()
-            || param_fields[3].has_changed()
-            || param_fields[4].has_changed()
-            || param_fields[5].has_changed()
-        {
+        if param_fields.has_any_changed() {
             parameters_current_layer_control.set_outdated();
             parameters_all_layers_control.set_outdated()
         }
@@ -461,5 +488,95 @@ impl Shape<SquircleAlgorithm, SquircleParams> for Squircle {
                 .radius(5.0)
                 .color(COLOR_CENTER_DOT),
         );
+    }
+
+    // todo: make more generic
+    fn set_parameters(
+        &self,
+        layer_parameters: &mut LayerParameters<
+            SquircleAlgorithm,
+            SquircleParams,
+            SquircleFields,
+            Squircle,
+        >,
+        sampling_points: &Vec<f64>,
+        default_shape: &SquircleParams,
+        algorithm: SquircleAlgorithm,
+        fields: &mut SquircleFields,
+    ) {
+        // Set the algorithm & nr. of samples
+        layer_parameters.algorithm = algorithm;
+        layer_parameters.nr_samples = sampling_points.len();
+
+        // If the code evaluation failed (returned None) resort to using the default_parameters (supplied by sliders)
+        layer_parameters.parameters = sampling_points
+            .iter()
+            .map(|layer| SquircleParams {
+                radius_a: fields
+                    .radius_a
+                    .eval(layer)
+                    .unwrap_or(default_shape.radius_a),
+                radius_b: if self.single_radius {
+                    fields
+                        .radius_a
+                        .eval(layer)
+                        .unwrap_or(default_shape.radius_a)
+                } else {
+                    fields
+                        .radius_b
+                        .eval(layer)
+                        .unwrap_or(default_shape.radius_b)
+                },
+                tilt: fields.tilt.eval(layer).unwrap_or(default_shape.tilt),
+                center_offset_x: fields
+                    .center_offset_x
+                    .eval(layer)
+                    .unwrap_or(default_shape.center_offset_x),
+                center_offset_y: fields
+                    .center_offset_y
+                    .eval(layer)
+                    .unwrap_or(default_shape.center_offset_y),
+                squircle_parameter: fields
+                    .squircle_parameter
+                    .eval(layer)
+                    .unwrap_or(default_shape.squircle_parameter),
+            })
+            .collect()
+    }
+
+    fn update_control_parameters(
+        &self,
+        current_layer_shape: &mut SquircleParams,
+        layer: isize,
+        fields: &mut SquircleFields,
+    ) {
+        // evaluate the rhai field at the layer
+        if let Some(radius_a) = fields.radius_a.eval(&(layer as f64)) {
+            current_layer_shape.radius_a = radius_a
+        }
+
+        if self.single_radius {
+            if let Some(radius_a) = fields.radius_a.eval(&(layer as f64)) {
+                current_layer_shape.radius_b = radius_a
+            }
+        } else {
+            if let Some(radius_b) = fields.radius_b.eval(&(layer as f64)) {
+                current_layer_shape.radius_b = radius_b
+            }
+        }
+
+        if let Some(tilt) = fields.tilt.eval(&(layer as f64)) {
+            current_layer_shape.tilt = tilt
+        }
+        if let Some(center_offset_x) = fields.center_offset_x.eval(&(layer as f64)) {
+            current_layer_shape.center_offset_x = center_offset_x
+        }
+        if let Some(center_offset_y) = fields.center_offset_y.eval(&(layer as f64)) {
+            current_layer_shape.center_offset_y = center_offset_y
+        }
+
+        if let Some(squircle_parameter) = fields.squircle_parameter.eval(&(layer as f64)) {
+            current_layer_shape.squircle_parameter = squircle_parameter
+        }
     }
 }

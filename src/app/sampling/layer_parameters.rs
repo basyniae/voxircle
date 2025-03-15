@@ -1,14 +1,15 @@
 use crate::app::data_structures::blocks::Blocks;
-use crate::app::generation::shape::Shape;
+use crate::app::generation::shape::{Shape, ShapeFields};
 use crate::app::sampling::SampleCombineMethod;
 use std::fmt::{Debug, Display};
+use std::marker::PhantomData;
 
 /// Sampled parameters belonging to a single layer
-#[derive(Debug)]
 pub struct LayerParameters<
-    Alg: Debug + PartialEq + Default + Clone + Copy,
+    Alg: PartialEq + Default + Clone + Copy,
     Params: Default + Clone,
-    Sh: Shape<Alg, Params> + Default + Clone,
+    Fields: Default + ShapeFields,
+    Sh: Shape<Alg, Params, Fields> + Default,
 > {
     // for bookkeeping
     pub nr_samples: usize,
@@ -17,50 +18,55 @@ pub struct LayerParameters<
 
     pub parameters: Vec<Params>,
 
-    // seems to be to satisfy the trait checker
-    shape: Sh,
+    phantom_fields: PhantomData<Fields>,
+    phantom_shape: PhantomData<Sh>,
 }
 
 impl<
-        Alg: Debug + PartialEq + Default + Clone + Copy,
+        Alg: PartialEq + Default + Clone + Copy,
         Params: Default + Clone,
-        Sh: Shape<Alg, Params> + Clone + Default,
-    > Default for LayerParameters<Alg, Params, Sh>
+        Fields: Default + ShapeFields,
+        Sh: Shape<Alg, Params, Fields> + Clone + Default,
+    > Default for LayerParameters<Alg, Params, Fields, Sh>
 {
     fn default() -> Self {
-        LayerParameters::<Alg, Params, Sh> {
+        LayerParameters::<Alg, Params, Fields, Sh> {
             nr_samples: 1,
             algorithm: Default::default(),
 
             // Parameter defaults are the same as for the default configuration of layer_config
             //  (circle with radius 5 centered at the origin)
             parameters: vec![Default::default()],
-            shape: Default::default(),
+            phantom_fields: Default::default(),
+            phantom_shape: Default::default(),
         }
     }
 }
 
 impl<
-        Alg: Debug + PartialEq + Default + Clone + Copy,
+        Alg: PartialEq + Default + Clone + Copy,
         Params: Default + Clone,
-        Sh: Shape<Alg, Params> + Clone + Default,
-    > Clone for LayerParameters<Alg, Params, Sh>
+        Fields: Default + ShapeFields,
+        Sh: Shape<Alg, Params, Fields> + Clone + Default,
+    > Clone for LayerParameters<Alg, Params, Fields, Sh>
 {
     fn clone(&self) -> Self {
         Self {
             nr_samples: self.nr_samples.clone(),
             algorithm: self.algorithm.clone(),
             parameters: self.parameters.clone(),
-            shape: self.shape.clone(),
+            phantom_fields: Default::default(),
+            phantom_shape: Default::default(),
         }
     }
 }
 
 impl<
-        Alg: Debug + PartialEq + Default + Clone + Copy,
+        Alg: PartialEq + Default + Clone + Copy,
         Params: Default + Clone,
-        Sh: Shape<Alg, Params> + Default + Clone,
-    > LayerParameters<Alg, Params, Sh>
+        Fields: Default + ShapeFields,
+        Sh: Shape<Alg, Params, Fields> + Default + Clone,
+    > LayerParameters<Alg, Params, Fields, Sh>
 {
     /// Run the generation algorithm for the configuration `self`, the output is a `Blocks` object. document.
     pub fn generate(&self, sample_combine_method: &SampleCombineMethod) -> Blocks {
