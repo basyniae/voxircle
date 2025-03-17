@@ -38,6 +38,15 @@ pub fn ui_viewport<
 ) {
     ui.visuals_mut().extreme_bg_color = COLOR_VIEWPORT_BACKGROUND;
 
+    // on scrolling in the viewport, turn off auto zoom
+    if ui.rect_contains_pointer(ui.max_rect()) {
+        ui.ctx().input(|i| {
+            if i.raw_scroll_delta != egui::Vec2::from([0.0, 0.0]) {
+                *reset_zoom_continuous = false
+            }
+        })
+    }
+
     Plot::new("my_plot")
         .data_aspect(1.0) // so that squares in the rasterization always look square in the viewport
         // Grid lines of increasing thickness at distance 1.0, 5.0, 10.0 for counting
