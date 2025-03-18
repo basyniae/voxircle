@@ -4,16 +4,16 @@ use crate::app::data_structures::zvec::ZVec;
 use crate::app::sampling::layer_parameters::LayerParameters;
 use egui::{Color32, Ui};
 use egui_plot::PlotUi;
-use std::fmt::{Debug, Display};
+
+pub trait TraitAlgorithm: PartialEq + Default + Clone + Copy {}
+
+pub trait TraitParameters: Default + Clone {}
 
 /// Abstraction for a class of algorithms, which all use the same parameters (e.g., squircles, lines).
 /// The parameters are Param, these fully describe the shape to be approximated
 /// Instances of Alg are (pointers to) the algorithm, Alg is some enum.
-pub trait Shape<
-    Alg: PartialEq + Default + Clone + Copy,
-    Params: Default + Clone,
-    Fields: Default + ShapeFields,
->
+pub trait TraitShape<Alg: TraitAlgorithm, Params: TraitParameters, Fields: TraitFields>:
+    Default + Clone
 {
     /// Description for info display
     fn describe(alg: &Alg) -> String;
@@ -82,7 +82,7 @@ pub trait Shape<
     );
 }
 
-pub trait ShapeFields {
+pub trait TraitFields: Default {
     fn all_register_success(&mut self);
 
     fn has_any_changed(&mut self) -> bool;

@@ -1,8 +1,8 @@
 use crate::app::control::Control;
 use crate::app::generation::any_shape::AnyShape;
 use crate::app::generation::line::line_params::LineParams;
-use crate::app::generation::line::{Line, LineAlgorithm, LineFields};
-use crate::app::generation::squircle::{Squircle, SquircleAlgorithm, SquircleFields};
+use crate::app::generation::line::{Line, LineAlg, LineFields};
+use crate::app::generation::squircle::{Squircle, SquircleAlg, SquircleFields};
 use crate::app::update::metrics::Metrics;
 use crate::app::view::View;
 use data_structures::blocks::Blocks;
@@ -50,10 +50,10 @@ pub struct App {
     //  we can not sometimes store SquircleParams and other times LineParams)
     stack_squircle_shape: ZVec<SquircleParams>, // Store the squircle shape (given by the ui parameters) for each layer
     stack_squircle_layer_parameters:
-        ZVec<LayerParameters<SquircleAlgorithm, SquircleParams, SquircleFields, Squircle>>, // Store the sampled parameters for each layer
+        ZVec<LayerParameters<SquircleAlg, SquircleParams, SquircleFields, Squircle>>, // Store the sampled parameters for each layer
 
     stack_line_shape: ZVec<LineParams>,
-    stack_line_layer_parameters: ZVec<LayerParameters<LineAlgorithm, LineParams, LineFields, Line>>,
+    stack_line_layer_parameters: ZVec<LayerParameters<LineAlg, LineParams, LineFields, Line>>,
 
     // Parameter fields
     // Longterm: for easily adding more shapes with potentially variable inputs, make this attached to the algorithm?

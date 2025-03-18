@@ -4,7 +4,7 @@ use crate::app::colors::{
 use crate::app::control::Control;
 use crate::app::data_structures::blocks::Blocks;
 use crate::app::data_structures::zvec::ZVec;
-use crate::app::generation::shape::{Shape, ShapeFields};
+use crate::app::generation::shape::{TraitAlgorithm, TraitFields, TraitParameters, TraitShape};
 use crate::app::math::linear_algebra::Vec2;
 use crate::app::param_field::ParamField;
 use crate::app::plotting;
@@ -20,8 +20,7 @@ use exact_squircle_bounds::exact_squircle_bounds;
 use percentage::generate_alg_percentage;
 use squircle_params::SquircleParams;
 use std::f64::consts::{PI, TAU};
-use std::fmt::Display;
-use SquircleAlgorithm::{Centerpoint, Conservative, Contained, Empty, Percentage};
+use SquircleAlg::{Centerpoint, Conservative, Contained, Empty, Percentage};
 
 mod centerpoint;
 mod conservative;
@@ -48,7 +47,7 @@ impl Default for Squircle {
 }
 
 #[derive(Debug, PartialEq, Default, Clone, Copy)]
-pub enum SquircleAlgorithm {
+pub enum SquircleAlg {
     #[default]
     Centerpoint,
     Conservative,
@@ -56,6 +55,10 @@ pub enum SquircleAlgorithm {
     Percentage(f64),
     Empty,
 }
+
+impl TraitAlgorithm for SquircleAlg {}
+
+impl TraitParameters for SquircleParams {}
 
 pub struct SquircleFields {
     pub radius_a: ParamField,
@@ -136,7 +139,7 @@ impl Default for SquircleFields {
     }
 }
 
-impl ShapeFields for SquircleFields {
+impl TraitFields for SquircleFields {
     fn all_register_success(&mut self) {
         self.radius_a.register_success();
         self.radius_b.register_success();
@@ -156,8 +159,8 @@ impl ShapeFields for SquircleFields {
     }
 }
 
-impl Shape<SquircleAlgorithm, SquircleParams, SquircleFields> for Squircle {
-    fn describe(alg: &SquircleAlgorithm) -> String {
+impl TraitShape<SquircleAlg, SquircleParams, SquircleFields> for Squircle {
+    fn describe(alg: &SquircleAlg) -> String {
         match alg {
             Centerpoint => {"Include a particular block iff its centerpoint is in the ellipse".to_string()}
             Conservative => {"Include a particular block in the voxelization iff it has nonempty intersection with the ellipse".to_string()}
@@ -170,7 +173,7 @@ impl Shape<SquircleAlgorithm, SquircleParams, SquircleFields> for Squircle {
         }
     }
 
-    fn name(alg: &SquircleAlgorithm) -> String {
+    fn name(alg: &SquircleAlg) -> String {
         match alg {
             Centerpoint => "Centerpoint".to_string(),
             Conservative => "Conservative".to_string(),
@@ -180,7 +183,7 @@ impl Shape<SquircleAlgorithm, SquircleParams, SquircleFields> for Squircle {
         }
     }
 
-    fn all_algs() -> Vec<SquircleAlgorithm> {
+    fn all_algs() -> Vec<SquircleAlg> {
         vec![Centerpoint, Conservative, Contained, Percentage(0.5)]
     }
 
@@ -217,7 +220,7 @@ impl Shape<SquircleAlgorithm, SquircleParams, SquircleFields> for Squircle {
         grid_size
     }
 
-    fn generate(alg: &SquircleAlgorithm, params: &SquircleParams, grid_size: usize) -> Blocks {
+    fn generate(alg: &SquircleAlg, params: &SquircleParams, grid_size: usize) -> Blocks {
         let center_offset = Vec2::from([params.offset_x, params.offset_y]);
         let sqrt_quad_form = params.get_sqrt_quad_form();
 
@@ -259,7 +262,7 @@ impl Shape<SquircleAlgorithm, SquircleParams, SquircleFields> for Squircle {
         ui: &mut Ui,
         params: &mut SquircleParams,
         param_fields: &mut SquircleFields,
-        alg: &mut SquircleAlgorithm,
+        alg: &mut SquircleAlg,
         parameters_current_layer_control: &mut Control,
         parameters_all_layers_control: &mut Control,
         sampling_points: &ZVec<Vec<f64>>,
@@ -479,14 +482,14 @@ impl Shape<SquircleAlgorithm, SquircleParams, SquircleFields> for Squircle {
     fn set_parameters(
         &self,
         layer_parameters: &mut LayerParameters<
-            SquircleAlgorithm,
+            SquircleAlg,
             SquircleParams,
             SquircleFields,
             Squircle,
         >,
         sampling_points: &Vec<f64>,
         default_shape: &SquircleParams,
-        algorithm: SquircleAlgorithm,
+        algorithm: SquircleAlg,
         fields: &mut SquircleFields,
     ) {
         // Set the algorithm & nr. of samples

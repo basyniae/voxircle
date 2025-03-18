@@ -6,17 +6,16 @@ use crate::app::data_structures::blocks::Blocks;
 use crate::app::data_structures::zvec::ZVec;
 use crate::app::generation::line::centerpoint::generate_line_centerpoint;
 use crate::app::generation::line::line_params::LineParams;
-use crate::app::generation::line::LineAlgorithm::Centerpoint;
-use crate::app::generation::shape::{Shape, ShapeFields};
+use crate::app::generation::line::LineAlg::Centerpoint;
+use crate::app::generation::shape::{TraitAlgorithm, TraitFields, TraitParameters, TraitShape};
 use crate::app::math::linear_algebra::Vec2;
 use crate::app::param_field::ParamField;
 use crate::app::plotting;
 use crate::app::sampling::layer_parameters::LayerParameters;
 use eframe::epaint::Color32;
 use egui::{Align, Layout, Ui};
-use egui_plot::{HLine, PlotItem, PlotUi, Points, VLine};
+use egui_plot::{HLine, PlotUi, Points, VLine};
 use std::f64::consts::PI;
-use std::fmt::Display;
 
 mod centerpoint;
 pub mod line_params;
@@ -31,10 +30,14 @@ impl Default for Line {
 }
 
 #[derive(Debug, PartialEq, Default, Clone, Copy)]
-pub enum LineAlgorithm {
+pub enum LineAlg {
     #[default]
     Centerpoint,
 }
+
+impl TraitAlgorithm for LineAlg {}
+
+impl TraitParameters for LineParams {}
 
 pub struct LineFields {
     pub rise: ParamField,
@@ -79,7 +82,7 @@ impl Default for LineFields {
     }
 }
 
-impl ShapeFields for LineFields {
+impl TraitFields for LineFields {
     fn all_register_success(&mut self) {
         self.rise.register_success();
         self.run.register_success();
@@ -99,8 +102,8 @@ impl ShapeFields for LineFields {
     }
 }
 
-impl Shape<LineAlgorithm, LineParams, LineFields> for Line {
-    fn describe(alg: &LineAlgorithm) -> String {
+impl TraitShape<LineAlg, LineParams, LineFields> for Line {
+    fn describe(alg: &LineAlg) -> String {
         match alg {
             Centerpoint => {
                 "Include a particular block iff its centerpoint is in the line".to_string()
@@ -108,13 +111,13 @@ impl Shape<LineAlgorithm, LineParams, LineFields> for Line {
         }
     }
 
-    fn name(alg: &LineAlgorithm) -> String {
+    fn name(alg: &LineAlg) -> String {
         match alg {
             Centerpoint => "Centerpoint".to_string(),
         }
     }
 
-    fn all_algs() -> Vec<LineAlgorithm> {
+    fn all_algs() -> Vec<LineAlg> {
         vec![Centerpoint]
     }
 
@@ -126,7 +129,7 @@ impl Shape<LineAlgorithm, LineParams, LineFields> for Line {
             .ceil() as usize
     }
 
-    fn generate(alg: &LineAlgorithm, params: &LineParams, grid_size: usize) -> Blocks {
+    fn generate(alg: &LineAlg, params: &LineParams, grid_size: usize) -> Blocks {
         let rise_run = Vec2::from([params.run, params.rise]);
         let offset = Vec2::from([params.offset_x, params.offset_y]);
 
@@ -175,7 +178,7 @@ impl Shape<LineAlgorithm, LineParams, LineFields> for Line {
         ui: &mut Ui,
         params: &mut LineParams,
         param_fields: &mut LineFields,
-        alg: &mut LineAlgorithm,
+        alg: &mut LineAlg,
         parameters_current_layer_control: &mut Control,
         parameters_all_layers_control: &mut Control,
         sampling_points: &ZVec<Vec<f64>>,
@@ -355,10 +358,10 @@ impl Shape<LineAlgorithm, LineParams, LineFields> for Line {
 
     fn set_parameters(
         &self,
-        layer_parameters: &mut LayerParameters<LineAlgorithm, LineParams, LineFields, Self>,
+        layer_parameters: &mut LayerParameters<LineAlg, LineParams, LineFields, Self>,
         sampling_points: &Vec<f64>,
         default_shape: &LineParams,
-        algorithm: LineAlgorithm,
+        algorithm: LineAlg,
         fields: &mut LineFields,
     ) where
         Self: Clone + Default,

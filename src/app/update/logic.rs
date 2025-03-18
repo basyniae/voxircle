@@ -1,10 +1,9 @@
 use crate::app::control::Control;
 use crate::app::data_structures::blocks::Blocks;
 use crate::app::data_structures::zvec::ZVec;
-use crate::app::generation::shape::{Shape, ShapeFields};
+use crate::app::generation::shape::{TraitAlgorithm, TraitFields, TraitParameters, TraitShape};
 use crate::app::sampling::layer_parameters::LayerParameters;
 use crate::app::sampling::{SampleCombineMethod, SampleDistributeMethod};
-use std::fmt::Debug;
 
 pub fn sampling_points_update(
     only_sample_half_of_bottom_layer: bool,
@@ -38,13 +37,13 @@ pub fn sampling_points_update(
 }
 
 pub fn parameters_update<
-    Alg: PartialEq + Default + Clone + Copy,
-    Params: Default + Clone,
-    Fields: Default + ShapeFields,
-    Sh: Shape<Alg, Params, Fields> + Clone + Default,
+    Alg: TraitAlgorithm,
+    Params: TraitParameters,
+    Fields: TraitFields,
+    Shape: TraitShape<Alg, Params, Fields>,
 >(
     stack_layer_shape: &mut ZVec<Params>,
-    stack_layer_parameters: &mut ZVec<LayerParameters<Alg, Params, Fields, Sh>>, // Store the configuration for each layer, handily indexed by integers
+    stack_layer_parameters: &mut ZVec<LayerParameters<Alg, Params, Fields, Shape>>, // Store the configuration for each layer, handily indexed by integers
     stack_sampling_points: &ZVec<Vec<f64>>,
     parameters_current_layer_control: &mut Control,
     parameters_all_layers_control: &mut Control,
@@ -55,7 +54,7 @@ pub fn parameters_update<
     layer_lowest: isize,
     layer_highest: isize,
     param_fields: &mut Fields,
-    shape: &Sh,
+    shape: &Shape,
 ) {
     // Generate parameters to be sampled
     if parameters_current_layer_control.update() {
@@ -110,10 +109,10 @@ pub fn parameters_update<
 }
 
 pub fn blocks_update<
-    Alg: PartialEq + Default + Clone + Copy,
-    Params: Default + Clone,
-    Fields: Default + ShapeFields,
-    Sh: Shape<Alg, Params, Fields> + Clone + Default,
+    Alg: TraitAlgorithm,
+    Params: TraitParameters,
+    Fields: TraitFields,
+    Sh: TraitShape<Alg, Params, Fields>,
 >(
     stack_layer_parameters: &ZVec<LayerParameters<Alg, Params, Fields, Sh>>, // Store the configuration for each layer, handily indexed by integers
     stack_blocks: &mut ZVec<Blocks>,

@@ -41,6 +41,7 @@ pub fn intersect_complemented_ray_segment(
 }
 
 /// Return true if the line intersects the segment
+#[allow(dead_code)]
 pub fn intersect_line_segment(line: [Vec2; 2], segment: [Vec2; 2]) -> bool {
     let p_1 = line[0];
     let q_1 = line[1];

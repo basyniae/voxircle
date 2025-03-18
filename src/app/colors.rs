@@ -58,6 +58,7 @@ pub fn linear_gradient(color_a: Color32, color_b: Color32, t: f64) -> Color32 {
     }
 }
 
+#[allow(dead_code)]
 pub fn bilinear_gradient(color_a: Color32, color_b: Color32, color_c: Color32, t: f64) -> Color32 {
     if t < 0.5 {
         linear_gradient(color_a, color_b, 2.0 * t)

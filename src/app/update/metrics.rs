@@ -4,7 +4,7 @@ use crate::app::data_structures::zvec::ZVec;
 use crate::app::generation::any_shape::AnyShape;
 use crate::app::generation::line::line_params::LineParams;
 use crate::app::generation::line::Line;
-use crate::app::generation::shape::Shape;
+use crate::app::generation::shape::TraitShape;
 use crate::app::generation::squircle::squircle_params::SquircleParams;
 use crate::app::generation::squircle::Squircle;
 use crate::app::math::square_max::square_max;

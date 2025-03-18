@@ -1,15 +1,14 @@
 use crate::app::data_structures::blocks::Blocks;
-use crate::app::generation::shape::{Shape, ShapeFields};
+use crate::app::generation::shape::{TraitAlgorithm, TraitFields, TraitParameters, TraitShape};
 use crate::app::sampling::SampleCombineMethod;
-use std::fmt::{Debug, Display};
 use std::marker::PhantomData;
 
 /// Sampled parameters belonging to a single layer
 pub struct LayerParameters<
-    Alg: PartialEq + Default + Clone + Copy,
-    Params: Default + Clone,
-    Fields: Default + ShapeFields,
-    Sh: Shape<Alg, Params, Fields> + Default,
+    Alg: TraitAlgorithm,
+    Params: TraitParameters,
+    Fields: TraitFields,
+    Shape: TraitShape<Alg, Params, Fields>,
 > {
     // for bookkeeping
     pub nr_samples: usize,
@@ -19,14 +18,14 @@ pub struct LayerParameters<
     pub parameters: Vec<Params>,
 
     phantom_fields: PhantomData<Fields>,
-    phantom_shape: PhantomData<Sh>,
+    phantom_shape: PhantomData<Shape>,
 }
 
 impl<
-        Alg: PartialEq + Default + Clone + Copy,
-        Params: Default + Clone,
-        Fields: Default + ShapeFields,
-        Sh: Shape<Alg, Params, Fields> + Clone + Default,
+        Alg: TraitAlgorithm,
+        Params: TraitParameters,
+        Fields: TraitFields,
+        Sh: TraitShape<Alg, Params, Fields>,
     > Default for LayerParameters<Alg, Params, Fields, Sh>
 {
     fn default() -> Self {
@@ -44,10 +43,10 @@ impl<
 }
 
 impl<
-        Alg: PartialEq + Default + Clone + Copy,
-        Params: Default + Clone,
-        Fields: Default + ShapeFields,
-        Sh: Shape<Alg, Params, Fields> + Clone + Default,
+        Alg: TraitAlgorithm,
+        Params: TraitParameters,
+        Fields: TraitFields,
+        Sh: TraitShape<Alg, Params, Fields>,
     > Clone for LayerParameters<Alg, Params, Fields, Sh>
 {
     fn clone(&self) -> Self {
@@ -62,10 +61,10 @@ impl<
 }
 
 impl<
-        Alg: PartialEq + Default + Clone + Copy,
-        Params: Default + Clone,
-        Fields: Default + ShapeFields,
-        Sh: Shape<Alg, Params, Fields> + Default + Clone,
+        Alg: TraitAlgorithm,
+        Params: TraitParameters,
+        Fields: TraitFields,
+        Sh: TraitShape<Alg, Params, Fields>,
     > LayerParameters<Alg, Params, Fields, Sh>
 {
     /// Run the generation algorithm for the configuration `self`, the output is a `Blocks` object. document.

@@ -1,8 +1,7 @@
 use crate::app::control::Control;
 use crate::app::data_structures::zvec::ZVec;
-use crate::app::generation::shape::{Shape, ShapeFields};
+use crate::app::generation::shape::{TraitAlgorithm, TraitFields, TraitParameters, TraitShape};
 use eframe::egui::Ui;
-use std::fmt::Debug;
 
 // my first macro!
 /// Mark the inputted control variables as outdated
@@ -15,10 +14,10 @@ macro_rules! outdate {
 /// Draw ui for algorithm selection, parameters fields for describing the shape.
 /// Update
 pub fn ui_options<
-    Alg: Debug + PartialEq + Default + Clone + Copy,
-    Params: Default + Clone,
-    Fields: Default + ShapeFields,
-    Sh: Shape<Alg, Params, Fields> + Default + Clone,
+    Alg: TraitAlgorithm,
+    Params: TraitParameters,
+    Fields: TraitFields,
+    Shape: TraitShape<Alg, Params, Fields>,
 >(
     ui: &mut Ui,
     current_layer_shape: &mut Params,
@@ -28,7 +27,7 @@ pub fn ui_options<
     sampling_points: &ZVec<Vec<f64>>,
     parameters_current_layer_control: &mut Control,
     parameters_all_layers_control: &mut Control,
-    shape: &mut Sh,
+    shape: &mut Shape,
 ) {
     // pick Shape here
     ui.separator();
@@ -36,7 +35,7 @@ pub fn ui_options<
     // TODO: easily change algorithm for all layers
     // Select algorithm (the storage is for checking changed(), this is necessary
     //  as https://github.com/emilk/egui/discussions/923)
-    if Sh::combo_box(ui, current_layer_alg) {
+    if Shape::combo_box(ui, current_layer_alg) {
         outdate!(
             parameters_current_layer_control,
             parameters_all_layers_control
@@ -44,7 +43,7 @@ pub fn ui_options<
     }
 
     // algorithm description
-    ui.label(Sh::describe(current_layer_alg));
+    ui.label(Shape::describe(current_layer_alg));
 
     // Radius
     ui.separator();
