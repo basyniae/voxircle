@@ -1,10 +1,8 @@
 use crate::app::control::Control;
 use crate::app::generation::line::line_params::LineParams;
 use crate::app::generation::line::LineFields;
-use crate::app::generation::shape::{AllFields, AllParams};
 use crate::app::generation::shape_type::ShapeType;
 use crate::app::param_config::ParamConfig;
-use crate::app::ui::options::ui_options;
 use crate::app::update::metrics::Metrics;
 use crate::app::view::View;
 use data_structures::blocks::Blocks;
@@ -12,18 +10,19 @@ use data_structures::zvec::ZVec;
 use eframe::egui::{Direction, Layout};
 use eframe::emath::Align;
 use generation::squircle::squircle_params::SquircleParams;
+use generation::{AllFields, AllParams};
 use sampling::layer_parameters::LayerParameters;
-use sampling::{SampleCombineMethod, SampleDistributeMethod};
+use sampling::{sampling_points_update, SampleCombineMethod, SampleDistributeMethod};
 use std::collections::VecDeque;
 use std::default::Default;
 use std::mem::swap;
 use ui::generation::ui_generation;
 use ui::layer_navigation::ui_layer_navigation;
+use ui::options::ui_show_options;
 use ui::sampling::ui_sampling;
 use ui::viewport::ui_viewport;
 use ui::viewport_options::ui_viewport_options;
-use update::logic::{blocks_update, parameters_update, sampling_points_update};
-
+use update::{blocks_update, parameters_update};
 mod colors;
 mod control;
 mod data_structures;
@@ -267,19 +266,19 @@ impl eframe::App for App {
                     ui.label(egui::RichText::new("Parameters").strong().size(15.0));
                 })
                 .body(|ui| {
-                    ui_options(
+                    ui_show_options(
                         ui,
-                        self.stack_active_shape.get_mut(self.current_layer).unwrap(),
                         &mut self
                             .stack_active_layer_parameters
                             .get_mut(self.current_layer)
                             .unwrap()
                             .algorithm,
-                        self.code_enabled,
+                        self.stack_active_shape.get_mut(self.current_layer).unwrap(),
                         &mut self.active_fields,
-                        &self.stack_sampling_points,
                         &mut self.parameters_current_layer_control,
                         &mut self.parameters_all_layers_control,
+                        &self.stack_sampling_points,
+                        self.code_enabled,
                         &self.shape_type,
                         &mut self.param_config,
                     );

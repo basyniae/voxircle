@@ -4,17 +4,17 @@ use crate::app::colors::{
 use crate::app::control::Control;
 use crate::app::data_structures::blocks::Blocks;
 use crate::app::data_structures::zvec::ZVec;
-use crate::app::generation::shape::{AllAlgs, AllParams};
+use crate::app::generation::{AllAlgs, AllParams};
 use crate::app::math::linear_algebra::Vec2;
 use crate::app::param_config::ParamConfig;
 use crate::app::param_field::ParamField;
 use crate::app::plotting;
 use crate::app::sampling::layer_parameters::LayerParameters;
+use crate::app::ui::bits::even_odd_buttons;
 use centerpoint::generate_alg_centerpoint;
 use conservative::generate_alg_conservative;
 use contained::generate_alg_contained;
-use eframe::emath::Align;
-use egui::{Color32, Layout, Ui};
+use egui::Ui;
 use egui_plot::{HLine, PlotUi, Points, VLine};
 use empty::generate_alg_empty;
 use exact_squircle_bounds::exact_squircle_bounds;
@@ -35,17 +35,7 @@ pub mod squircle_params;
 /// Squircle shape struct. It's values are globally constant options for how a squircle can be made
 ///  from how the parameters are displayed
 #[derive(Clone, Copy)]
-pub struct Squircle {
-    pub single_radius: bool,
-}
-
-impl Default for Squircle {
-    fn default() -> Self {
-        Self {
-            single_radius: true,
-        }
-    }
-}
+pub struct Squircle {}
 
 #[derive(Debug, PartialEq, Default, Clone, Copy)]
 pub enum SquircleAlg {
@@ -137,10 +127,6 @@ impl Default for SquircleFields {
 }
 
 impl Squircle {
-    fn all_algs() -> Vec<SquircleAlg> {
-        vec![Centerpoint, Conservative, Contained, Percentage(0.5)]
-    }
-
     pub(crate) fn grid_size(all_params: Vec<&SquircleParams>) -> usize {
         // Determine grid size
         // The major radius should be included, for some metrics we need at least one layer of padding
@@ -207,7 +193,7 @@ impl Squircle {
         }
     }
 
-    pub(crate) fn bounds(params: &SquircleParams, pad_factor: f64) -> [[f64; 2]; 2] {
+    pub fn bounds(params: &SquircleParams, pad_factor: f64) -> [[f64; 2]; 2] {
         exact_squircle_bounds(params, pad_factor)
     }
 
@@ -222,21 +208,25 @@ impl Squircle {
         code_enabled: bool,
         param_config: &mut ParamConfig,
     ) {
+        macro_rules! show_field {
+            ($x:ident) => {
+                fields.$x.show(
+                    &mut params.$x,
+                    ui,
+                    &code_enabled,
+                    sampling_points,
+                    parameters_current_layer_control,
+                    parameters_all_layers_control,
+                    None,
+                )
+            };
+        }
+
         // algorithm-specific options
         match alg {
             Percentage(percentage) => {
                 let mut perc_slider = percentage.clone();
-                if ui
-                    .add(
-                        egui::Slider::new(&mut perc_slider, 0.0..=1.0)
-                            .text("")
-                            .fixed_decimals(2)
-                            .custom_formatter(|n, _| {
-                                format!("{:.0}%", n * 100.0) //  formatting of percentage slider
-                            }),
-                    )
-                    .changed()
-                {
+                if crate::app::ui::bits::percentage_slider(ui, &mut perc_slider) {
                     *alg = Percentage(perc_slider);
                 };
             }
@@ -257,110 +247,32 @@ impl Squircle {
             );
             params.radius_b = params.radius_a;
         } else {
-            // radius a
-            fields.radius_a.show(
-                &mut params.radius_a,
-                ui,
-                &code_enabled,
-                sampling_points,
-                parameters_current_layer_control,
-                parameters_all_layers_control,
-                None,
-            );
-
-            // radius b
-            fields.radius_b.show(
-                &mut params.radius_b,
-                ui,
-                &code_enabled,
-                sampling_points,
-                parameters_current_layer_control,
-                parameters_all_layers_control,
-                None,
-            );
-
-            //longterm: Make circular slider for more intuitive controls (need to build this myapp probably)
+            show_field!(radius_a);
+            show_field!(radius_b);
         }
+        //longterm: Make circular slider for more intuitive controls (need to build this myapp probably)
 
-        //tilt
-        fields.tilt.show(
-            &mut params.tilt,
-            ui,
-            &code_enabled,
-            sampling_points,
-            parameters_current_layer_control,
-            parameters_all_layers_control,
-            None,
-        );
-
-        // Squircle parameter
-        fields.squircle_parameter.show(
-            &mut params.squircle_parameter,
-            ui,
-            &code_enabled,
-            sampling_points,
-            parameters_current_layer_control,
-            parameters_all_layers_control,
-            None,
-        );
-
-        // Centerpoint
-        ui.separator();
-        fields.offset_x.show(
-            &mut params.offset_x,
-            ui,
-            &code_enabled,
-            sampling_points,
-            parameters_current_layer_control,
-            parameters_all_layers_control,
-            None,
-        );
-
-        fields.offset_y.show(
-            &mut params.offset_y,
-            ui,
-            &code_enabled,
-            sampling_points,
-            parameters_current_layer_control,
-            parameters_all_layers_control,
-            None,
-        );
+        show_field!(tilt);
+        show_field!(offset_x);
+        show_field!(offset_y);
 
         // Add odd and even buttons (also good so people understand what the abstraction "offset center" actually means)
-        // todo: fix. how to make modular (linked parameters x and y?)
-        ui.allocate_ui_with_layout(
-            egui::Vec2::from([100.0, 200.0]),
-            Layout::left_to_right(Align::Min),
-            |ui| {
-                [("Even center", 0.0, 0.0), ("Odd center", 0.5, 0.5)].map(|(name, x, y)| {
-                    if ui.button(name).clicked() {
-                        params.offset_x = x;
-                        params.offset_y = y;
+        if even_odd_buttons(ui, &mut params.offset_x, &mut params.offset_y) {
+            parameters_current_layer_control.set_outdated();
+            parameters_all_layers_control.set_outdated();
+        }
 
-                        parameters_current_layer_control.set_outdated();
-                        parameters_all_layers_control.set_outdated();
-                    }
-                });
-            },
-        );
-
-        if fields.radius_a.has_changed()
-            || fields.radius_b.has_changed()
-            || fields.tilt.has_changed()
-            || fields.offset_x.has_changed()
-            || fields.offset_y.has_changed()
-            || fields.squircle_parameter.has_changed()
+        if fields
+            .all_fields_mut()
+            .iter()
+            .any(|field| field.has_changed())
         {
             parameters_current_layer_control.set_outdated();
             parameters_all_layers_control.set_outdated()
         }
     }
 
-    fn draw(plot_ui: &mut PlotUi, params: SquircleParams, color: Color32) {
-        plot_ui.line(plotting::superellipse_at_coords(params).color(color))
-    }
-
-    pub(crate) fn draw_widgets(plot_ui: &mut PlotUi, params: &SquircleParams) {
+    pub fn draw_widgets(plot_ui: &mut PlotUi, params: &SquircleParams) {
         // Plot x and y axes through the center of the shape
         plot_ui.hline(HLine::new(params.offset_y).color(COLOR_X_AXIS).width(2.0));
         plot_ui.vline(VLine::new(params.offset_x).color(COLOR_Y_AXIS).width(2.0));
@@ -387,48 +299,7 @@ impl Squircle {
             );
         }
 
-        // todo: reimplement
-        // // Plot intersect area
-        // if view.intersect_area {
-        //     let grid_size =
-        //         (2.0 * 1.42 * f64::max(shape_parameters.radius_a, shape_parameters.radius_b))
-        //             .ceil() as usize
-        //             + 4;
-        //
-        //     let square = Blocks::new((0..grid_size.pow(2)).map(|_| true).collect(), grid_size);
-        //
-        //     for coord in square.get_all_block_coords() {
-        //         let cell_center = [coord[0] + 0.5, coord[1] + 0.5];
-        //         let mut x_center = cell_center[0] - shape_parameters.center_offset_x;
-        //         let mut y_center = cell_center[1] - shape_parameters.center_offset_y;
-        //
-        //         // Dihedral symmetry swaps (see percentage.rs for explanation)
-        //         if x_center < 0.0 {
-        //             x_center = -x_center;
-        //         }
-        //         if y_center < 0.0 {
-        //             y_center = -y_center;
-        //         }
-        //         if x_center > y_center {
-        //             (y_center, x_center) = (x_center, y_center);
-        //         }
-        //
-        //         plot_ui.text(Text::new(PlotPoint::from(cell_center), {
-        //             let value = squircle::percentage::cell_disk_intersection_area(
-        //                 shape_parameters.radius_a.max(shape_parameters.radius_b),
-        //                 x_center,
-        //                 y_center,
-        //             );
-        //
-        //             if value == 0.0 {
-        //                 // Don't show zero intersect area
-        //                 "".to_string()
-        //             } else {
-        //                 format!("{:.2}", value)
-        //             }
-        //         }));
-        //     }
-        // }
+        // todo: reimplement intersect area
 
         // Plot center dot
         plot_ui.points(
@@ -439,7 +310,7 @@ impl Squircle {
     }
 
     // todo: make more generic
-    pub(crate) fn set_parameters(
+    pub fn set_parameters(
         layer_parameters: &mut LayerParameters,
         sampling_points: &Vec<f64>,
         default_shape: &SquircleParams,
@@ -455,83 +326,56 @@ impl Squircle {
         layer_parameters.parameters = sampling_points
             .iter()
             .map(|layer| {
-                AllParams::Squircle(SquircleParams {
-                    radius_a: fields
-                        .radius_a
-                        .eval(layer)
-                        .unwrap_or(default_shape.radius_a),
-                    radius_b: if param_config.single_radius {
-                        fields
-                            .radius_a
-                            .eval(layer)
-                            .unwrap_or(default_shape.radius_a)
-                    } else {
-                        fields
-                            .radius_b
-                            .eval(layer)
-                            .unwrap_or(default_shape.radius_b)
-                    },
-                    tilt: fields.tilt.eval(layer).unwrap_or(default_shape.tilt),
-                    offset_x: fields
-                        .offset_x
-                        .eval(layer)
-                        .unwrap_or(default_shape.offset_x),
-                    offset_y: fields
-                        .offset_y
-                        .eval(layer)
-                        .unwrap_or(default_shape.offset_y),
-                    squircle_parameter: fields
-                        .squircle_parameter
-                        .eval(layer)
-                        .unwrap_or(default_shape.squircle_parameter),
-                })
+                AllParams::Squircle(Self::eval_param(layer, fields, default_shape, param_config))
             })
             .collect()
     }
 
-    pub(crate) fn update_slider_parameters(
-        current_layer_shape: &mut SquircleParams,
-        layer: isize,
+    /// Overwrite params with values coming from the fields at the specified layer if the code
+    /// can be evaluated. Otherwise, overwrite with
+    pub fn eval_param(
+        layer: &f64,
         fields: &mut SquircleFields,
+        default: &SquircleParams,
         param_config: &ParamConfig,
-    ) {
-        // evaluate the rhai field at the layer
-        if let Some(radius_a) = fields.radius_a.eval(&(layer as f64)) {
-            current_layer_shape.radius_a = radius_a
-        }
-
-        if param_config.single_radius {
-            if let Some(radius_a) = fields.radius_a.eval(&(layer as f64)) {
-                current_layer_shape.radius_b = radius_a
-            }
-        } else {
-            if let Some(radius_b) = fields.radius_b.eval(&(layer as f64)) {
-                current_layer_shape.radius_b = radius_b
-            }
-        }
-
-        if let Some(tilt) = fields.tilt.eval(&(layer as f64)) {
-            current_layer_shape.tilt = tilt
-        }
-        if let Some(center_offset_x) = fields.offset_x.eval(&(layer as f64)) {
-            current_layer_shape.offset_x = center_offset_x
-        }
-        if let Some(center_offset_y) = fields.offset_y.eval(&(layer as f64)) {
-            current_layer_shape.offset_y = center_offset_y
-        }
-
-        if let Some(squircle_parameter) = fields.squircle_parameter.eval(&(layer as f64)) {
-            current_layer_shape.squircle_parameter = squircle_parameter
+    ) -> SquircleParams {
+        SquircleParams {
+            radius_a: fields.radius_a.eval(layer).unwrap_or(default.radius_a),
+            radius_b: if param_config.single_radius {
+                fields.radius_a.eval(layer).unwrap_or(default.radius_a)
+            } else {
+                fields.radius_b.eval(layer).unwrap_or(default.radius_b)
+            },
+            tilt: fields.tilt.eval(layer).unwrap_or(default.tilt),
+            offset_x: fields.offset_x.eval(layer).unwrap_or(default.offset_x),
+            offset_y: fields.offset_y.eval(layer).unwrap_or(default.offset_y),
+            squircle_parameter: fields
+                .squircle_parameter
+                .eval(layer)
+                .unwrap_or(default.squircle_parameter),
         }
     }
 
-    pub fn combobox_all_algs() -> Vec<AllAlgs> {
+    pub fn all_algs() -> Vec<AllAlgs> {
         vec![
             AllAlgs::Squircle(Centerpoint),
             AllAlgs::Squircle(Conservative),
             AllAlgs::Squircle(Contained),
             AllAlgs::Squircle(Percentage(0.5)),
             AllAlgs::Squircle(Empty),
+        ]
+    }
+}
+
+impl SquircleFields {
+    pub fn all_fields_mut(&mut self) -> Vec<&mut ParamField> {
+        vec![
+            &mut self.radius_a,
+            &mut self.radius_b,
+            &mut self.tilt,
+            &mut self.offset_x,
+            &mut self.offset_y,
+            &mut self.squircle_parameter,
         ]
     }
 }

@@ -1,6 +1,6 @@
 use crate::app::data_structures::blocks::Blocks;
-use crate::app::generation::shape::{generate, AllAlgs, AllParams};
 use crate::app::generation::shape_type::ShapeType;
+use crate::app::generation::{generate, AllAlgs, AllParams};
 use crate::app::sampling::SampleCombineMethod;
 
 /// Sampled parameters belonging to a single layer

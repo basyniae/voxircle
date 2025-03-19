@@ -7,12 +7,12 @@ use crate::app::data_structures::zvec::ZVec;
 use crate::app::generation::line::centerpoint::generate_line_centerpoint;
 use crate::app::generation::line::line_params::LineParams;
 use crate::app::generation::line::LineAlg::Centerpoint;
-use crate::app::generation::shape::{AllAlgs, AllParams};
+use crate::app::generation::{AllAlgs, AllParams};
 use crate::app::math::linear_algebra::Vec2;
 use crate::app::param_field::ParamField;
 use crate::app::plotting;
 use crate::app::sampling::layer_parameters::LayerParameters;
-use eframe::epaint::Color32;
+use crate::app::ui::bits::even_odd_buttons;
 use egui::{Align, Layout, Ui};
 use egui_plot::{HLine, PlotUi, Points, VLine};
 use std::f64::consts::PI;
@@ -78,11 +78,20 @@ impl Default for LineFields {
     }
 }
 
-impl Line {
-    fn all_algs() -> Vec<LineAlg> {
-        vec![Centerpoint]
+impl LineFields {
+    pub fn all_fields_mut(&mut self) -> Vec<&mut ParamField> {
+        vec![
+            &mut self.rise,
+            &mut self.run,
+            &mut self.offset_x,
+            &mut self.offset_y,
+            &mut self.thickness,
+            &mut self.length,
+        ]
     }
+}
 
+impl Line {
     pub(crate) fn grid_size(all_params: Vec<&LineParams>) -> usize {
         all_params
             .iter()
@@ -140,50 +149,30 @@ impl Line {
         ui: &mut Ui,
         params: &mut LineParams,
         fields: &mut LineFields,
-        alg: &mut LineAlg,
+        _: &mut LineAlg,
         parameters_current_layer_control: &mut Control,
         parameters_all_layers_control: &mut Control,
         sampling_points: &ZVec<Vec<f64>>,
         code_enabled: bool,
     ) {
-        fields.thickness.show(
-            &mut params.thickness,
-            ui,
-            &code_enabled,
-            sampling_points,
-            parameters_current_layer_control,
-            parameters_all_layers_control,
-            None,
-        );
-
-        fields.length.show(
-            &mut params.length,
-            ui,
-            &code_enabled,
-            sampling_points,
-            parameters_current_layer_control,
-            parameters_all_layers_control,
-            None,
-        );
-        ui.separator();
-        fields.rise.show(
-            &mut params.rise,
-            ui,
-            &code_enabled,
-            sampling_points,
-            parameters_current_layer_control,
-            parameters_all_layers_control,
-            None,
-        );
-        fields.run.show(
-            &mut params.run,
-            ui,
-            &code_enabled,
-            sampling_points,
-            parameters_current_layer_control,
-            parameters_all_layers_control,
-            None,
-        );
+        macro_rules! show_field {
+            ($x:ident) => {
+                fields.$x.show(
+                    &mut params.$x,
+                    ui,
+                    &code_enabled,
+                    sampling_points,
+                    parameters_current_layer_control,
+                    parameters_all_layers_control,
+                    None,
+                )
+            };
+        }
+        show_field!(thickness);
+        show_field!(length);
+        show_field!(rise);
+        show_field!(run);
+        show_field!(thickness);
 
         ui.allocate_ui_with_layout(
             egui::Vec2::from([100.0, 200.0]),
@@ -216,76 +205,22 @@ impl Line {
         ));
         ui.separator();
 
-        fields.offset_x.show(
-            &mut params.offset_x,
-            ui,
-            &code_enabled,
-            sampling_points,
-            parameters_current_layer_control,
-            parameters_all_layers_control,
-            None,
-        );
+        show_field!(offset_x);
+        show_field!(offset_y);
 
-        fields.offset_y.show(
-            &mut params.offset_y,
-            ui,
-            &code_enabled,
-            sampling_points,
-            parameters_current_layer_control,
-            parameters_all_layers_control,
-            None,
-        );
+        if even_odd_buttons(ui, &mut params.offset_x, &mut params.offset_y) {
+            parameters_current_layer_control.set_outdated();
+            parameters_all_layers_control.set_outdated();
+        }
 
-        ui.allocate_ui_with_layout(
-            egui::Vec2::from([100.0, 200.0]),
-            Layout::left_to_right(Align::Min),
-            |ui| {
-                [("Even center", 0.0, 0.0), ("Odd center", 0.5, 0.5)].map(|(name, x, y)| {
-                    if ui.button(name).clicked() {
-                        params.offset_x = x;
-                        params.offset_y = y;
-
-                        parameters_current_layer_control.set_outdated();
-                        parameters_all_layers_control.set_outdated();
-                    }
-                });
-            },
-        );
-
-        if fields.rise.has_changed()
-            || fields.run.has_changed()
-            || fields.offset_x.has_changed()
-            || fields.offset_y.has_changed()
-            || fields.thickness.has_changed()
-            || fields.length.has_changed()
+        if fields
+            .all_fields_mut()
+            .iter()
+            .any(|field| field.has_changed())
         {
             parameters_current_layer_control.set_outdated();
             parameters_all_layers_control.set_outdated()
         }
-    }
-
-    pub fn draw(plot_ui: &mut PlotUi, params: LineParams, color: Color32) {
-        let center = Vec2::from([params.offset_x, params.offset_y]);
-        let rr = Vec2::from([params.run, params.rise]).normalize();
-        let rr_orth = rr.rot_90_CCW();
-        let offset_long = params.length / 2.0 * rr;
-        let offset_short = params.thickness / 2.0 * rr_orth;
-
-        // the corners are now +- offset_long +- offset_short (assuming that center=0)
-        let x = vec![
-            offset_long + offset_short + center,
-            offset_long - offset_short + center,
-            -offset_long - offset_short + center,
-            -offset_long + offset_short + center,
-            offset_long + offset_short + center,
-        ];
-        let corners: Vec<[f64; 2]> = x.iter().map(|pt| pt.as_arr()).collect();
-
-        plot_ui.line(
-            egui_plot::Line::new(corners)
-                .name("line".to_owned())
-                .color(color),
-        )
     }
 
     pub fn draw_widgets(plot_ui: &mut PlotUi, params: &LineParams) {
@@ -324,7 +259,7 @@ impl Line {
         );
     }
 
-    pub(crate) fn set_parameters(
+    pub fn set_parameters(
         layer_parameters: &mut LayerParameters,
         sampling_points: &Vec<f64>,
         default_shape: &LineParams,
@@ -338,54 +273,22 @@ impl Line {
 
         layer_parameters.parameters = sampling_points
             .iter()
-            .map(|layer| {
-                AllParams::Line(LineParams {
-                    rise: fields.rise.eval(layer).unwrap_or(default_shape.rise),
-                    run: fields.run.eval(layer).unwrap_or(default_shape.run),
-                    offset_x: fields
-                        .offset_x
-                        .eval(layer)
-                        .unwrap_or(default_shape.offset_x),
-                    offset_y: fields
-                        .offset_y
-                        .eval(layer)
-                        .unwrap_or(default_shape.offset_y),
-                    thickness: fields
-                        .thickness
-                        .eval(layer)
-                        .unwrap_or(default_shape.thickness),
-                    length: fields.length.eval(layer).unwrap_or(default_shape.length),
-                })
-            })
+            .map(|layer| AllParams::Line(Self::eval_param(layer, fields, default_shape)))
             .collect()
     }
 
-    pub(crate) fn update_slider_parameters(
-        current_layer_shape: &mut LineParams,
-        layer: isize,
-        fields: &mut LineFields,
-    ) {
-        if let Some(rise) = fields.rise.eval(&(layer as f64)) {
-            current_layer_shape.rise = rise
-        }
-        if let Some(run) = fields.run.eval(&(layer as f64)) {
-            current_layer_shape.run = run
-        }
-        if let Some(offset_x) = fields.offset_x.eval(&(layer as f64)) {
-            current_layer_shape.offset_x = offset_x
-        }
-        if let Some(offset_y) = fields.offset_y.eval(&(layer as f64)) {
-            current_layer_shape.offset_y = offset_y
-        }
-        if let Some(thickness) = fields.thickness.eval(&(layer as f64)) {
-            current_layer_shape.thickness = thickness
-        }
-        if let Some(length) = fields.length.eval(&(layer as f64)) {
-            current_layer_shape.thickness = length
+    pub fn eval_param(layer: &f64, fields: &mut LineFields, default: &LineParams) -> LineParams {
+        LineParams {
+            rise: fields.rise.eval(layer).unwrap_or(default.rise),
+            run: fields.run.eval(layer).unwrap_or(default.run),
+            offset_x: fields.offset_x.eval(layer).unwrap_or(default.offset_x),
+            offset_y: fields.offset_y.eval(layer).unwrap_or(default.offset_y),
+            thickness: fields.thickness.eval(layer).unwrap_or(default.thickness),
+            length: fields.length.eval(layer).unwrap_or(default.length),
         }
     }
 
-    pub fn combobox_all_algs() -> Vec<AllAlgs> {
+    pub fn all_algs() -> Vec<AllAlgs> {
         vec![AllAlgs::Line(Centerpoint)]
     }
 }

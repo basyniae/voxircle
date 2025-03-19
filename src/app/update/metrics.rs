@@ -1,7 +1,7 @@
 use crate::app;
 use crate::app::data_structures::blocks::Blocks;
 use crate::app::data_structures::zvec::ZVec;
-use crate::app::generation::shape::AllParams;
+use crate::app::generation::AllParams;
 use crate::app::math::square_max::square_max;
 use crate::app::metrics::sparse_blocks::SparseBlocks;
 use crate::app::metrics::symmetry_type::SymmetryType;

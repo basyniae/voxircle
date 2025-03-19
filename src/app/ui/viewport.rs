@@ -1,6 +1,6 @@
 use crate::app::colors::*;
 use crate::app::data_structures::blocks::Blocks;
-use crate::app::generation::shape::AllParams;
+use crate::app::generation::AllParams;
 use crate::app::metrics::convex_hull::line_segments_from_conv_hull;
 use crate::app::metrics::symmetry_type::SymmetryType;
 use crate::app::plotting;

@@ -1,3 +1,4 @@
+pub mod bits;
 pub mod generation;
 pub mod layer_navigation;
 pub mod options;

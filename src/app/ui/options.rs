@@ -1,63 +1,73 @@
 use crate::app::control::Control;
 use crate::app::data_structures::zvec::ZVec;
+use crate::app::generation;
 use crate::app::generation::line::Line;
-use crate::app::generation::shape::{ui_show_options, AllAlgs, AllFields, AllParams};
 use crate::app::generation::shape_type::ShapeType;
 use crate::app::generation::squircle::Squircle;
+use crate::app::generation::{AllAlgs, AllFields, AllParams};
 use crate::app::param_config::ParamConfig;
-use eframe::egui::Ui;
+use egui::Ui;
 
-/// Draw ui for algorithm selection, parameters fields for describing the shape.
-/// Update
-pub fn ui_options(
+pub fn ui_show_options(
     ui: &mut Ui,
-    current_layer_shape: &mut AllParams,
-    current_layer_alg: &mut AllAlgs,
-    code_enabled: bool,
+    alg: &mut AllAlgs,
+    params: &mut AllParams,
     fields: &mut AllFields,
-    sampling_points: &ZVec<Vec<f64>>,
     parameters_current_layer_control: &mut Control,
     parameters_all_layers_control: &mut Control,
+    sampling_points: &ZVec<Vec<f64>>,
+    code_enabled: bool,
     shape_type: &ShapeType,
     param_config: &mut ParamConfig,
 ) {
-    ui.separator();
-
-    // TODO: easily change algorithm for all layers
     // pick algorithm here
-    let old_shape_type = current_layer_alg.clone();
+    let old_alg = alg.clone();
 
-    egui::ComboBox::from_label("Algorithm")
-        .selected_text(format!("{:}", current_layer_alg.name()))
-        .show_ui(ui, |ui| {
-            for i in match shape_type {
-                ShapeType::Squircle => Squircle::combobox_all_algs(),
-                ShapeType::Line => Line::combobox_all_algs(),
-            } {
-                ui.selectable_value(current_layer_alg, i, i.name());
-            }
-        });
-
-    if old_shape_type != *current_layer_alg {
+    generation::algorithm_combobox(ui, alg, shape_type);
+    if old_alg != *alg {
         parameters_current_layer_control.set_outdated();
         parameters_all_layers_control.set_outdated();
     }
 
     // algorithm description
-    ui.label(current_layer_alg.describe());
+    ui.label(alg.describe());
 
-    // Radius
-    ui.separator();
-
-    ui_show_options(
-        ui,
-        current_layer_alg,
-        current_layer_shape,
-        fields,
-        parameters_current_layer_control,
-        parameters_all_layers_control,
-        sampling_points,
-        code_enabled,
-        param_config,
-    )
+    ui.separator(); // Match first over the algorithm so that type is checked by the compiler at least a little bit
+                    //  (we will get a reminder to add a new entry in here if we add a variant to the AllAlgs struct)
+    match alg {
+        AllAlgs::Null => panic!("impossible"),
+        AllAlgs::Squircle(alg) => {
+            if let (AllParams::Squircle(params), AllFields::Squircle(fields)) = (params, fields) {
+                Squircle::show_options(
+                    ui,
+                    params,
+                    fields,
+                    alg,
+                    parameters_current_layer_control,
+                    parameters_all_layers_control,
+                    sampling_points,
+                    code_enabled,
+                    param_config,
+                )
+            } else {
+                panic!("ui_show_options called with arguments that do not match or have not been implemented")
+            }
+        }
+        AllAlgs::Line(alg) => {
+            if let (AllParams::Line(params), AllFields::Line(fields)) = (params, fields) {
+                Line::show_options(
+                    ui,
+                    params,
+                    fields,
+                    alg,
+                    parameters_current_layer_control,
+                    parameters_all_layers_control,
+                    sampling_points,
+                    code_enabled,
+                )
+            } else {
+                panic!("ui_show_options called with arguments that do not match or have not been implemented")
+            }
+        }
+    }
 }

@@ -1,5 +1,6 @@
 use crate::app::control::Control;
 use crate::app::sampling::{SampleCombineMethod, SampleDistributeMethod};
+use crate::app::ui::bits::percentage_slider;
 use eframe::egui;
 use eframe::egui::Ui;
 
@@ -46,17 +47,7 @@ pub fn ui_sampling(
         match sample_combine_method {
             SampleCombineMethod::Percentage(percentage) => {
                 let mut perc_slider = percentage.clone();
-                if ui
-                    .add(
-                        egui::Slider::new(&mut perc_slider, 0.0..=1.0)
-                            .text("")
-                            .fixed_decimals(2)
-                            .custom_formatter(|n, _| {
-                                format!("{:.0}%", n * 100.0) //  formatting of percentage slider
-                            }),
-                    )
-                    .changed()
-                {
+                if percentage_slider(ui, &mut perc_slider) {
                     *sample_combine_method = SampleCombineMethod::Percentage(perc_slider);
                     sampling_points_control.set_outdated();
                 };
