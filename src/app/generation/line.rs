@@ -7,7 +7,7 @@ use crate::app::data_structures::zvec::ZVec;
 use crate::app::generation::line::centerpoint::generate_line_centerpoint;
 use crate::app::generation::line::line_params::LineParams;
 use crate::app::generation::line::LineAlg::Centerpoint;
-use crate::app::generation::shape::{TraitAlgorithm, TraitFields, TraitParameters, TraitShape};
+use crate::app::generation::shape::{AllAlgs, AllParams};
 use crate::app::math::linear_algebra::Vec2;
 use crate::app::param_field::ParamField;
 use crate::app::plotting;
@@ -34,10 +34,6 @@ pub enum LineAlg {
     #[default]
     Centerpoint,
 }
-
-impl TraitAlgorithm for LineAlg {}
-
-impl TraitParameters for LineParams {}
 
 pub struct LineFields {
     pub rise: ParamField,
@@ -82,54 +78,21 @@ impl Default for LineFields {
     }
 }
 
-impl TraitFields for LineFields {
-    fn all_register_success(&mut self) {
-        self.rise.register_success();
-        self.run.register_success();
-        self.offset_x.register_success();
-        self.offset_y.register_success();
-        self.thickness.register_success();
-        self.length.register_success()
-    }
-
-    fn has_any_changed(&mut self) -> bool {
-        self.rise.has_changed()
-            || self.run.has_changed()
-            || self.offset_x.has_changed()
-            || self.offset_y.has_changed()
-            || self.thickness.has_changed()
-            || self.length.has_changed()
-    }
-}
-
-impl TraitShape<LineAlg, LineParams, LineFields> for Line {
-    fn describe(alg: &LineAlg) -> String {
-        match alg {
-            Centerpoint => {
-                "Include a particular block iff its centerpoint is in the line".to_string()
-            }
-        }
-    }
-
-    fn name(alg: &LineAlg) -> String {
-        match alg {
-            Centerpoint => "Centerpoint".to_string(),
-        }
-    }
-
+impl Line {
     fn all_algs() -> Vec<LineAlg> {
         vec![Centerpoint]
     }
 
-    fn grid_size(all_params: &Vec<LineParams>) -> usize {
+    pub(crate) fn grid_size(all_params: Vec<&LineParams>) -> usize {
         all_params
             .iter()
             .map(|param| param.length + param.thickness)
             .fold(f64::NEG_INFINITY, |a, b| a.max(b))
             .ceil() as usize
+            + 2
     }
 
-    fn generate(alg: &LineAlg, params: &LineParams, grid_size: usize) -> Blocks {
+    pub fn generate(alg: &LineAlg, params: &LineParams, grid_size: usize) -> Blocks {
         let rise_run = Vec2::from([params.run, params.rise]);
         let offset = Vec2::from([params.offset_x, params.offset_y]);
 
@@ -144,7 +107,7 @@ impl TraitShape<LineAlg, LineParams, LineFields> for Line {
         }
     }
 
-    fn bounds(params: &LineParams, pad_factor: f64) -> [[f64; 2]; 2] {
+    pub(crate) fn bounds(params: &LineParams, pad_factor: f64) -> [[f64; 2]; 2] {
         let center = Vec2::from([params.offset_x, params.offset_y]);
         let rr = Vec2::from([params.run, params.rise]).normalize();
         let rr_orth = rr.rot_90_CCW();
@@ -173,18 +136,17 @@ impl TraitShape<LineAlg, LineParams, LineFields> for Line {
         [[lb.x, lb.y], [rt.x, rt.y]]
     }
 
-    fn show_options(
-        &mut self,
+    pub fn show_options(
         ui: &mut Ui,
         params: &mut LineParams,
-        param_fields: &mut LineFields,
+        fields: &mut LineFields,
         alg: &mut LineAlg,
         parameters_current_layer_control: &mut Control,
         parameters_all_layers_control: &mut Control,
         sampling_points: &ZVec<Vec<f64>>,
         code_enabled: bool,
     ) {
-        param_fields.thickness.show(
+        fields.thickness.show(
             &mut params.thickness,
             ui,
             &code_enabled,
@@ -194,7 +156,7 @@ impl TraitShape<LineAlg, LineParams, LineFields> for Line {
             None,
         );
 
-        param_fields.length.show(
+        fields.length.show(
             &mut params.length,
             ui,
             &code_enabled,
@@ -204,7 +166,7 @@ impl TraitShape<LineAlg, LineParams, LineFields> for Line {
             None,
         );
         ui.separator();
-        param_fields.rise.show(
+        fields.rise.show(
             &mut params.rise,
             ui,
             &code_enabled,
@@ -213,7 +175,7 @@ impl TraitShape<LineAlg, LineParams, LineFields> for Line {
             parameters_all_layers_control,
             None,
         );
-        param_fields.run.show(
+        fields.run.show(
             &mut params.run,
             ui,
             &code_enabled,
@@ -254,7 +216,7 @@ impl TraitShape<LineAlg, LineParams, LineFields> for Line {
         ));
         ui.separator();
 
-        param_fields.offset_x.show(
+        fields.offset_x.show(
             &mut params.offset_x,
             ui,
             &code_enabled,
@@ -264,7 +226,7 @@ impl TraitShape<LineAlg, LineParams, LineFields> for Line {
             None,
         );
 
-        param_fields.offset_y.show(
+        fields.offset_y.show(
             &mut params.offset_y,
             ui,
             &code_enabled,
@@ -290,13 +252,19 @@ impl TraitShape<LineAlg, LineParams, LineFields> for Line {
             },
         );
 
-        if param_fields.has_any_changed() {
+        if fields.rise.has_changed()
+            || fields.run.has_changed()
+            || fields.offset_x.has_changed()
+            || fields.offset_y.has_changed()
+            || fields.thickness.has_changed()
+            || fields.length.has_changed()
+        {
             parameters_current_layer_control.set_outdated();
             parameters_all_layers_control.set_outdated()
         }
     }
 
-    fn draw(plot_ui: &mut PlotUi, params: LineParams, color: Color32) {
+    pub fn draw(plot_ui: &mut PlotUi, params: LineParams, color: Color32) {
         let center = Vec2::from([params.offset_x, params.offset_y]);
         let rr = Vec2::from([params.run, params.rise]).normalize();
         let rr_orth = rr.rot_90_CCW();
@@ -320,7 +288,7 @@ impl TraitShape<LineAlg, LineParams, LineFields> for Line {
         )
     }
 
-    fn draw_widgets(plot_ui: &mut PlotUi, params: LineParams) {
+    pub fn draw_widgets(plot_ui: &mut PlotUi, params: &LineParams) {
         // Plot x and y axes through the center of the shape
         plot_ui.hline(HLine::new(params.offset_y).color(COLOR_X_AXIS).width(2.0));
         plot_ui.vline(VLine::new(params.offset_x).color(COLOR_Y_AXIS).width(2.0));
@@ -356,43 +324,43 @@ impl TraitShape<LineAlg, LineParams, LineFields> for Line {
         );
     }
 
-    fn set_parameters(
-        &self,
-        layer_parameters: &mut LayerParameters<LineAlg, LineParams, LineFields, Self>,
+    pub(crate) fn set_parameters(
+        layer_parameters: &mut LayerParameters,
         sampling_points: &Vec<f64>,
         default_shape: &LineParams,
-        algorithm: LineAlg,
+        algorithm: &LineAlg,
         fields: &mut LineFields,
     ) where
         Self: Clone + Default,
     {
-        layer_parameters.algorithm = algorithm;
+        layer_parameters.algorithm = AllAlgs::Line(*algorithm);
         layer_parameters.nr_samples = sampling_points.len();
 
         layer_parameters.parameters = sampling_points
             .iter()
-            .map(|layer| LineParams {
-                rise: fields.rise.eval(layer).unwrap_or(default_shape.rise),
-                run: fields.run.eval(layer).unwrap_or(default_shape.run),
-                offset_x: fields
-                    .offset_x
-                    .eval(layer)
-                    .unwrap_or(default_shape.offset_x),
-                offset_y: fields
-                    .offset_y
-                    .eval(layer)
-                    .unwrap_or(default_shape.offset_y),
-                thickness: fields
-                    .thickness
-                    .eval(layer)
-                    .unwrap_or(default_shape.thickness),
-                length: fields.length.eval(layer).unwrap_or(default_shape.length),
+            .map(|layer| {
+                AllParams::Line(LineParams {
+                    rise: fields.rise.eval(layer).unwrap_or(default_shape.rise),
+                    run: fields.run.eval(layer).unwrap_or(default_shape.run),
+                    offset_x: fields
+                        .offset_x
+                        .eval(layer)
+                        .unwrap_or(default_shape.offset_x),
+                    offset_y: fields
+                        .offset_y
+                        .eval(layer)
+                        .unwrap_or(default_shape.offset_y),
+                    thickness: fields
+                        .thickness
+                        .eval(layer)
+                        .unwrap_or(default_shape.thickness),
+                    length: fields.length.eval(layer).unwrap_or(default_shape.length),
+                })
             })
             .collect()
     }
 
-    fn update_slider_parameters(
-        &self,
+    pub(crate) fn update_slider_parameters(
         current_layer_shape: &mut LineParams,
         layer: isize,
         fields: &mut LineFields,
@@ -415,5 +383,9 @@ impl TraitShape<LineAlg, LineParams, LineFields> for Line {
         if let Some(length) = fields.length.eval(&(layer as f64)) {
             current_layer_shape.thickness = length
         }
+    }
+
+    pub fn combobox_all_algs() -> Vec<AllAlgs> {
+        vec![AllAlgs::Line(Centerpoint)]
     }
 }

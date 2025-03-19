@@ -1,7 +1,7 @@
 use crate::app::math::linear_algebra::{Mat2, Vec2};
 
 /// All parameters necessary to completely describe a squircle
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct SquircleParams {
     pub radius_a: f64, // These two are specified (a is the x-axis if tilt = 0)
     pub radius_b: f64,

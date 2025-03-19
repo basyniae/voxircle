@@ -1,4 +1,4 @@
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct LineParams {
     // rise and run should be separate to allow for vertical lines
     pub rise: f64,

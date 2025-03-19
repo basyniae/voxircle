@@ -1,13 +1,14 @@
 use crate::app::control::Control;
-use crate::app::generation::any_shape::AnyShape;
 use crate::app::generation::line::line_params::LineParams;
-use crate::app::generation::line::{Line, LineAlg, LineFields};
-use crate::app::generation::squircle::{Squircle, SquircleAlg, SquircleFields};
+use crate::app::generation::line::LineFields;
+use crate::app::generation::shape::{AllFields, AllParams};
+use crate::app::generation::shape_type::ShapeType;
+use crate::app::param_config::ParamConfig;
+use crate::app::ui::options::ui_options;
 use crate::app::update::metrics::Metrics;
 use crate::app::view::View;
 use data_structures::blocks::Blocks;
 use data_structures::zvec::ZVec;
-use eframe::egui::{self};
 use eframe::egui::{Direction, Layout};
 use eframe::emath::Align;
 use generation::squircle::squircle_params::SquircleParams;
@@ -15,9 +16,9 @@ use sampling::layer_parameters::LayerParameters;
 use sampling::{SampleCombineMethod, SampleDistributeMethod};
 use std::collections::VecDeque;
 use std::default::Default;
+use std::mem::swap;
 use ui::generation::ui_generation;
 use ui::layer_navigation::ui_layer_navigation;
-use ui::options::ui_options;
 use ui::sampling::ui_sampling;
 use ui::viewport::ui_viewport;
 use ui::viewport_options::ui_viewport_options;
@@ -30,6 +31,7 @@ mod formatting;
 mod generation;
 mod math;
 mod metrics;
+mod param_config;
 mod param_field;
 mod plotting;
 mod sampling;
@@ -48,36 +50,39 @@ pub struct App {
     // repeat for each shape? that's the best I can think of right now (and maybe the best we can do,
     //  noting that the trait-based approach does not allow dynamically switching of types, i.e.,
     //  we can not sometimes store SquircleParams and other times LineParams)
-    stack_squircle_shape: ZVec<SquircleParams>, // Store the squircle shape (given by the ui parameters) for each layer
-    stack_squircle_layer_parameters:
-        ZVec<LayerParameters<SquircleAlg, SquircleParams, SquircleFields, Squircle>>, // Store the sampled parameters for each layer
+    stack_squircle_shape: ZVec<AllParams>, // Store the squircle shape (given by the ui parameters) for each layer
+    stack_squircle_layer_parameters: ZVec<LayerParameters>, // Store the sampled parameters for each layer
 
-    stack_line_shape: ZVec<LineParams>,
-    stack_line_layer_parameters: ZVec<LayerParameters<LineAlg, LineParams, LineFields, Line>>,
+    stack_line_shape: ZVec<AllParams>,
+    stack_line_layer_parameters: ZVec<LayerParameters>,
 
     // Parameter fields
     // Longterm: for easily adding more shapes with potentially variable inputs, make this attached to the algorithm?
     // longterm: Option to run an external rhai file
     // longterm: sliders for "Dummy variables" that can be referenced in code (for easier visual tweaking)
-    squircle_fields: SquircleFields,
-    squircle: Squircle, // additional global configuration data, now only `single_radius`
+    squircle_fields: AllFields,
+    // todo: reimplement single radius
+    // squircle: Squircle, // additional global configuration data, now only `single_radius`
+    line_fields: AllFields,
+    // line: Line,
 
-    line_fields: LineFields,
-    line: Line,
+    // shape type that is currently visible and editable
+    stack_active_shape: ZVec<AllParams>,
+    stack_active_layer_parameters: ZVec<LayerParameters>,
+    active_fields: AllFields,
 
-    shape: AnyShape,
+    shape_type: ShapeType,
+    param_config: ParamConfig,
 
-    stack_blocks: ZVec<Blocks>, // Store the blocks for each layer
-
-    // todo: make control
-    recompute_metrics: bool, // If the current layer has changed, recompute the metrics. By update order, this needs to be a global variable
+    stack_blocks: ZVec<Blocks>,
 
     // Metrics
     metrics: Metrics,
+    // todo: make control
+    recompute_metrics: bool, // If the current layer has changed, recompute the metrics. By update order, this needs to be a global variable
 
     // Generate new shape on this layer automatically from the provided parameters
     blocks_current_layer_control: Control,
-
     blocks_all_layers_control: Control,
 
     layers_enabled: bool,
@@ -123,26 +128,39 @@ impl App {
             layer_highest: 0,
 
             // Initialize for single layer (it will get overridden on the first update)
-            stack_squircle_shape: ZVec::new(VecDeque::from(vec![SquircleParams::default()]), 0),
+            stack_squircle_shape: ZVec::new(VecDeque::from(vec![AllParams::Null]), 0),
             stack_squircle_layer_parameters: ZVec::new(
-                VecDeque::from(vec![LayerParameters::default()]),
+                VecDeque::from(vec![LayerParameters::new_null()]),
                 0,
             ),
 
-            stack_line_shape: ZVec::new(VecDeque::from(vec![LineParams::default()]), 0),
+            stack_line_shape: ZVec::new(
+                VecDeque::from(vec![AllParams::Line(LineParams::default())]),
+                0,
+            ),
             stack_line_layer_parameters: ZVec::new(
-                VecDeque::from(vec![LayerParameters::default()]),
+                VecDeque::from(vec![LayerParameters::new_from(ShapeType::Line)]),
                 0,
             ),
 
             // Standard initializations, finite or nonnegative as necessary and sensible for the data type
-            squircle_fields: Default::default(),
-            squircle: Default::default(),
+            squircle_fields: AllFields::Null,
 
-            line_fields: Default::default(),
-            line: Default::default(),
+            line_fields: AllFields::Line(LineFields::default()),
 
-            shape: AnyShape::Squircle,
+            // Initialize for single layer (it will get overridden on the first update)
+            stack_active_shape: ZVec::new(
+                VecDeque::from(vec![AllParams::Squircle(SquircleParams::default())]),
+                0,
+            ),
+            stack_active_layer_parameters: ZVec::new(
+                VecDeque::from(vec![LayerParameters::new_from(ShapeType::Squircle)]),
+                0,
+            ),
+            active_fields: AllFields::Squircle(Default::default()),
+
+            shape_type: ShapeType::Squircle,
+            param_config: Default::default(),
 
             stack_blocks: ZVec::new(VecDeque::from(vec![Blocks::default()]), 0),
 
@@ -187,6 +205,57 @@ impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Side panel
         egui::SidePanel::right("options-panel").show(ctx, |ui| {
+            let old_shape = self.shape_type.clone();
+            egui::ComboBox::from_label("Shape")
+                .selected_text(format!("{:}", self.shape_type))
+                .show_ui(ui, |ui| {
+                    for i in ShapeType::list_all_shape_types() {
+                        ui.selectable_value(&mut self.shape_type, i, i.name());
+                    }
+                });
+            if old_shape != self.shape_type {
+                // todo: this is not ideal switching behaviour
+                self.parameters_current_layer_control.set_outdated();
+                self.parameters_all_layers_control.set_outdated();
+
+                match old_shape {
+                    ShapeType::Squircle => {
+                        swap(&mut self.squircle_fields, &mut self.active_fields);
+                        swap(&mut self.stack_squircle_shape, &mut self.stack_active_shape);
+                        swap(
+                            &mut self.stack_squircle_layer_parameters,
+                            &mut self.stack_active_layer_parameters,
+                        );
+                    }
+                    ShapeType::Line => {
+                        swap(&mut self.line_fields, &mut self.active_fields);
+                        swap(&mut self.stack_line_shape, &mut self.stack_active_shape);
+                        swap(
+                            &mut self.stack_line_layer_parameters,
+                            &mut self.stack_active_layer_parameters,
+                        );
+                    }
+                }
+
+                match self.shape_type {
+                    ShapeType::Squircle => {
+                        swap(&mut self.squircle_fields, &mut self.active_fields);
+                        swap(&mut self.stack_squircle_shape, &mut self.stack_active_shape);
+                        swap(
+                            &mut self.stack_squircle_layer_parameters,
+                            &mut self.stack_active_layer_parameters,
+                        );
+                    }
+                    ShapeType::Line => {
+                        swap(&mut self.line_fields, &mut self.active_fields);
+                        swap(&mut self.stack_line_shape, &mut self.stack_active_shape);
+                        swap(
+                            &mut self.stack_line_layer_parameters,
+                            &mut self.stack_active_layer_parameters,
+                        );
+                    }
+                }
+            }
             egui::ScrollArea::vertical().show(ui, |ui| {
                 let id = ui.make_persistent_id("parameters_collapsable");
                 egui::collapsing_header::CollapsingState::load_with_default_open(
@@ -198,59 +267,22 @@ impl eframe::App for App {
                     ui.label(egui::RichText::new("Parameters").strong().size(15.0));
                 })
                 .body(|ui| {
-                    let old_shape = self.shape.clone();
-                    egui::ComboBox::from_label("Shape")
-                        .selected_text(format!("{:}", self.shape))
-                        .show_ui(ui, |ui| {
-                            for i in AnyShape::list_all_shapes() {
-                                ui.selectable_value(&mut self.shape, i, i.name());
-                            }
-                        });
-                    if old_shape != self.shape {
-                        // todo: this is not ideal switching behaviour
-                        self.parameters_current_layer_control.set_outdated();
-                        self.parameters_all_layers_control.set_outdated();
-                    }
-
-                    // todo: ugly code
-                    match self.shape {
-                        AnyShape::Squircle => {
-                            ui_options(
-                                ui,
-                                self.stack_squircle_shape
-                                    .get_mut(self.current_layer)
-                                    .unwrap(),
-                                &mut self
-                                    .stack_squircle_layer_parameters
-                                    .get_mut(self.current_layer)
-                                    .unwrap()
-                                    .algorithm,
-                                self.code_enabled,
-                                &mut self.squircle_fields,
-                                &self.stack_sampling_points,
-                                &mut self.parameters_current_layer_control,
-                                &mut self.parameters_all_layers_control,
-                                &mut self.squircle,
-                            );
-                        }
-                        AnyShape::Line => {
-                            ui_options(
-                                ui,
-                                self.stack_line_shape.get_mut(self.current_layer).unwrap(),
-                                &mut self
-                                    .stack_line_layer_parameters
-                                    .get_mut(self.current_layer)
-                                    .unwrap()
-                                    .algorithm,
-                                self.code_enabled,
-                                &mut self.line_fields,
-                                &self.stack_sampling_points,
-                                &mut self.parameters_current_layer_control,
-                                &mut self.parameters_all_layers_control,
-                                &mut self.line,
-                            );
-                        }
-                    }
+                    ui_options(
+                        ui,
+                        self.stack_active_shape.get_mut(self.current_layer).unwrap(),
+                        &mut self
+                            .stack_active_layer_parameters
+                            .get_mut(self.current_layer)
+                            .unwrap()
+                            .algorithm,
+                        self.code_enabled,
+                        &mut self.active_fields,
+                        &self.stack_sampling_points,
+                        &mut self.parameters_current_layer_control,
+                        &mut self.parameters_all_layers_control,
+                        &self.shape_type,
+                        &mut self.param_config,
+                    );
                 });
 
                 let id = ui.make_persistent_id("layers_collapsable");
@@ -375,60 +407,30 @@ impl eframe::App for App {
             self.layer_highest,
         );
 
-        match self.shape {
-            AnyShape::Squircle => {
-                parameters_update(
-                    &mut self.stack_squircle_shape,
-                    &mut self.stack_squircle_layer_parameters,
-                    &self.stack_sampling_points,
-                    &mut self.parameters_current_layer_control,
-                    &mut self.parameters_all_layers_control,
-                    &mut self.blocks_current_layer_control,
-                    &mut self.blocks_all_layers_control,
-                    self.current_layer,
-                    self.layer_lowest,
-                    self.layer_highest,
-                    &mut self.squircle_fields,
-                    &self.squircle,
-                );
-                blocks_update(
-                    &self.stack_squircle_layer_parameters,
-                    &mut self.stack_blocks,
-                    &mut self.blocks_current_layer_control,
-                    &mut self.blocks_all_layers_control,
-                    &mut self.recompute_metrics,
-                    self.current_layer,
-                    self.layer_lowest,
-                    &self.sample_combine_method,
-                );
-            }
-            AnyShape::Line => {
-                parameters_update(
-                    &mut self.stack_line_shape,
-                    &mut self.stack_line_layer_parameters,
-                    &self.stack_sampling_points,
-                    &mut self.parameters_current_layer_control,
-                    &mut self.parameters_all_layers_control,
-                    &mut self.blocks_current_layer_control,
-                    &mut self.blocks_all_layers_control,
-                    self.current_layer,
-                    self.layer_lowest,
-                    self.layer_highest,
-                    &mut self.line_fields,
-                    &self.line,
-                );
-                blocks_update(
-                    &self.stack_line_layer_parameters,
-                    &mut self.stack_blocks,
-                    &mut self.blocks_current_layer_control,
-                    &mut self.blocks_all_layers_control,
-                    &mut self.recompute_metrics,
-                    self.current_layer,
-                    self.layer_lowest,
-                    &self.sample_combine_method,
-                );
-            }
-        }
+        parameters_update(
+            &mut self.stack_active_shape,
+            &mut self.stack_active_layer_parameters,
+            &self.stack_sampling_points,
+            &mut self.parameters_current_layer_control,
+            &mut self.parameters_all_layers_control,
+            &mut self.blocks_current_layer_control,
+            &mut self.blocks_all_layers_control,
+            self.current_layer,
+            self.layer_lowest,
+            self.layer_highest,
+            &mut self.active_fields,
+            &self.param_config,
+        );
+        blocks_update(
+            &self.stack_active_layer_parameters,
+            &mut self.stack_blocks,
+            &mut self.blocks_current_layer_control,
+            &mut self.blocks_all_layers_control,
+            &mut self.recompute_metrics,
+            self.current_layer,
+            self.layer_lowest,
+            &self.sample_combine_method,
+        );
 
         if self.recompute_metrics {
             self.recompute_metrics = false;
@@ -438,9 +440,7 @@ impl eframe::App for App {
                 self.layer_highest,
                 self.stack_blocks.get(self.current_layer).unwrap(),
                 &self.stack_blocks,
-                &self.stack_squircle_shape,
-                &self.stack_line_shape,
-                self.shape,
+                &self.stack_active_shape,
             )
         }
 
@@ -524,39 +524,21 @@ impl eframe::App for App {
         }
 
         // Viewport
-        egui::CentralPanel::default().show(ctx, |ui| match self.shape {
-            AnyShape::Squircle => {
-                ui_viewport(
-                    ui,
-                    self.stack_squircle_shape.get(self.current_layer).unwrap(),
-                    self.stack_squircle_layer_parameters
-                        .get(self.current_layer)
-                        .unwrap(),
-                    &self.stack_blocks.get(self.current_layer),
-                    self.sampling_enabled,
-                    &self.view,
-                    self.current_layer,
-                    &mut self.reset_zoom_once,
-                    &mut self.reset_zoom_continuous,
-                    &self.metrics,
-                );
-            }
-            AnyShape::Line => {
-                ui_viewport(
-                    ui,
-                    self.stack_line_shape.get(self.current_layer).unwrap(),
-                    self.stack_line_layer_parameters
-                        .get(self.current_layer)
-                        .unwrap(),
-                    &self.stack_blocks.get(self.current_layer),
-                    self.sampling_enabled,
-                    &self.view,
-                    self.current_layer,
-                    &mut self.reset_zoom_once,
-                    &mut self.reset_zoom_continuous,
-                    &self.metrics,
-                );
-            }
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui_viewport(
+                ui,
+                self.stack_active_shape.get(self.current_layer).unwrap(),
+                self.stack_active_layer_parameters
+                    .get(self.current_layer)
+                    .unwrap(),
+                &self.stack_blocks.get(self.current_layer),
+                self.sampling_enabled,
+                &self.view,
+                self.current_layer,
+                &mut self.reset_zoom_once,
+                &mut self.reset_zoom_continuous,
+                &self.metrics,
+            );
         });
     }
 }

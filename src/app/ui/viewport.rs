@@ -1,6 +1,6 @@
 use crate::app::colors::*;
 use crate::app::data_structures::blocks::Blocks;
-use crate::app::generation::shape::{TraitAlgorithm, TraitFields, TraitParameters, TraitShape};
+use crate::app::generation::shape::AllParams;
 use crate::app::metrics::convex_hull::line_segments_from_conv_hull;
 use crate::app::metrics::symmetry_type::SymmetryType;
 use crate::app::plotting;
@@ -14,15 +14,10 @@ use egui_plot::{
     uniform_grid_spacer, HLine, Line, Plot, PlotBounds, PlotPoints, PlotUi, Points, VLine,
 };
 
-pub fn ui_viewport<
-    Alg: TraitAlgorithm,
-    Params: TraitParameters,
-    Fields: TraitFields,
-    Shape: TraitShape<Alg, Params, Fields>,
->(
+pub fn ui_viewport(
     ui: &mut Ui,
-    shape_parameters: &Params,
-    layer_parameters: &LayerParameters<Alg, Params, Fields, Shape>,
+    shape_parameters: &AllParams,
+    layer_parameters: &LayerParameters,
     blocks: &Option<&Blocks>,
     sampling_enabled: bool,
     view: &View,
@@ -159,9 +154,8 @@ pub fn ui_viewport<
             // Plot onion skinned samples
             if sampling_enabled {
                 for i in 0..layer_parameters.nr_samples {
-                    Shape::draw(
+                    layer_parameters.parameters[i].draw(
                         plot_ui,
-                        layer_parameters.parameters[i].clone(),
                         linear_gradient(
                             COLOR_SAMPLE_A,
                             COLOR_SAMPLE_B,
@@ -307,9 +301,9 @@ pub fn ui_viewport<
             }
 
             // Plot target shape
-            Shape::draw(plot_ui, shape_parameters.clone(), COLOR_TARGET_SHAPE);
+            shape_parameters.draw(plot_ui, COLOR_TARGET_SHAPE);
 
-            Shape::draw_widgets(plot_ui, shape_parameters.clone())
+            shape_parameters.draw_widgets(plot_ui)
         });
 }
 

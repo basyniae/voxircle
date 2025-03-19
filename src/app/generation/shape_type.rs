@@ -1,27 +1,27 @@
 use std::fmt::{Display, Formatter};
 
 // No logic here. All the switching happens in app.rs
-#[derive(PartialEq, Clone, Copy)]
-pub enum AnyShape {
+#[derive(PartialEq, Clone, Copy, Debug)]
+pub enum ShapeType {
     Squircle,
     Line,
 }
 
-impl Display for AnyShape {
+impl Display for ShapeType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:}", self.name())
     }
 }
 
-impl AnyShape {
-    pub fn list_all_shapes() -> Vec<AnyShape> {
+impl ShapeType {
+    pub fn list_all_shape_types() -> Vec<ShapeType> {
         vec![Self::Squircle, Self::Line]
     }
 
     pub fn name(&self) -> String {
         match self {
-            AnyShape::Squircle => "Squircle".to_string(),
-            AnyShape::Line => "Line".to_string(),
+            ShapeType::Squircle => "Squircle".to_string(),
+            ShapeType::Line => "Line".to_string(),
         }
     }
 }

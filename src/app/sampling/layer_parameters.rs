@@ -1,72 +1,56 @@
 use crate::app::data_structures::blocks::Blocks;
-use crate::app::generation::shape::{TraitAlgorithm, TraitFields, TraitParameters, TraitShape};
+use crate::app::generation::shape::{generate, AllAlgs, AllParams};
+use crate::app::generation::shape_type::ShapeType;
 use crate::app::sampling::SampleCombineMethod;
-use std::marker::PhantomData;
 
 /// Sampled parameters belonging to a single layer
-pub struct LayerParameters<
-    Alg: TraitAlgorithm,
-    Params: TraitParameters,
-    Fields: TraitFields,
-    Shape: TraitShape<Alg, Params, Fields>,
-> {
+#[derive(Clone, Debug)]
+pub struct LayerParameters {
     // for bookkeeping
     pub nr_samples: usize,
 
-    pub algorithm: Alg,
+    pub algorithm: AllAlgs,
 
-    pub parameters: Vec<Params>,
-
-    phantom_fields: PhantomData<Fields>,
-    phantom_shape: PhantomData<Shape>,
+    pub parameters: Vec<AllParams>,
 }
 
-impl<
-        Alg: TraitAlgorithm,
-        Params: TraitParameters,
-        Fields: TraitFields,
-        Sh: TraitShape<Alg, Params, Fields>,
-    > Default for LayerParameters<Alg, Params, Fields, Sh>
-{
-    fn default() -> Self {
-        LayerParameters::<Alg, Params, Fields, Sh> {
+impl LayerParameters {
+    pub fn new_null() -> Self {
+        LayerParameters {
             nr_samples: 1,
-            algorithm: Default::default(),
+            algorithm: AllAlgs::Null,
 
             // Parameter defaults are the same as for the default configuration of layer_config
             //  (circle with radius 5 centered at the origin)
-            parameters: vec![Default::default()],
-            phantom_fields: Default::default(),
-            phantom_shape: Default::default(),
+            parameters: vec![AllParams::Null],
         }
     }
-}
 
-impl<
-        Alg: TraitAlgorithm,
-        Params: TraitParameters,
-        Fields: TraitFields,
-        Sh: TraitShape<Alg, Params, Fields>,
-    > Clone for LayerParameters<Alg, Params, Fields, Sh>
-{
-    fn clone(&self) -> Self {
-        Self {
-            nr_samples: self.nr_samples.clone(),
-            algorithm: self.algorithm.clone(),
-            parameters: self.parameters.clone(),
-            phantom_fields: Default::default(),
-            phantom_shape: Default::default(),
+    pub fn new_from(shape_type: ShapeType) -> Self {
+        match shape_type {
+            ShapeType::Squircle => {
+                LayerParameters {
+                    nr_samples: 1,
+                    algorithm: AllAlgs::Squircle(Default::default()),
+
+                    // Parameter defaults are the same as for the default configuration of layer_config
+                    //  (circle with radius 5 centered at the origin)
+                    parameters: vec![AllParams::Squircle(Default::default())],
+                }
+            }
+            ShapeType::Line => {
+                LayerParameters {
+                    nr_samples: 1,
+                    algorithm: AllAlgs::Line(Default::default()),
+
+                    // Parameter defaults are the same as for the default configuration of layer_config
+                    //  (circle with radius 5 centered at the origin)
+                    parameters: vec![AllParams::Line(Default::default())],
+                }
+            }
         }
     }
-}
 
-impl<
-        Alg: TraitAlgorithm,
-        Params: TraitParameters,
-        Fields: TraitFields,
-        Sh: TraitShape<Alg, Params, Fields>,
-    > LayerParameters<Alg, Params, Fields, Sh>
-{
     /// Run the generation algorithm for the configuration `self`, the output is a `Blocks` object. document.
     pub fn generate(&self, sample_combine_method: &SampleCombineMethod) -> Blocks {
         // Generate from circle with selected algorithm
@@ -75,10 +59,10 @@ impl<
             self.parameters
                 .iter()
                 .map(|squircle_parameters| {
-                    Sh::generate(
+                    generate(
                         &self.algorithm,
                         squircle_parameters,
-                        Sh::grid_size(&self.parameters),
+                        AllParams::grid_size(&self.parameters),
                     )
                 })
                 .collect(),

@@ -1,7 +1,10 @@
 use crate::app::control::Control;
 use crate::app::data_structures::blocks::Blocks;
 use crate::app::data_structures::zvec::ZVec;
-use crate::app::generation::shape::{TraitAlgorithm, TraitFields, TraitParameters, TraitShape};
+use crate::app::generation::shape::{
+    set_parameters, update_slider_parameters, AllFields, AllParams,
+};
+use crate::app::param_config::ParamConfig;
 use crate::app::sampling::layer_parameters::LayerParameters;
 use crate::app::sampling::{SampleCombineMethod, SampleDistributeMethod};
 
@@ -36,14 +39,9 @@ pub fn sampling_points_update(
     }
 }
 
-pub fn parameters_update<
-    Alg: TraitAlgorithm,
-    Params: TraitParameters,
-    Fields: TraitFields,
-    Shape: TraitShape<Alg, Params, Fields>,
->(
-    stack_layer_shape: &mut ZVec<Params>,
-    stack_layer_parameters: &mut ZVec<LayerParameters<Alg, Params, Fields, Shape>>, // Store the configuration for each layer, handily indexed by integers
+pub fn parameters_update(
+    stack_layer_shape: &mut ZVec<AllParams>,
+    stack_layer_parameters: &mut ZVec<LayerParameters>, // Store the configuration for each layer, handily indexed by integers
     stack_sampling_points: &ZVec<Vec<f64>>,
     parameters_current_layer_control: &mut Control,
     parameters_all_layers_control: &mut Control,
@@ -53,8 +51,8 @@ pub fn parameters_update<
     current_layer: isize,
     layer_lowest: isize,
     layer_highest: isize,
-    param_fields: &mut Fields,
-    shape: &Shape,
+    fields: &mut AllFields,
+    param_config: &ParamConfig,
 ) {
     // Generate parameters to be sampled
     if parameters_current_layer_control.update() {
@@ -62,22 +60,24 @@ pub fn parameters_update<
         let layer_alg = stack_layer_parameters.get(current_layer).unwrap().algorithm;
 
         // Update parameters for the sampling
-        shape.set_parameters(
+        set_parameters(
             stack_layer_parameters.get_mut(current_layer).unwrap(),
             stack_sampling_points.get(current_layer).unwrap(),
             stack_layer_shape.get(current_layer).unwrap(),
-            layer_alg,
-            param_fields,
+            &layer_alg,
+            fields,
+            param_config,
         );
 
         // Update parameters for the sliders
-        shape.update_slider_parameters(
+        update_slider_parameters(
             stack_layer_shape.get_mut(current_layer).unwrap(),
             current_layer,
-            param_fields,
+            fields,
+            param_config,
         );
 
-        param_fields.all_register_success()
+        fields.all_register_success()
     }
 
     // Generate parameters to be sampled
@@ -88,33 +88,30 @@ pub fn parameters_update<
         for layer in layer_lowest..=layer_highest {
             let layer_alg = stack_layer_parameters.get(layer).unwrap().algorithm;
 
-            shape.set_parameters(
+            set_parameters(
                 stack_layer_parameters.get_mut(layer).unwrap(),
                 stack_sampling_points.get(layer).unwrap(),
                 stack_layer_shape.get(layer).unwrap(),
-                layer_alg,
-                param_fields,
+                &layer_alg,
+                fields,
+                param_config,
             );
 
             // Update parameters for the sliders
-            shape.update_slider_parameters(
+            update_slider_parameters(
                 stack_layer_shape.get_mut(layer).unwrap(),
                 layer,
-                param_fields,
+                fields,
+                param_config,
             )
         }
 
-        param_fields.all_register_success();
+        fields.all_register_success();
     }
 }
 
-pub fn blocks_update<
-    Alg: TraitAlgorithm,
-    Params: TraitParameters,
-    Fields: TraitFields,
-    Sh: TraitShape<Alg, Params, Fields>,
->(
-    stack_layer_parameters: &ZVec<LayerParameters<Alg, Params, Fields, Sh>>, // Store the configuration for each layer, handily indexed by integers
+pub fn blocks_update(
+    stack_layer_parameters: &ZVec<LayerParameters>, // Store the configuration for each layer, handily indexed by integers
     stack_blocks: &mut ZVec<Blocks>,
     blocks_current_layer_control: &mut Control,
     blocks_all_layers_control: &mut Control,

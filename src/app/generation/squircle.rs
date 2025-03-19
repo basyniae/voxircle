@@ -4,8 +4,9 @@ use crate::app::colors::{
 use crate::app::control::Control;
 use crate::app::data_structures::blocks::Blocks;
 use crate::app::data_structures::zvec::ZVec;
-use crate::app::generation::shape::{TraitAlgorithm, TraitFields, TraitParameters, TraitShape};
+use crate::app::generation::shape::{AllAlgs, AllParams};
 use crate::app::math::linear_algebra::Vec2;
+use crate::app::param_config::ParamConfig;
 use crate::app::param_field::ParamField;
 use crate::app::plotting;
 use crate::app::sampling::layer_parameters::LayerParameters;
@@ -55,10 +56,6 @@ pub enum SquircleAlg {
     Percentage(f64),
     Empty,
 }
-
-impl TraitAlgorithm for SquircleAlg {}
-
-impl TraitParameters for SquircleParams {}
 
 pub struct SquircleFields {
     pub radius_a: ParamField,
@@ -139,55 +136,12 @@ impl Default for SquircleFields {
     }
 }
 
-impl TraitFields for SquircleFields {
-    fn all_register_success(&mut self) {
-        self.radius_a.register_success();
-        self.radius_b.register_success();
-        self.tilt.register_success();
-        self.offset_x.register_success();
-        self.offset_y.register_success();
-        self.squircle_parameter.register_success();
-    }
-
-    fn has_any_changed(&mut self) -> bool {
-        self.radius_a.has_changed()
-            || self.radius_b.has_changed()
-            || self.tilt.has_changed()
-            || self.offset_x.has_changed()
-            || self.offset_y.has_changed()
-            || self.squircle_parameter.has_changed()
-    }
-}
-
-impl TraitShape<SquircleAlg, SquircleParams, SquircleFields> for Squircle {
-    fn describe(alg: &SquircleAlg) -> String {
-        match alg {
-            Centerpoint => {"Include a particular block iff its centerpoint is in the ellipse".to_string()}
-            Conservative => {"Include a particular block in the voxelization iff it has nonempty intersection with the ellipse".to_string()}
-            Contained => {"Include a particular block iff it is fully contained in the ellipse".to_string()}
-            Percentage(percentage) => {format!(
-                "Include a particular block in the voxelization iff more than {:.0}% of it is contained in the circle. Ellipses and squircles not implemented.",
-                100.0 * percentage
-            )}
-            Empty => {"Include no blocks in the voxelization".to_string()}
-        }
-    }
-
-    fn name(alg: &SquircleAlg) -> String {
-        match alg {
-            Centerpoint => "Centerpoint".to_string(),
-            Conservative => "Conservative".to_string(),
-            Contained => "Contained".to_string(),
-            Percentage(_) => "Percentage".to_string(),
-            Empty => "Empty".to_string(),
-        }
-    }
-
+impl Squircle {
     fn all_algs() -> Vec<SquircleAlg> {
         vec![Centerpoint, Conservative, Contained, Percentage(0.5)]
     }
 
-    fn grid_size(all_params: &Vec<SquircleParams>) -> usize {
+    pub(crate) fn grid_size(all_params: Vec<&SquircleParams>) -> usize {
         // Determine grid size
         // The major radius should be included, for some metrics we need at least one layer of padding
         //  around the generated figure. Assuming a square figure (squircle parameter infinity), we
@@ -220,7 +174,7 @@ impl TraitShape<SquircleAlg, SquircleParams, SquircleFields> for Squircle {
         grid_size
     }
 
-    fn generate(alg: &SquircleAlg, params: &SquircleParams, grid_size: usize) -> Blocks {
+    pub fn generate(alg: &SquircleAlg, params: &SquircleParams, grid_size: usize) -> Blocks {
         let center_offset = Vec2::from([params.offset_x, params.offset_y]);
         let sqrt_quad_form = params.get_sqrt_quad_form();
 
@@ -253,20 +207,20 @@ impl TraitShape<SquircleAlg, SquircleParams, SquircleFields> for Squircle {
         }
     }
 
-    fn bounds(params: &SquircleParams, pad_factor: f64) -> [[f64; 2]; 2] {
+    pub(crate) fn bounds(params: &SquircleParams, pad_factor: f64) -> [[f64; 2]; 2] {
         exact_squircle_bounds(params, pad_factor)
     }
 
-    fn show_options(
-        &mut self,
+    pub fn show_options(
         ui: &mut Ui,
         params: &mut SquircleParams,
-        param_fields: &mut SquircleFields,
+        fields: &mut SquircleFields,
         alg: &mut SquircleAlg,
         parameters_current_layer_control: &mut Control,
         parameters_all_layers_control: &mut Control,
         sampling_points: &ZVec<Vec<f64>>,
         code_enabled: bool,
+        param_config: &mut ParamConfig,
     ) {
         // algorithm-specific options
         match alg {
@@ -289,10 +243,10 @@ impl TraitShape<SquircleAlg, SquircleParams, SquircleFields> for Squircle {
             _ => {}
         }
 
-        ui.checkbox(&mut self.single_radius, "Single radius");
+        ui.checkbox(&mut param_config.single_radius, "Single radius");
 
-        if self.single_radius {
-            param_fields.radius_a.show(
+        if param_config.single_radius {
+            fields.radius_a.show(
                 &mut params.radius_a,
                 ui,
                 &code_enabled,
@@ -304,7 +258,7 @@ impl TraitShape<SquircleAlg, SquircleParams, SquircleFields> for Squircle {
             params.radius_b = params.radius_a;
         } else {
             // radius a
-            param_fields.radius_a.show(
+            fields.radius_a.show(
                 &mut params.radius_a,
                 ui,
                 &code_enabled,
@@ -315,7 +269,7 @@ impl TraitShape<SquircleAlg, SquircleParams, SquircleFields> for Squircle {
             );
 
             // radius b
-            param_fields.radius_b.show(
+            fields.radius_b.show(
                 &mut params.radius_b,
                 ui,
                 &code_enabled,
@@ -329,7 +283,7 @@ impl TraitShape<SquircleAlg, SquircleParams, SquircleFields> for Squircle {
         }
 
         //tilt
-        param_fields.tilt.show(
+        fields.tilt.show(
             &mut params.tilt,
             ui,
             &code_enabled,
@@ -340,7 +294,7 @@ impl TraitShape<SquircleAlg, SquircleParams, SquircleFields> for Squircle {
         );
 
         // Squircle parameter
-        param_fields.squircle_parameter.show(
+        fields.squircle_parameter.show(
             &mut params.squircle_parameter,
             ui,
             &code_enabled,
@@ -352,7 +306,7 @@ impl TraitShape<SquircleAlg, SquircleParams, SquircleFields> for Squircle {
 
         // Centerpoint
         ui.separator();
-        param_fields.offset_x.show(
+        fields.offset_x.show(
             &mut params.offset_x,
             ui,
             &code_enabled,
@@ -362,7 +316,7 @@ impl TraitShape<SquircleAlg, SquircleParams, SquircleFields> for Squircle {
             None,
         );
 
-        param_fields.offset_y.show(
+        fields.offset_y.show(
             &mut params.offset_y,
             ui,
             &code_enabled,
@@ -390,7 +344,13 @@ impl TraitShape<SquircleAlg, SquircleParams, SquircleFields> for Squircle {
             },
         );
 
-        if param_fields.has_any_changed() {
+        if fields.radius_a.has_changed()
+            || fields.radius_b.has_changed()
+            || fields.tilt.has_changed()
+            || fields.offset_x.has_changed()
+            || fields.offset_y.has_changed()
+            || fields.squircle_parameter.has_changed()
+        {
             parameters_current_layer_control.set_outdated();
             parameters_all_layers_control.set_outdated()
         }
@@ -400,7 +360,7 @@ impl TraitShape<SquircleAlg, SquircleParams, SquircleFields> for Squircle {
         plot_ui.line(plotting::superellipse_at_coords(params).color(color))
     }
 
-    fn draw_widgets(plot_ui: &mut PlotUi, params: SquircleParams) {
+    pub(crate) fn draw_widgets(plot_ui: &mut PlotUi, params: &SquircleParams) {
         // Plot x and y axes through the center of the shape
         plot_ui.hline(HLine::new(params.offset_y).color(COLOR_X_AXIS).width(2.0));
         plot_ui.vline(VLine::new(params.offset_x).color(COLOR_Y_AXIS).width(2.0));
@@ -479,71 +439,68 @@ impl TraitShape<SquircleAlg, SquircleParams, SquircleFields> for Squircle {
     }
 
     // todo: make more generic
-    fn set_parameters(
-        &self,
-        layer_parameters: &mut LayerParameters<
-            SquircleAlg,
-            SquircleParams,
-            SquircleFields,
-            Squircle,
-        >,
+    pub(crate) fn set_parameters(
+        layer_parameters: &mut LayerParameters,
         sampling_points: &Vec<f64>,
         default_shape: &SquircleParams,
-        algorithm: SquircleAlg,
+        algorithm: &SquircleAlg,
         fields: &mut SquircleFields,
+        param_config: &ParamConfig,
     ) {
         // Set the algorithm & nr. of samples
-        layer_parameters.algorithm = algorithm;
+        layer_parameters.algorithm = AllAlgs::Squircle(*algorithm);
         layer_parameters.nr_samples = sampling_points.len();
 
         // If the code evaluation failed (returned None) resort to using the default_parameters (supplied by sliders)
         layer_parameters.parameters = sampling_points
             .iter()
-            .map(|layer| SquircleParams {
-                radius_a: fields
-                    .radius_a
-                    .eval(layer)
-                    .unwrap_or(default_shape.radius_a),
-                radius_b: if self.single_radius {
-                    fields
+            .map(|layer| {
+                AllParams::Squircle(SquircleParams {
+                    radius_a: fields
                         .radius_a
                         .eval(layer)
-                        .unwrap_or(default_shape.radius_a)
-                } else {
-                    fields
-                        .radius_b
+                        .unwrap_or(default_shape.radius_a),
+                    radius_b: if param_config.single_radius {
+                        fields
+                            .radius_a
+                            .eval(layer)
+                            .unwrap_or(default_shape.radius_a)
+                    } else {
+                        fields
+                            .radius_b
+                            .eval(layer)
+                            .unwrap_or(default_shape.radius_b)
+                    },
+                    tilt: fields.tilt.eval(layer).unwrap_or(default_shape.tilt),
+                    offset_x: fields
+                        .offset_x
                         .eval(layer)
-                        .unwrap_or(default_shape.radius_b)
-                },
-                tilt: fields.tilt.eval(layer).unwrap_or(default_shape.tilt),
-                offset_x: fields
-                    .offset_x
-                    .eval(layer)
-                    .unwrap_or(default_shape.offset_x),
-                offset_y: fields
-                    .offset_y
-                    .eval(layer)
-                    .unwrap_or(default_shape.offset_y),
-                squircle_parameter: fields
-                    .squircle_parameter
-                    .eval(layer)
-                    .unwrap_or(default_shape.squircle_parameter),
+                        .unwrap_or(default_shape.offset_x),
+                    offset_y: fields
+                        .offset_y
+                        .eval(layer)
+                        .unwrap_or(default_shape.offset_y),
+                    squircle_parameter: fields
+                        .squircle_parameter
+                        .eval(layer)
+                        .unwrap_or(default_shape.squircle_parameter),
+                })
             })
             .collect()
     }
 
-    fn update_slider_parameters(
-        &self,
+    pub(crate) fn update_slider_parameters(
         current_layer_shape: &mut SquircleParams,
         layer: isize,
         fields: &mut SquircleFields,
+        param_config: &ParamConfig,
     ) {
         // evaluate the rhai field at the layer
         if let Some(radius_a) = fields.radius_a.eval(&(layer as f64)) {
             current_layer_shape.radius_a = radius_a
         }
 
-        if self.single_radius {
+        if param_config.single_radius {
             if let Some(radius_a) = fields.radius_a.eval(&(layer as f64)) {
                 current_layer_shape.radius_b = radius_a
             }
@@ -566,5 +523,15 @@ impl TraitShape<SquircleAlg, SquircleParams, SquircleFields> for Squircle {
         if let Some(squircle_parameter) = fields.squircle_parameter.eval(&(layer as f64)) {
             current_layer_shape.squircle_parameter = squircle_parameter
         }
+    }
+
+    pub fn combobox_all_algs() -> Vec<AllAlgs> {
+        vec![
+            AllAlgs::Squircle(Centerpoint),
+            AllAlgs::Squircle(Conservative),
+            AllAlgs::Squircle(Contained),
+            AllAlgs::Squircle(Percentage(0.5)),
+            AllAlgs::Squircle(Empty),
+        ]
     }
 }
