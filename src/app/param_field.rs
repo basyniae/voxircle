@@ -1,5 +1,4 @@
 use crate::app::colors::{COLOR_RHAI_CHANGED, COLOR_RHAI_INVALID, COLOR_RHAI_RUN_SUCCESS};
-use crate::app::control::Control;
 use crate::app::data_structures::zvec::ZVec;
 use eframe::egui;
 use eframe::egui::Ui;
@@ -82,8 +81,7 @@ impl ParamField {
         ui: &mut Ui,
         code_enabled: &bool,
         sampling_points: &ZVec<Vec<f64>>,
-        parameters_current_layer_control: &mut Control,
-        parameters_all_layers_control: &mut Control,
+        changed: &mut bool,
         name_override: Option<&String>,
     ) {
         // Slider
@@ -110,8 +108,7 @@ impl ParamField {
                 .changed()
             {
                 self.update_field_state(sampling_points);
-                parameters_current_layer_control.set_outdated();
-                parameters_all_layers_control.set_outdated();
+                *changed = true;
             };
             // Write the parameter value coming from the slider
             *param = (self.param_func)(slider_value);
@@ -127,8 +124,7 @@ impl ParamField {
                     if ui.button(name).clicked() {
                         *param = value.clone();
                         self.update_field_state(sampling_points);
-                        parameters_current_layer_control.set_outdated();
-                        parameters_all_layers_control.set_outdated();
+                        *changed = true
                     };
                 }
             },

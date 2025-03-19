@@ -22,8 +22,8 @@ pub const COLOR_BOUNDS: Color32 = Color32::from_rgb(111, 101, 15);
 pub const COLOR_MIRRORS: Color32 = Color32::from_rgb(205, 169, 43);
 
 pub const COLOR_TARGET_SHAPE: Color32 = Color32::from_rgb(255, 255, 255);
-pub const COLOR_SAMPLE_A: Color32 = Color32::from_rgb(200, 200, 200);
-pub const COLOR_SAMPLE_B: Color32 = Color32::from_rgb(200, 200, 200);
+pub const COLOR_SAMPLE_A: Color32 = Color32::from_rgb(104, 159, 56);
+pub const COLOR_SAMPLE_B: Color32 = Color32::from_rgb(104, 159, 56);
 
 /// Blocks (in viewport)
 /// These should all have the same lightness as COLOR_BLOCKS (which is 73.3 in Gimp)

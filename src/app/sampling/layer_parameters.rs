@@ -6,54 +6,37 @@ use crate::app::sampling::SampleCombineMethod;
 /// Sampled parameters belonging to a single layer
 #[derive(Clone, Debug)]
 pub struct LayerParameters {
-    // for bookkeeping
-    pub nr_samples: usize,
-
     pub algorithm: AllAlgs,
-
     pub parameters: Vec<AllParams>,
 }
 
 impl LayerParameters {
+    /// default configuration without any shape or data
     pub fn new_null() -> Self {
         LayerParameters {
-            nr_samples: 1,
             algorithm: AllAlgs::Null,
-
-            // Parameter defaults are the same as for the default configuration of layer_config
-            //  (circle with radius 5 centered at the origin)
             parameters: vec![AllParams::Null],
         }
     }
 
+    /// new from defaults provided by the shape type
     pub fn new_from(shape_type: ShapeType) -> Self {
         match shape_type {
-            ShapeType::Squircle => {
-                LayerParameters {
-                    nr_samples: 1,
-                    algorithm: AllAlgs::Squircle(Default::default()),
-
-                    // Parameter defaults are the same as for the default configuration of layer_config
-                    //  (circle with radius 5 centered at the origin)
-                    parameters: vec![AllParams::Squircle(Default::default())],
-                }
-            }
-            ShapeType::Line => {
-                LayerParameters {
-                    nr_samples: 1,
-                    algorithm: AllAlgs::Line(Default::default()),
-
-                    // Parameter defaults are the same as for the default configuration of layer_config
-                    //  (circle with radius 5 centered at the origin)
-                    parameters: vec![AllParams::Line(Default::default())],
-                }
-            }
+            ShapeType::Squircle => LayerParameters {
+                algorithm: AllAlgs::Squircle(Default::default()),
+                parameters: vec![AllParams::Squircle(Default::default())],
+            },
+            ShapeType::Line => LayerParameters {
+                algorithm: AllAlgs::Line(Default::default()),
+                parameters: vec![AllParams::Line(Default::default())],
+            },
         }
     }
 
-    /// Run the generation algorithm for the configuration `self`, the output is a `Blocks` object. document.
+    /// Run the generation algorithm for the configuration `self`, the output is a `Blocks` object.
+    ///  Note that self contains almost all data to do this, only the sample combine method needs to
+    ///  be provided.
     pub fn generate(&self, sample_combine_method: &SampleCombineMethod) -> Blocks {
-        // Generate from circle with selected algorithm
         Blocks::combine(
             sample_combine_method,
             self.parameters
@@ -67,5 +50,9 @@ impl LayerParameters {
                 })
                 .collect(),
         )
+    }
+
+    pub fn nr_samples(&self) -> usize {
+        self.parameters.len()
     }
 }

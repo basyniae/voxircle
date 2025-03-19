@@ -18,7 +18,7 @@ use std::default::Default;
 use std::mem::swap;
 use ui::generation::ui_generation;
 use ui::layer_navigation::ui_layer_navigation;
-use ui::options::ui_show_options;
+use ui::options::ui_options;
 use ui::sampling::ui_sampling;
 use ui::viewport::ui_viewport;
 use ui::viewport_options::ui_viewport_options;
@@ -56,21 +56,18 @@ pub struct App {
     stack_line_layer_parameters: ZVec<LayerParameters>,
 
     // Parameter fields
-    // Longterm: for easily adding more shapes with potentially variable inputs, make this attached to the algorithm?
     // longterm: Option to run an external rhai file
     // longterm: sliders for "Dummy variables" that can be referenced in code (for easier visual tweaking)
     squircle_fields: AllFields,
-    // todo: reimplement single radius
-    // squircle: Squircle, // additional global configuration data, now only `single_radius`
     line_fields: AllFields,
-    // line: Line,
 
     // shape type that is currently visible and editable
+    shape_type: ShapeType,
     stack_active_shape: ZVec<AllParams>,
     stack_active_layer_parameters: ZVec<LayerParameters>,
     active_fields: AllFields,
 
-    shape_type: ShapeType,
+    // additional configuration options
     param_config: ParamConfig,
 
     stack_blocks: ZVec<Blocks>,
@@ -86,9 +83,9 @@ pub struct App {
 
     layers_enabled: bool,
     lock_stack_size: bool,
-
-    // Code mode
     code_enabled: bool,
+
+    // Parameter control
     parameters_current_layer_control: Control,
     parameters_all_layers_control: Control,
 
@@ -266,7 +263,7 @@ impl eframe::App for App {
                     ui.label(egui::RichText::new("Parameters").strong().size(15.0));
                 })
                 .body(|ui| {
-                    ui_show_options(
+                    ui_options(
                         ui,
                         &mut self
                             .stack_active_layer_parameters

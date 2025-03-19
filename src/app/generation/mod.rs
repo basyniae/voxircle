@@ -221,8 +221,8 @@ pub fn algorithm_combobox(ui: &mut Ui, current_layer_alg: &mut AllAlgs, shape_ty
         .selected_text(format!("{:}", current_layer_alg.name()))
         .show_ui(ui, |ui| {
             for i in match shape_type {
-                ShapeType::Squircle => Squircle::all_algs(),
-                ShapeType::Line => Line::all_algs(),
+                ShapeType::Squircle => SquircleAlg::all_algs(),
+                ShapeType::Line => LineAlg::all_algs(),
             } {
                 ui.selectable_value(current_layer_alg, i, i.name());
             }

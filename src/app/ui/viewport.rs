@@ -153,13 +153,13 @@ pub fn ui_viewport(
 
             // Plot onion skinned samples
             if sampling_enabled {
-                for i in 0..layer_parameters.nr_samples {
+                for i in 0..layer_parameters.nr_samples() {
                     layer_parameters.parameters[i].draw(
                         plot_ui,
                         linear_gradient(
                             COLOR_SAMPLE_A,
                             COLOR_SAMPLE_B,
-                            i as f64 / (layer_parameters.nr_samples as f64 - 1.0),
+                            i as f64 / (layer_parameters.nr_samples() as f64 - 1.0),
                         ),
                     );
                 }

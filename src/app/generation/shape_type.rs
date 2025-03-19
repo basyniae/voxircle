@@ -1,6 +1,7 @@
 use std::fmt::{Display, Formatter};
 
-// No logic here. All the switching happens in app.rs
+/// Enum for selecting which shape we're interested in in App (provided no logic by itself, all that
+///  is done in `app.rs`
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum ShapeType {
     Squircle,
@@ -14,6 +15,7 @@ impl Display for ShapeType {
 }
 
 impl ShapeType {
+    /// For use in combobox
     pub fn list_all_shape_types() -> Vec<ShapeType> {
         vec![Self::Squircle, Self::Line]
     }

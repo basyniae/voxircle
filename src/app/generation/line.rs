@@ -1,7 +1,3 @@
-use crate::app::colors::{
-    COLOR_CENTER_DOT, COLOR_TILTED_X_AXIS, COLOR_TILTED_Y_AXIS, COLOR_X_AXIS, COLOR_Y_AXIS,
-};
-use crate::app::control::Control;
 use crate::app::data_structures::blocks::Blocks;
 use crate::app::data_structures::zvec::ZVec;
 use crate::app::generation::line::centerpoint::generate_line_centerpoint;
@@ -10,11 +6,10 @@ use crate::app::generation::line::LineAlg::Centerpoint;
 use crate::app::generation::{AllAlgs, AllParams};
 use crate::app::math::linear_algebra::Vec2;
 use crate::app::param_field::ParamField;
-use crate::app::plotting;
 use crate::app::sampling::layer_parameters::LayerParameters;
-use crate::app::ui::bits::even_odd_buttons;
+use crate::app::ui::bits::{draw_axes, even_odd_buttons};
 use egui::{Align, Layout, Ui};
-use egui_plot::{HLine, PlotUi, Points, VLine};
+use egui_plot::PlotUi;
 use std::f64::consts::PI;
 
 mod centerpoint;
@@ -23,16 +18,16 @@ pub mod line_params;
 #[derive(Clone)]
 pub struct Line {}
 
-impl Default for Line {
-    fn default() -> Self {
-        Line {}
-    }
-}
-
 #[derive(Debug, PartialEq, Default, Clone, Copy)]
 pub enum LineAlg {
     #[default]
     Centerpoint,
+}
+
+impl LineAlg {
+    pub fn all_algs() -> Vec<AllAlgs> {
+        vec![AllAlgs::Line(Centerpoint)]
+    }
 }
 
 pub struct LineFields {
@@ -92,7 +87,7 @@ impl LineFields {
 }
 
 impl Line {
-    pub(crate) fn grid_size(all_params: Vec<&LineParams>) -> usize {
+    pub fn grid_size(all_params: Vec<&LineParams>) -> usize {
         all_params
             .iter()
             .map(|param| param.length + param.thickness)
@@ -116,7 +111,7 @@ impl Line {
         }
     }
 
-    pub(crate) fn bounds(params: &LineParams, pad_factor: f64) -> [[f64; 2]; 2] {
+    pub fn bounds(params: &LineParams, pad_factor: f64) -> [[f64; 2]; 2] {
         let center = Vec2::from([params.offset_x, params.offset_y]);
         let rr = Vec2::from([params.run, params.rise]).normalize();
         let rr_orth = rr.rot_90_CCW();
@@ -145,16 +140,17 @@ impl Line {
         [[lb.x, lb.y], [rt.x, rt.y]]
     }
 
+    /// Show options, outputting true when any of them have changed
     pub fn show_options(
         ui: &mut Ui,
         params: &mut LineParams,
         fields: &mut LineFields,
         _: &mut LineAlg,
-        parameters_current_layer_control: &mut Control,
-        parameters_all_layers_control: &mut Control,
         sampling_points: &ZVec<Vec<f64>>,
         code_enabled: bool,
-    ) {
+    ) -> bool {
+        let mut changed = false;
+
         macro_rules! show_field {
             ($x:ident) => {
                 fields.$x.show(
@@ -162,17 +158,17 @@ impl Line {
                     ui,
                     &code_enabled,
                     sampling_points,
-                    parameters_current_layer_control,
-                    parameters_all_layers_control,
+                    &mut changed,
                     None,
                 )
             };
         }
+
         show_field!(thickness);
         show_field!(length);
+        ui.separator();
         show_field!(rise);
         show_field!(run);
-        show_field!(thickness);
 
         ui.allocate_ui_with_layout(
             egui::Vec2::from([100.0, 200.0]),
@@ -193,8 +189,7 @@ impl Line {
                         params.run = x;
                         params.rise = y;
 
-                        parameters_current_layer_control.set_outdated();
-                        parameters_all_layers_control.set_outdated();
+                        changed = true
                     }
                 });
             },
@@ -209,8 +204,7 @@ impl Line {
         show_field!(offset_y);
 
         if even_odd_buttons(ui, &mut params.offset_x, &mut params.offset_y) {
-            parameters_current_layer_control.set_outdated();
-            parameters_all_layers_control.set_outdated();
+            changed = true
         }
 
         if fields
@@ -218,44 +212,18 @@ impl Line {
             .iter()
             .any(|field| field.has_changed())
         {
-            parameters_current_layer_control.set_outdated();
-            parameters_all_layers_control.set_outdated()
+            changed = true
         }
+
+        changed
     }
 
     pub fn draw_widgets(plot_ui: &mut PlotUi, params: &LineParams) {
-        // Plot x and y axes through the center of the shape
-        plot_ui.hline(HLine::new(params.offset_y).color(COLOR_X_AXIS).width(2.0));
-        plot_ui.vline(VLine::new(params.offset_x).color(COLOR_Y_AXIS).width(2.0));
-
-        // Plot rotated x and y axes for nonzero tilt (dark orange and purple)
-        let tilt = params.rise.atan2(params.run);
-        if tilt != 0.0 {
-            plot_ui.line(
-                plotting::tilted_line_in_bounds(
-                    plot_ui.plot_bounds(),
-                    tilt,
-                    params.offset_x,
-                    params.offset_y,
-                )
-                .color(COLOR_TILTED_X_AXIS),
-            );
-            plot_ui.line(
-                plotting::tilted_line_in_bounds(
-                    plot_ui.plot_bounds(),
-                    PI / 2.0,
-                    params.offset_x,
-                    params.offset_y,
-                )
-                .color(COLOR_TILTED_Y_AXIS),
-            );
-        }
-
-        // Plot center dot
-        plot_ui.points(
-            Points::new(vec![[params.offset_x, params.offset_y]])
-                .radius(5.0)
-                .color(COLOR_CENTER_DOT),
+        draw_axes(
+            plot_ui,
+            params.offset_x,
+            params.offset_y,
+            params.rise.atan2(params.run),
         );
     }
 
@@ -265,11 +233,8 @@ impl Line {
         default_shape: &LineParams,
         algorithm: &LineAlg,
         fields: &mut LineFields,
-    ) where
-        Self: Clone + Default,
-    {
+    ) {
         layer_parameters.algorithm = AllAlgs::Line(*algorithm);
-        layer_parameters.nr_samples = sampling_points.len();
 
         layer_parameters.parameters = sampling_points
             .iter()
@@ -286,9 +251,5 @@ impl Line {
             thickness: fields.thickness.eval(layer).unwrap_or(default.thickness),
             length: fields.length.eval(layer).unwrap_or(default.length),
         }
-    }
-
-    pub fn all_algs() -> Vec<AllAlgs> {
-        vec![AllAlgs::Line(Centerpoint)]
     }
 }
