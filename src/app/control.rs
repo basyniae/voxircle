@@ -34,17 +34,6 @@ impl Control {
     }
 }
 
-impl Default for Control {
-    /// Behaves as follows: Update on the first frame, then no more.
-    fn default() -> Self {
-        Control {
-            do_once: true,
-            do_auto: false,
-            is_outdated: true,
-        }
-    }
-}
-
 /// Methods for defaults
 impl Control {
     pub const FIRST_FRAME_UPDATE: Control = Control {

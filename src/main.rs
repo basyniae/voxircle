@@ -13,7 +13,6 @@ fn main() -> eframe::Result {
             .with_inner_size([800.0, 600.0]) // window size when starting
             .with_min_inner_size([300.0, 220.0]) // smallest window size possible with resizing
             .with_icon(
-                // NOTE: Adding an icon is optional
                 eframe::icon_data::from_png_bytes(&include_bytes!("../assets/icon-256.png")[..])
                     .expect("Failed to load icon"),
             ),
@@ -33,8 +32,6 @@ fn main() {
 
     // Redirect `log` message to `console.log` and friends:
     eframe::WebLogger::init(log::LevelFilter::Debug).ok();
-
-    // panic!("running main() for wasm32 architecture");
 
     let web_options = eframe::WebOptions::default();
 

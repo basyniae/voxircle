@@ -86,13 +86,13 @@ pub fn blocks_update(
     stack_blocks: &mut ZVec<Blocks>,
     blocks_current_layer_control: &mut Control,
     blocks_all_layers_control: &mut Control,
-    recompute_metrics: &mut bool,
+    metrics_control: &mut Control,
     current_layer: isize,
     layer_lowest: isize,
     sample_combine_method: &SampleCombineMethod,
 ) {
     if blocks_current_layer_control.update() {
-        *recompute_metrics = true;
+        metrics_control.set_outdated();
 
         stack_blocks.set(
             current_layer,
@@ -104,7 +104,7 @@ pub fn blocks_update(
     }
 
     if blocks_all_layers_control.update() {
-        *recompute_metrics = true;
+        metrics_control.set_outdated();
 
         *stack_blocks = ZVec::new(
             stack_layer_parameters

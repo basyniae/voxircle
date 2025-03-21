@@ -40,6 +40,8 @@ mod view;
 
 const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+// longterm: Option to run an external rhai file
+// longterm: sliders for "Dummy variables" that can be referenced in code (for easier visual tweaking)
 pub struct App {
     // Layer management
     current_layer: isize,
@@ -51,14 +53,10 @@ pub struct App {
     //  we can not sometimes store SquircleParams and other times LineParams)
     stack_squircle_shape: ZVec<AllParams>, // Store the squircle shape (given by the ui parameters) for each layer
     stack_squircle_layer_parameters: ZVec<LayerParameters>, // Store the sampled parameters for each layer
+    squircle_fields: AllFields,
 
     stack_line_shape: ZVec<AllParams>,
     stack_line_layer_parameters: ZVec<LayerParameters>,
-
-    // Parameter fields
-    // longterm: Option to run an external rhai file
-    // longterm: sliders for "Dummy variables" that can be referenced in code (for easier visual tweaking)
-    squircle_fields: AllFields,
     line_fields: AllFields,
 
     // shape type that is currently visible and editable
@@ -74,8 +72,8 @@ pub struct App {
 
     // Metrics
     metrics: Metrics,
-    // todo: make control
-    recompute_metrics: bool, // If the current layer has changed, recompute the metrics. By update order, this needs to be a global variable
+    has_shape_changed: bool,  // has the shape changed this frame
+    metrics_control: Control, // If the current layer has changed, recompute the metrics. By update order, this needs to be a global variable
 
     // Generate new shape on this layer automatically from the provided parameters
     blocks_current_layer_control: Control,
@@ -156,12 +154,13 @@ impl App {
             active_fields: AllFields::Squircle(Default::default()),
 
             shape_type: ShapeType::Squircle,
+            has_shape_changed: false,
             param_config: Default::default(),
 
             stack_blocks: ZVec::new(VecDeque::from(vec![Blocks::default()]), 0),
 
             // Compute the metrics on the first update
-            recompute_metrics: true,
+            metrics_control: Control::FIRST_FRAME_UPDATE,
 
             // Initialize empty metrics
             metrics: Default::default(),
@@ -214,6 +213,8 @@ impl eframe::App for App {
                 self.parameters_current_layer_control.set_outdated();
                 self.parameters_all_layers_control.set_outdated();
 
+                let has_shape_changed = true;
+
                 match old_shape {
                     ShapeType::Squircle => {
                         swap(&mut self.squircle_fields, &mut self.active_fields);
@@ -251,7 +252,10 @@ impl eframe::App for App {
                         );
                     }
                 }
+            } else {
+                self.has_shape_changed = false
             }
+
             egui::ScrollArea::vertical().show(ui, |ui| {
                 let id = ui.make_persistent_id("parameters_collapsable");
                 egui::collapsing_header::CollapsingState::load_with_default_open(
@@ -417,19 +421,19 @@ impl eframe::App for App {
             &mut self.active_fields,
             &self.param_config,
         );
+
         blocks_update(
             &self.stack_active_layer_parameters,
             &mut self.stack_blocks,
             &mut self.blocks_current_layer_control,
             &mut self.blocks_all_layers_control,
-            &mut self.recompute_metrics,
+            &mut self.metrics_control,
             self.current_layer,
             self.layer_lowest,
             &self.sample_combine_method,
         );
 
-        if self.recompute_metrics {
-            self.recompute_metrics = false;
+        if self.metrics_control.update() {
             self.metrics.update(
                 self.current_layer,
                 self.layer_lowest,
@@ -468,7 +472,7 @@ impl eframe::App for App {
         // Layer navigation bar (top)
         if self.layers_enabled {
             egui::TopBottomPanel::top("layer-navigation").show(ctx, |ui| {
-                let (old_layer, has_layer_stack_changed, _has_layer_changed) = ui_layer_navigation(
+                let (old_layer, has_layer_stack_changed, has_layer_changed) = ui_layer_navigation(
                     ui,
                     &mut self.current_layer,
                     &mut self.layer_lowest,
@@ -476,7 +480,7 @@ impl eframe::App for App {
                     self.lock_stack_size,
                 );
 
-                if has_layer_stack_changed {
+                if has_layer_stack_changed || self.has_shape_changed {
                     // The sampling points are (possibly) out of date.
                     // This happens certainly if the stack grows, and if the stack shrinks only if
                     //  only_sample_half_of_bottom_layer or only_sample_half_of_top_layer is true
@@ -484,33 +488,20 @@ impl eframe::App for App {
 
                     // Resize all the stack objects
                     {
-                        self.stack_squircle_shape.resize(
-                            self.layer_lowest,
-                            self.layer_highest,
-                            &self.stack_squircle_shape.get(old_layer).unwrap().clone(),
-                        );
+                        macro_rules! resize {
+                            ($x:ident) => {
+                                self.$x.resize(
+                                    self.layer_lowest,
+                                    self.layer_highest,
+                                    &self.$x.get(old_layer).unwrap().clone(),
+                                )
+                            };
+                        }
 
-                        self.stack_squircle_layer_parameters.resize(
-                            self.layer_lowest,
-                            self.layer_highest,
-                            &self
-                                .stack_squircle_layer_parameters
-                                .get(old_layer)
-                                .unwrap()
-                                .clone(),
-                        );
-
-                        self.stack_blocks.resize(
-                            self.layer_lowest,
-                            self.layer_highest,
-                            &self.stack_blocks.get(old_layer).unwrap().clone(),
-                        );
-
-                        self.stack_sampling_points.resize(
-                            self.layer_lowest,
-                            self.layer_highest,
-                            &self.stack_sampling_points.get(old_layer).unwrap().clone(),
-                        );
+                        resize!(stack_active_shape);
+                        resize!(stack_active_layer_parameters);
+                        resize!(stack_blocks);
+                        resize!(stack_sampling_points);
                     }
                 }
 
