@@ -23,7 +23,8 @@ pub fn generate_alg_contained(
         .map(|i| {
             // Loop over all coords
             // Bottom right coordinate of the box in bitmatrix coordinates is [i % edge_length, i / edge_length]
-            let square = Square::new(i, grid_size, origin, center_offset, sqrt_quad_form);
+            let square =
+                Square::new_sqrt_quad_form(i, grid_size, origin, center_offset, sqrt_quad_form);
 
             // We have that the box is contained in the disk <=> all corners of the box are in the ellipse
             // Rely on sqrt_quad_form matrix characterization of ellipse

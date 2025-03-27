@@ -30,7 +30,7 @@ pub fn generate_alg_conservative(
     let blocks = (0..grid_size.pow(2))
         .map(|i| {
             // loop over all coords
-            let square = Square::new(i, grid_size, origin, center_offset, sqrt_quad_form);
+            let square = Square::new_sqrt_quad_form(i, grid_size, origin, center_offset, sqrt_quad_form);
 
             // Any extreme point of the box is in the ellipse (so their intersection is nonempty)
             square.for_any_m_corner(|corner| corner.pnorm(squircle_parameter) <= 1.0)

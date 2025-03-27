@@ -48,10 +48,11 @@ pub struct App {
     layer_lowest: isize,
     layer_highest: isize,
 
+    // fields (which are stored globally for every shape type)
     squircle_fields: SquircleFields,
     line_fields: LineFields,
 
-    // shape type that is currently visible and editable
+    // shape type for each layer
     stack_shape_type: ZVec<ShapeType>,
     stack_shape_sliders: ZVec<AllParams>,
     stack_layer_parameters: ZVec<LayerParameters>,

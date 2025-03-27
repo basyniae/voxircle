@@ -105,21 +105,35 @@ impl AllParams {
 impl AllAlgs {
     pub fn describe(&self) -> String {
         match self {
-            AllAlgs::Squircle(alg) => {match alg {
-                SquircleAlg::Centerpoint => {"Include a particular block iff its centerpoint is in the ellipse".to_string()}
-                SquircleAlg::Conservative => {"Include a particular block in the voxelization iff it has nonempty intersection with the ellipse".to_string()}
-                SquircleAlg::Contained => {"Include a particular block iff it is fully contained in the ellipse".to_string()}
-                SquircleAlg::Percentage(percentage) => {format!(
-                    "Include a particular block in the voxelization iff more than {:.0}% of it is contained in the circle. Ellipses and squircles not implemented.",
+            AllAlgs::Squircle(alg) => match alg {
+                SquircleAlg::Centerpoint => {
+                    "Include a particular block iff its centerpoint is in the squircle".to_string()
+                }
+                SquircleAlg::Conservative => {
+                    "Include a particular block iff it has nonempty intersection with the squircle"
+                        .to_string()
+                }
+                SquircleAlg::Contained => {
+                    "Include a particular block iff it is fully contained in the squircle"
+                        .to_string()
+                }
+                SquircleAlg::Percentage(percentage) => {
+                    format!(
+                    "Include a particular block iff more than {:.0}% of it is contained in the circle. Ellipses or squircles not implemented.",
                     100.0 * percentage
-                )}
-                SquircleAlg::Empty => {"Include no blocks in the voxelization".to_string()}
-            }}
-            AllAlgs::Line(alg) => {match alg {
+                )
+                }
+                SquircleAlg::Empty => "Include no blocks in the voxelization".to_string(),
+            },
+            AllAlgs::Line(alg) => match alg {
                 LineAlg::Centerpoint => {
                     "Include a particular block iff its centerpoint is in the line".to_string()
                 }
-            }}
+                &LineAlg::Conservative => {
+                    "Include a particular block iif it has nonempty intersection with the line"
+                        .to_string()
+                }
+            },
         }
     }
 
@@ -134,6 +148,7 @@ impl AllAlgs {
             },
             AllAlgs::Line(alg) => match alg {
                 LineAlg::Centerpoint => "Centerpoint".to_string(),
+                LineAlg::Conservative => "Conservative".to_string(),
             },
         }
     }

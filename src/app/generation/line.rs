@@ -1,8 +1,9 @@
 use crate::app::data_structures::blocks::Blocks;
 use crate::app::data_structures::zvec::ZVec;
 use crate::app::generation::line::centerpoint::generate_line_centerpoint;
+use crate::app::generation::line::conservative::generate_alg_conservative;
 use crate::app::generation::line::line_params::LineParams;
-use crate::app::generation::line::LineAlg::Centerpoint;
+use crate::app::generation::line::LineAlg::{Centerpoint, Conservative};
 use crate::app::generation::{AllAlgs, AllParams};
 use crate::app::math::linear_algebra::Vec2;
 use crate::app::param_field::ParamField;
@@ -13,6 +14,7 @@ use egui_plot::PlotUi;
 use std::f64::consts::PI;
 
 mod centerpoint;
+mod conservative;
 pub mod line_params;
 
 #[derive(Clone)]
@@ -22,11 +24,12 @@ pub struct Line {}
 pub enum LineAlg {
     #[default]
     Centerpoint,
+    Conservative,
 }
 
 impl LineAlg {
     pub fn all_algs() -> Vec<AllAlgs> {
-        vec![AllAlgs::Line(Centerpoint)]
+        vec![AllAlgs::Line(Centerpoint), AllAlgs::Line(Conservative)]
     }
 }
 
@@ -107,6 +110,13 @@ impl Line {
 
         match alg {
             Centerpoint => generate_line_centerpoint(
+                rise_run,
+                offset,
+                params.thickness,
+                params.length,
+                grid_size,
+            ),
+            Conservative => generate_alg_conservative(
                 rise_run,
                 offset,
                 params.thickness,

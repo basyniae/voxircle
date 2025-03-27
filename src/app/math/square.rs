@@ -22,7 +22,7 @@ pub struct Square {
 #[allow(dead_code)] // the unused methods make sense for completeness
 impl Square {
     /// Create new square from the usual parameters
-    pub(crate) fn new(
+    pub(crate) fn new_sqrt_quad_form(
         index: usize,
         edge_length: usize,
         origin: Vec2,
@@ -50,6 +50,30 @@ impl Square {
             m_rb,
             m_lt,
             m_rt,
+        }
+    }
+
+    pub fn new_straight(
+        index: usize,
+        edge_length: usize,
+        origin: Vec2,
+        center_offset: Vec2,
+    ) -> Self {
+        let lb = Vec2::from([(index % edge_length) as f64, (index / edge_length) as f64])
+            - (origin + center_offset);
+        let rb = lb + Vec2::from([1.0, 0.0]);
+        let lt = lb + Vec2::from([0.0, 1.0]);
+        let rt = lb + Vec2::from([1.0, 1.0]);
+
+        Square {
+            lb,
+            rb,
+            lt,
+            rt,
+            m_lb: lb,
+            m_rb: rb,
+            m_lt: lt,
+            m_rt: rt,
         }
     }
 
