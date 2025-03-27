@@ -150,7 +150,7 @@ impl Line {
         ui: &mut Ui,
         params: &mut LineParams,
         fields: &mut LineFields,
-        _: &mut LineAlg,
+        alg: &mut LineAlg,
         sampling_points: &ZVec<Vec<f64>>,
         code_enabled: bool,
     ) -> bool {

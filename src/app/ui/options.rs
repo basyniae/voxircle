@@ -63,7 +63,6 @@ pub fn ui_options(
     ui.separator(); // Match first over the algorithm so that type is checked by the compiler at least a little bit
                     //  (we will get a reminder to add a new entry in here if we add a variant to the AllAlgs struct)
     if match alg {
-        AllAlgs::Null => panic!("impossible"),
         AllAlgs::Squircle(alg) => {
             if let AllParams::Squircle(params) = params {
                 Squircle::show_options(

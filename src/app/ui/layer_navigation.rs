@@ -8,7 +8,7 @@ pub fn ui_layer_navigation(
     layer_lowest: &mut isize,
     layer_highest: &mut isize,
     lock_stack_size: bool,
-) -> (isize, bool, bool) {
+) -> (isize, bool) {
     // bookkeeping for updating the configuration
     let old_layer = *current_layer;
     let prev_layer_lowest = *layer_lowest;
@@ -27,7 +27,7 @@ pub fn ui_layer_navigation(
                 4.0 * controls_width + 3.0 * main_width + padding * 12.0,
                 height,
             ]
-                .into(),
+            .into(),
             egui::Sense::click(),
         );
         ui.put(rect, |ui: &mut Ui| {
@@ -100,7 +100,6 @@ pub fn ui_layer_navigation(
     (
         old_layer,
         prev_layer_lowest != *layer_lowest || prev_layer_highest != *layer_highest, // has layer stack changed?
-        old_layer != *current_layer, // has current layer changed?
     )
 
     // Expression for if the stack has grown (might be useful later):

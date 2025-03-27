@@ -69,7 +69,6 @@ impl Metrics {
         self.outer_corners = current_layer_blocks.get_outer_corners();
         self.convex_hull = get_convex_hull(&self.outer_corners);
 
-        // todo: fix
         self.global_bounding_box = stack_layer_config
             .data
             .iter()

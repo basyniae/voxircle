@@ -134,7 +134,6 @@ fn set_parameters(
     param_config: &ParamConfig,
 ) {
     match alg {
-        AllAlgs::Null => panic!("impossible"),
         AllAlgs::Squircle(alg) => {
             //todo: does this make sense
             let default_shape = match default_shape {
@@ -177,7 +176,6 @@ fn update_slider_parameters(
     param_config: &ParamConfig,
 ) {
     match current_layer_shape {
-        AllParams::Null => panic!("impossible"),
         AllParams::Squircle(current_layer_shape) => {
             *current_layer_shape = Squircle::eval_param(
                 &(layer as f64),

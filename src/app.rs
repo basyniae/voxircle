@@ -353,7 +353,6 @@ impl eframe::App for App {
             &self.sample_combine_method,
         );
 
-        println!("{:?}", self.metrics_control); // debug
         if self.metrics_control.update() {
             self.metrics.update(
                 self.current_layer,
@@ -393,7 +392,7 @@ impl eframe::App for App {
         // Layer navigation bar (top)
         if self.layers_enabled {
             egui::TopBottomPanel::top("layer-navigation").show(ctx, |ui| {
-                let (old_layer, has_layer_stack_changed, has_layer_changed) = ui_layer_navigation(
+                let (old_layer, has_layer_stack_changed) = ui_layer_navigation(
                     ui,
                     &mut self.current_layer,
                     &mut self.layer_lowest,

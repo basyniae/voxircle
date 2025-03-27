@@ -11,14 +11,6 @@ pub struct LayerParameters {
 }
 
 impl LayerParameters {
-    /// default configuration without any shape or data
-    pub fn new_null() -> Self {
-        LayerParameters {
-            algorithm: AllAlgs::Null,
-            parameters: vec![AllParams::Null],
-        }
-    }
-
     /// new from defaults provided by the shape type
     pub fn new_from(shape_type: ShapeType) -> Self {
         match shape_type {

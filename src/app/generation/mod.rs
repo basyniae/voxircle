@@ -1,15 +1,15 @@
 use crate::app::data_structures::blocks::Blocks;
 use crate::app::generation::line::line_params::LineParams;
-use crate::app::generation::line::{Line, LineAlg, LineFields};
+use crate::app::generation::line::{Line, LineAlg};
 use crate::app::generation::shape_type::ShapeType;
 use crate::app::generation::squircle::squircle_params::SquircleParams;
-use crate::app::generation::squircle::{Squircle, SquircleAlg, SquircleFields};
+use crate::app::generation::squircle::{Squircle, SquircleAlg};
 use crate::app::math::linear_algebra::Vec2;
 use crate::app::plotting;
 use eframe::epaint::Color32;
 use egui::Ui;
 use egui_plot::PlotUi;
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
 
 pub mod line;
 pub mod shape_type;
@@ -17,50 +17,19 @@ pub mod squircle;
 
 #[derive(Copy, Clone, Debug)]
 pub enum AllParams {
-    Null,
     Squircle(SquircleParams),
     Line(LineParams),
 }
 
-pub enum AllFields {
-    Null,
-    Squircle(SquircleFields),
-    Line(LineFields),
-}
-
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum AllAlgs {
-    Null,
     Squircle(SquircleAlg),
     Line(LineAlg),
-}
-
-impl Debug for AllFields {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Self::Null => {
-                    "Null"
-                }
-                Self::Squircle(_) => {
-                    "Squircle"
-                }
-                Self::Line(_) => {
-                    "Line"
-                }
-            }
-        )
-    }
 }
 
 impl AllParams {
     pub fn draw(&self, plot_ui: &mut PlotUi, color: Color32) {
         match self {
-            AllParams::Null => {
-                panic!("Impossible")
-            }
             AllParams::Squircle(params) => {
                 plot_ui.line(plotting::superellipse_at_coords(params.clone()).color(color))
             }
@@ -92,7 +61,6 @@ impl AllParams {
 
     pub fn draw_widgets(&self, plot_ui: &mut PlotUi) {
         match self {
-            AllParams::Null => panic!("impossible"),
             AllParams::Squircle(params) => Squircle::draw_widgets(plot_ui, params),
             AllParams::Line(params) => Line::draw_widgets(plot_ui, params),
         }
@@ -101,7 +69,6 @@ impl AllParams {
     pub fn bounds(&self, pad_factor: f64) -> [[f64; 2]; 2] {
         println!("bounds computed!");
         match self {
-            AllParams::Null => panic!("impossible"),
             AllParams::Squircle(params) => Squircle::bounds(params, pad_factor),
             AllParams::Line(params) => Line::bounds(params, pad_factor),
         }
@@ -109,7 +76,6 @@ impl AllParams {
 
     pub fn grid_size(layer_params: &Vec<Self>) -> usize {
         match layer_params[0] {
-            AllParams::Null => panic!("impossible"),
             AllParams::Squircle(_) => {
                 let mut running = vec![];
                 for i in layer_params {
@@ -136,28 +102,9 @@ impl AllParams {
     }
 }
 
-impl AllFields {
-    pub fn all_register_success(&mut self) {
-        match self {
-            Self::Null => panic!("impossible"),
-            AllFields::Squircle(squircle) => {
-                for field in squircle.all_fields_mut() {
-                    field.register_success()
-                }
-            }
-            AllFields::Line(line) => {
-                for field in line.all_fields_mut() {
-                    field.register_success()
-                }
-            }
-        }
-    }
-}
-
 impl AllAlgs {
     pub fn describe(&self) -> String {
         match self {
-            Self::Null => panic!("impossible"),
             AllAlgs::Squircle(alg) => {match alg {
                 SquircleAlg::Centerpoint => {"Include a particular block iff its centerpoint is in the ellipse".to_string()}
                 SquircleAlg::Conservative => {"Include a particular block in the voxelization iff it has nonempty intersection with the ellipse".to_string()}
@@ -178,7 +125,6 @@ impl AllAlgs {
 
     pub fn name(&self) -> String {
         match self {
-            Self::Null => panic!("impossible"),
             AllAlgs::Squircle(alg) => match alg {
                 SquircleAlg::Centerpoint => "Centerpoint".to_string(),
                 SquircleAlg::Conservative => "Conservative".to_string(),
@@ -195,7 +141,6 @@ impl AllAlgs {
 
 pub fn generate(alg: &AllAlgs, params: &AllParams, grid_size: usize) -> Blocks {
     match alg {
-        AllAlgs::Null => panic!("impossible"),
         AllAlgs::Squircle(alg) => {
             if let AllParams::Squircle(params) = params {
                 Squircle::generate(alg, params, grid_size)
