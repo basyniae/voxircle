@@ -1,4 +1,5 @@
 /// Controls when a particular structure is updated.
+#[derive(Debug)]
 pub struct Control {
     do_once: bool,
     do_auto: bool,

@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::fmt::{Debug, Formatter};
 
 /// Vector whose index is a continuous interval of the integers (Z)
 #[derive(Clone, Default)]
@@ -83,5 +84,11 @@ impl<T: Clone> ZVec<T> {
 
     pub fn get_maximum(&self) -> isize {
         self.maximum
+    }
+}
+
+impl<T: Debug> Debug for ZVec<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", format!("{:?}", self.data))
     }
 }

@@ -1,7 +1,7 @@
 use crate::app::control::Control;
-use crate::app::generation::line::line_params::LineParams;
 use crate::app::generation::line::LineFields;
 use crate::app::generation::shape_type::ShapeType;
+use crate::app::generation::squircle::SquircleFields;
 use crate::app::param_config::ParamConfig;
 use crate::app::update::metrics::Metrics;
 use crate::app::view::View;
@@ -10,12 +10,11 @@ use data_structures::zvec::ZVec;
 use eframe::egui::{Direction, Layout};
 use eframe::emath::Align;
 use generation::squircle::squircle_params::SquircleParams;
-use generation::{AllFields, AllParams};
+use generation::AllParams;
 use sampling::layer_parameters::LayerParameters;
 use sampling::{sampling_points_update, SampleCombineMethod, SampleDistributeMethod};
 use std::collections::VecDeque;
 use std::default::Default;
-use std::mem::swap;
 use ui::generation::ui_generation;
 use ui::layer_navigation::ui_layer_navigation;
 use ui::options::ui_options;
@@ -23,6 +22,7 @@ use ui::sampling::ui_sampling;
 use ui::viewport::ui_viewport;
 use ui::viewport_options::ui_viewport_options;
 use update::{blocks_update, parameters_update};
+
 mod colors;
 mod control;
 mod data_structures;
@@ -48,22 +48,13 @@ pub struct App {
     layer_lowest: isize,
     layer_highest: isize,
 
-    // repeat for each shape? that's the best I can think of right now (and maybe the best we can do,
-    //  noting that the trait-based approach does not allow dynamically switching of types, i.e.,
-    //  we can not sometimes store SquircleParams and other times LineParams)
-    stack_squircle_shape: ZVec<AllParams>, // Store the squircle shape (given by the ui parameters) for each layer
-    stack_squircle_layer_parameters: ZVec<LayerParameters>, // Store the sampled parameters for each layer
-    squircle_fields: AllFields,
-
-    stack_line_shape: ZVec<AllParams>,
-    stack_line_layer_parameters: ZVec<LayerParameters>,
-    line_fields: AllFields,
+    squircle_fields: SquircleFields,
+    line_fields: LineFields,
 
     // shape type that is currently visible and editable
-    shape_type: ShapeType,
-    stack_active_shape: ZVec<AllParams>,
-    stack_active_layer_parameters: ZVec<LayerParameters>,
-    active_fields: AllFields,
+    stack_shape_type: ZVec<ShapeType>,
+    stack_shape_sliders: ZVec<AllParams>,
+    stack_layer_parameters: ZVec<LayerParameters>,
 
     // additional configuration options
     param_config: ParamConfig,
@@ -121,46 +112,27 @@ impl App {
             layer_lowest: 0,
             layer_highest: 0,
 
-            // Initialize for single layer (it will get overridden on the first update)
-            stack_squircle_shape: ZVec::new(VecDeque::from(vec![AllParams::Null]), 0),
-            stack_squircle_layer_parameters: ZVec::new(
-                VecDeque::from(vec![LayerParameters::new_null()]),
-                0,
-            ),
-
-            stack_line_shape: ZVec::new(
-                VecDeque::from(vec![AllParams::Line(LineParams::default())]),
-                0,
-            ),
-            stack_line_layer_parameters: ZVec::new(
-                VecDeque::from(vec![LayerParameters::new_from(ShapeType::Line)]),
-                0,
-            ),
-
-            // Standard initializations, finite or nonnegative as necessary and sensible for the data type
-            squircle_fields: AllFields::Null,
-
-            line_fields: AllFields::Line(LineFields::default()),
+            squircle_fields: Default::default(),
+            line_fields: Default::default(),
 
             // Initialize for single layer (it will get overridden on the first update)
-            stack_active_shape: ZVec::new(
+            stack_shape_sliders: ZVec::new(
                 VecDeque::from(vec![AllParams::Squircle(SquircleParams::default())]),
                 0,
             ),
-            stack_active_layer_parameters: ZVec::new(
+            stack_layer_parameters: ZVec::new(
                 VecDeque::from(vec![LayerParameters::new_from(ShapeType::Squircle)]),
                 0,
             ),
-            active_fields: AllFields::Squircle(Default::default()),
 
-            shape_type: ShapeType::Squircle,
+            stack_shape_type: ZVec::new(VecDeque::from(vec![ShapeType::Squircle]), 0),
             has_shape_changed: false,
             param_config: Default::default(),
 
             stack_blocks: ZVec::new(VecDeque::from(vec![Blocks::default()]), 0),
 
             // Compute the metrics on the first update
-            metrics_control: Control::FIRST_FRAME_UPDATE,
+            metrics_control: Control::AUTO_UPDATE,
 
             // Initialize empty metrics
             metrics: Default::default(),
@@ -200,62 +172,6 @@ impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Side panel
         egui::SidePanel::right("options-panel").show(ctx, |ui| {
-            let old_shape = self.shape_type.clone();
-            egui::ComboBox::from_label("Shape")
-                .selected_text(format!("{:}", self.shape_type))
-                .show_ui(ui, |ui| {
-                    for i in ShapeType::list_all_shape_types() {
-                        ui.selectable_value(&mut self.shape_type, i, i.name());
-                    }
-                });
-            if old_shape != self.shape_type {
-                // todo: this is not ideal switching behaviour
-                self.parameters_current_layer_control.set_outdated();
-                self.parameters_all_layers_control.set_outdated();
-
-                let has_shape_changed = true;
-
-                match old_shape {
-                    ShapeType::Squircle => {
-                        swap(&mut self.squircle_fields, &mut self.active_fields);
-                        swap(&mut self.stack_squircle_shape, &mut self.stack_active_shape);
-                        swap(
-                            &mut self.stack_squircle_layer_parameters,
-                            &mut self.stack_active_layer_parameters,
-                        );
-                    }
-                    ShapeType::Line => {
-                        swap(&mut self.line_fields, &mut self.active_fields);
-                        swap(&mut self.stack_line_shape, &mut self.stack_active_shape);
-                        swap(
-                            &mut self.stack_line_layer_parameters,
-                            &mut self.stack_active_layer_parameters,
-                        );
-                    }
-                }
-
-                match self.shape_type {
-                    ShapeType::Squircle => {
-                        swap(&mut self.squircle_fields, &mut self.active_fields);
-                        swap(&mut self.stack_squircle_shape, &mut self.stack_active_shape);
-                        swap(
-                            &mut self.stack_squircle_layer_parameters,
-                            &mut self.stack_active_layer_parameters,
-                        );
-                    }
-                    ShapeType::Line => {
-                        swap(&mut self.line_fields, &mut self.active_fields);
-                        swap(&mut self.stack_line_shape, &mut self.stack_active_shape);
-                        swap(
-                            &mut self.stack_line_layer_parameters,
-                            &mut self.stack_active_layer_parameters,
-                        );
-                    }
-                }
-            } else {
-                self.has_shape_changed = false
-            }
-
             egui::ScrollArea::vertical().show(ui, |ui| {
                 let id = ui.make_persistent_id("parameters_collapsable");
                 egui::collapsing_header::CollapsingState::load_with_default_open(
@@ -270,17 +186,20 @@ impl eframe::App for App {
                     ui_options(
                         ui,
                         &mut self
-                            .stack_active_layer_parameters
+                            .stack_layer_parameters
                             .get_mut(self.current_layer)
                             .unwrap()
                             .algorithm,
-                        self.stack_active_shape.get_mut(self.current_layer).unwrap(),
-                        &mut self.active_fields,
+                        self.stack_shape_sliders
+                            .get_mut(self.current_layer)
+                            .unwrap(),
+                        &mut self.squircle_fields,
+                        &mut self.line_fields,
                         &mut self.parameters_current_layer_control,
                         &mut self.parameters_all_layers_control,
                         &self.stack_sampling_points,
                         self.code_enabled,
-                        &self.shape_type,
+                        &mut self.stack_shape_type.get_mut(self.current_layer).unwrap(),
                         &mut self.param_config,
                     );
                 });
@@ -408,8 +327,8 @@ impl eframe::App for App {
         );
 
         parameters_update(
-            &mut self.stack_active_shape,
-            &mut self.stack_active_layer_parameters,
+            &mut self.stack_shape_sliders,
+            &mut self.stack_layer_parameters,
             &self.stack_sampling_points,
             &mut self.parameters_current_layer_control,
             &mut self.parameters_all_layers_control,
@@ -418,12 +337,13 @@ impl eframe::App for App {
             self.current_layer,
             self.layer_lowest,
             self.layer_highest,
-            &mut self.active_fields,
+            &mut self.squircle_fields,
+            &mut self.line_fields,
             &self.param_config,
         );
 
         blocks_update(
-            &self.stack_active_layer_parameters,
+            &self.stack_layer_parameters,
             &mut self.stack_blocks,
             &mut self.blocks_current_layer_control,
             &mut self.blocks_all_layers_control,
@@ -433,6 +353,7 @@ impl eframe::App for App {
             &self.sample_combine_method,
         );
 
+        println!("{:?}", self.metrics_control); // debug
         if self.metrics_control.update() {
             self.metrics.update(
                 self.current_layer,
@@ -440,7 +361,7 @@ impl eframe::App for App {
                 self.layer_highest,
                 self.stack_blocks.get(self.current_layer).unwrap(),
                 &self.stack_blocks,
-                &self.stack_active_shape,
+                &self.stack_shape_sliders,
             )
         }
 
@@ -498,10 +419,11 @@ impl eframe::App for App {
                             };
                         }
 
-                        resize!(stack_active_shape);
-                        resize!(stack_active_layer_parameters);
-                        resize!(stack_blocks);
+                        resize!(stack_shape_type);
+                        resize!(stack_shape_sliders);
+                        resize!(stack_layer_parameters);
                         resize!(stack_sampling_points);
+                        resize!(stack_blocks);
                     }
                 }
 
@@ -514,10 +436,8 @@ impl eframe::App for App {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui_viewport(
                 ui,
-                self.stack_active_shape.get(self.current_layer).unwrap(),
-                self.stack_active_layer_parameters
-                    .get(self.current_layer)
-                    .unwrap(),
+                self.stack_shape_sliders.get(self.current_layer).unwrap(),
+                self.stack_layer_parameters.get(self.current_layer).unwrap(),
                 &self.stack_blocks.get(self.current_layer),
                 self.sampling_enabled,
                 &self.view,

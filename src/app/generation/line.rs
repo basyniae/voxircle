@@ -84,6 +84,11 @@ impl LineFields {
             &mut self.length,
         ]
     }
+    pub fn all_register_success(&mut self) {
+        for i in self.all_fields_mut() {
+            i.register_success()
+        }
+    }
 }
 
 impl Line {

@@ -1,9 +1,9 @@
 use crate::app::control::Control;
 use crate::app::data_structures::blocks::Blocks;
 use crate::app::data_structures::zvec::ZVec;
-use crate::app::generation::line::Line;
-use crate::app::generation::squircle::Squircle;
-use crate::app::generation::{AllAlgs, AllFields, AllParams};
+use crate::app::generation::line::{Line, LineFields};
+use crate::app::generation::squircle::{Squircle, SquircleFields};
+use crate::app::generation::{AllAlgs, AllParams};
 use crate::app::param_config::ParamConfig;
 use crate::app::sampling::layer_parameters::LayerParameters;
 use crate::app::sampling::SampleCombineMethod;
@@ -22,7 +22,8 @@ pub fn parameters_update(
     current_layer: isize,
     layer_lowest: isize,
     layer_highest: isize,
-    fields: &mut AllFields,
+    squircle_fields: &mut SquircleFields,
+    line_fields: &mut LineFields,
     param_config: &ParamConfig,
 ) {
     // Generate parameters to be sampled
@@ -36,7 +37,8 @@ pub fn parameters_update(
             stack_sampling_points.get(current_layer).unwrap(),
             stack_layer_shape.get(current_layer).unwrap(),
             &layer_alg,
-            fields,
+            squircle_fields,
+            line_fields,
             param_config,
         );
 
@@ -44,11 +46,13 @@ pub fn parameters_update(
         update_slider_parameters(
             stack_layer_shape.get_mut(current_layer).unwrap(),
             current_layer,
-            fields,
+            squircle_fields,
+            line_fields,
             param_config,
         );
 
-        fields.all_register_success()
+        squircle_fields.all_register_success();
+        line_fields.all_register_success();
     }
 
     // Generate parameters to be sampled
@@ -64,7 +68,8 @@ pub fn parameters_update(
                 stack_sampling_points.get(layer).unwrap(),
                 stack_layer_shape.get(layer).unwrap(),
                 &layer_alg,
-                fields,
+                squircle_fields,
+                line_fields,
                 param_config,
             );
 
@@ -72,12 +77,14 @@ pub fn parameters_update(
             update_slider_parameters(
                 stack_layer_shape.get_mut(layer).unwrap(),
                 layer,
-                fields,
+                squircle_fields,
+                line_fields,
                 param_config,
             )
         }
 
-        fields.all_register_success();
+        squircle_fields.all_register_success();
+        line_fields.all_register_success();
     }
 }
 
@@ -122,41 +129,42 @@ fn set_parameters(
     sampling_points: &Vec<f64>,
     default_shape: &AllParams,
     alg: &AllAlgs,
-    fields: &mut AllFields,
+    squircle_fields: &mut SquircleFields,
+    line_fields: &mut LineFields,
     param_config: &ParamConfig,
 ) {
     match alg {
         AllAlgs::Null => panic!("impossible"),
         AllAlgs::Squircle(alg) => {
-            if let (AllParams::Squircle(default_shape), AllFields::Squircle(fields)) =
-                (default_shape, fields)
-            {
-                Squircle::set_parameters(
-                    layer_parameters,
-                    sampling_points,
-                    default_shape,
-                    alg,
-                    fields,
-                    param_config,
-                )
-            } else {
-                panic!("set_parameters called with arguments that do not match")
-            }
+            //todo: does this make sense
+            let default_shape = match default_shape {
+                AllParams::Squircle(x) => x.clone(),
+                _ => Default::default(),
+            };
+
+            Squircle::set_parameters(
+                layer_parameters,
+                sampling_points,
+                &default_shape,
+                alg,
+                squircle_fields,
+                param_config,
+            )
         }
         AllAlgs::Line(alg) => {
-            if let (AllParams::Line(default_shape), AllFields::Line(fields)) =
-                (default_shape, fields)
-            {
-                Line::set_parameters(
-                    layer_parameters,
-                    sampling_points,
-                    default_shape,
-                    alg,
-                    fields,
-                )
-            } else {
-                panic!("set_parameters called with arguments that do not match")
-            }
+            //todo: does this make sense
+            let default_shape = match default_shape {
+                AllParams::Line(x) => x.clone(),
+                _ => Default::default(),
+            };
+
+            Line::set_parameters(
+                layer_parameters,
+                sampling_points,
+                &default_shape,
+                alg,
+                line_fields,
+            )
         }
     }
 }
@@ -164,26 +172,23 @@ fn set_parameters(
 fn update_slider_parameters(
     current_layer_shape: &mut AllParams,
     layer: isize,
-    fields: &mut AllFields,
+    squircle_fields: &mut SquircleFields,
+    line_fields: &mut LineFields,
     param_config: &ParamConfig,
 ) {
     match current_layer_shape {
         AllParams::Null => panic!("impossible"),
         AllParams::Squircle(current_layer_shape) => {
-            if let AllFields::Squircle(fields) = fields {
-                *current_layer_shape =
-                    Squircle::eval_param(&(layer as f64), fields, current_layer_shape, param_config)
-            } else {
-                panic!("update_slider_parameters called with arguments that do not match")
-            }
+            *current_layer_shape = Squircle::eval_param(
+                &(layer as f64),
+                squircle_fields,
+                current_layer_shape,
+                param_config,
+            )
         }
         AllParams::Line(current_layer_shape) => {
-            if let AllFields::Line(fields) = fields {
-                *current_layer_shape =
-                    Line::eval_param(&(layer as f64), fields, current_layer_shape)
-            } else {
-                panic!("update_slider_parameters called with arguments that do not match")
-            }
+            *current_layer_shape =
+                Line::eval_param(&(layer as f64), line_fields, current_layer_shape)
         }
     }
 }

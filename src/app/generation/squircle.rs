@@ -144,6 +144,12 @@ impl SquircleFields {
             &mut self.squircle_parameter,
         ]
     }
+
+    pub fn all_register_success(&mut self) {
+        for i in self.all_fields_mut() {
+            i.register_success()
+        }
+    }
 }
 
 impl Squircle {
