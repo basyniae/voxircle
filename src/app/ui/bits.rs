@@ -8,6 +8,7 @@ use egui_plot::{HLine, PlotUi, Points, VLine};
 use std::f64::consts::PI;
 
 /// A percentage slider
+/// Output true if the value for this slider has changed this frame, false otherwise.
 pub fn percentage_slider(ui: &mut Ui, parameter: &mut f64) -> bool {
     ui.add(
         egui::Slider::new(parameter, 0.0..=1.0)
@@ -21,6 +22,7 @@ pub fn percentage_slider(ui: &mut Ui, parameter: &mut f64) -> bool {
 }
 
 /// Even and odd buttons for the center
+/// Output true if any of these buttons have been clicked this frame, false otherwise.
 pub fn even_odd_buttons(ui: &mut Ui, x: &mut f64, y: &mut f64) -> bool {
     let mut clicked = false;
     ui.allocate_ui_with_layout(

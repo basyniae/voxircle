@@ -1,5 +1,5 @@
 use crate::app::control::Control;
-use crate::app::sampling::{SampleCombineMethod, SampleDistributeMethod};
+use crate::app::sampling::{SampleCombineMethod, SampleDistributeMethod, SamplingOptions};
 use crate::app::ui::bits::percentage_slider;
 use eframe::egui;
 use eframe::egui::Ui;
@@ -8,31 +8,27 @@ use eframe::egui::Ui;
 pub fn ui_sampling(
     ui: &mut Ui,
     sampling_enabled: bool,
-    only_sample_half_of_bottom_layer: &mut bool,
-    only_sample_half_of_top_layer: &mut bool,
-    nr_samples_per_layer: &mut usize,
-    sample_combine_method: &mut SampleCombineMethod,
-    sample_distribute_method: &mut SampleDistributeMethod,
+    sampling_options: &mut SamplingOptions,
     sampling_points_control: &mut Control,
 ) {
     ui.label("Vertical sampling of the code. Requires code mode to be on.");
 
     ui.add_enabled_ui(sampling_enabled, |ui| {
         if egui::ComboBox::from_label("Sample combination method")
-            .selected_text(format!("{:}", sample_combine_method))
+            .selected_text(format!("{:}", &mut sampling_options.sample_combine_method))
             .show_ui(ui, |ui| {
                 ui.selectable_value(
-                    sample_combine_method,
+                    &mut sampling_options.sample_combine_method,
                     SampleCombineMethod::AnySamples,
                     "Any samples",
                 );
                 ui.selectable_value(
-                    sample_combine_method,
+                    &mut sampling_options.sample_combine_method,
                     SampleCombineMethod::AllSamples,
                     "All samples",
                 );
                 ui.selectable_value(
-                    sample_combine_method,
+                    &mut sampling_options.sample_combine_method,
                     SampleCombineMethod::Percentage(0.5),
                     "Percentage of samples",
                 );
@@ -44,11 +40,12 @@ pub fn ui_sampling(
         };
 
         // Extra sampling method-specific options
-        match sample_combine_method {
+        match sampling_options.sample_combine_method {
             SampleCombineMethod::Percentage(percentage) => {
                 let mut perc_slider = percentage.clone();
                 if percentage_slider(ui, &mut perc_slider) {
-                    *sample_combine_method = SampleCombineMethod::Percentage(perc_slider);
+                    sampling_options.sample_combine_method =
+                        SampleCombineMethod::Percentage(perc_slider);
                     sampling_points_control.set_outdated();
                 };
             }
@@ -56,15 +53,15 @@ pub fn ui_sampling(
         }
 
         if egui::ComboBox::from_label("Sample distribution method")
-            .selected_text(format!("{:}", sample_distribute_method))
+            .selected_text(format!("{:}", sampling_options.sample_distribute_method))
             .show_ui(ui, |ui| {
                 ui.selectable_value(
-                    sample_distribute_method,
+                    &mut sampling_options.sample_distribute_method,
                     SampleDistributeMethod::IncludeEndpoints,
                     "Include endpoints",
                 );
                 ui.selectable_value(
-                    sample_distribute_method,
+                    &mut sampling_options.sample_distribute_method,
                     SampleDistributeMethod::ExcludeEndpoints,
                     "Exclude endpoints",
                 );
@@ -77,7 +74,7 @@ pub fn ui_sampling(
 
         if ui
             .checkbox(
-                only_sample_half_of_bottom_layer,
+                &mut sampling_options.only_sample_half_of_bottom_layer,
                 "Only sample half of the bottom layer",
             )
             .changed()
@@ -87,7 +84,7 @@ pub fn ui_sampling(
 
         if ui
             .checkbox(
-                only_sample_half_of_top_layer,
+                &mut sampling_options.only_sample_half_of_top_layer,
                 "Only sample half of the top layer",
             )
             .changed()
@@ -104,12 +101,15 @@ pub fn ui_sampling(
         }
 
         if ui
-            .add(egui::Slider::new(nr_samples_per_layer, 1..=20).text("Nr. samples per layer"))
+            .add(
+                egui::Slider::new(&mut sampling_options.nr_samples_per_layer, 1..=20)
+                    .text("Nr. samples per layer"),
+            )
             .changed()
         {
             sampling_points_control.set_outdated();
             if !sampling_enabled {
-                *nr_samples_per_layer = 1; // if sampling is off, don't allow changing this value
+                sampling_options.nr_samples_per_layer = 1; // if sampling is off, don't allow changing this value
             }
         };
     });

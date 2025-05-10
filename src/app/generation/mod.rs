@@ -67,7 +67,6 @@ impl AllParams {
     }
 
     pub fn bounds(&self, pad_factor: f64) -> [[f64; 2]; 2] {
-        println!("bounds computed!");
         match self {
             AllParams::Squircle(params) => Squircle::bounds(params, pad_factor),
             AllParams::Line(params) => Line::bounds(params, pad_factor),

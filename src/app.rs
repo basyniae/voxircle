@@ -3,6 +3,7 @@ use crate::app::generation::line::LineFields;
 use crate::app::generation::shape_type::ShapeType;
 use crate::app::generation::squircle::SquircleFields;
 use crate::app::param_config::ParamConfig;
+use crate::app::sampling::SamplingOptions;
 use crate::app::update::metrics::Metrics;
 use crate::app::view::View;
 use data_structures::blocks::Blocks;
@@ -12,7 +13,7 @@ use eframe::emath::Align;
 use generation::squircle::squircle_params::SquircleParams;
 use generation::AllParams;
 use sampling::layer_parameters::LayerParameters;
-use sampling::{sampling_points_update, SampleCombineMethod, SampleDistributeMethod};
+use sampling::sampling_points_update;
 use std::collections::VecDeque;
 use std::default::Default;
 use ui::generation::ui_generation;
@@ -81,11 +82,7 @@ pub struct App {
 
     // Sampling
     sampling_enabled: bool,
-    only_sample_half_of_bottom_layer: bool,
-    only_sample_half_of_top_layer: bool,
-    nr_samples_per_layer: usize,
-    sample_combine_method: SampleCombineMethod,
-    sample_distribute_method: SampleDistributeMethod,
+    sampling_options: SamplingOptions,
     stack_sampling_points: ZVec<Vec<f64>>,
     sampling_points_control: Control,
 
@@ -151,11 +148,7 @@ impl App {
 
             // Sampling
             sampling_enabled: false,
-            only_sample_half_of_bottom_layer: false, // todo: think about defaults
-            only_sample_half_of_top_layer: false,
-            nr_samples_per_layer: 1,
-            sample_combine_method: SampleCombineMethod::AnySamples,
-            sample_distribute_method: SampleDistributeMethod::IncludeEndpoints,
+            sampling_options: Default::default(),
             stack_sampling_points: ZVec::new(VecDeque::from([vec![0.0]]), 0), // start with middle sample
             sampling_points_control: Control::AUTO_UPDATE,
 
@@ -255,18 +248,14 @@ impl eframe::App for App {
                         .changed()
                         & !self.sampling_enabled
                     {
-                        self.nr_samples_per_layer = 1; // set number of samples to 1 if sampling is off
+                        self.sampling_options.nr_samples_per_layer = 1; // set number of samples to 1 if sampling is off
                     };
                 })
                 .body(|ui| {
                     ui_sampling(
                         ui,
                         self.sampling_enabled,
-                        &mut self.only_sample_half_of_bottom_layer,
-                        &mut self.only_sample_half_of_top_layer,
-                        &mut self.nr_samples_per_layer,
-                        &mut self.sample_combine_method,
-                        &mut self.sample_distribute_method,
+                        &mut self.sampling_options,
                         &mut self.sampling_points_control,
                     );
 
@@ -315,10 +304,7 @@ impl eframe::App for App {
         });
 
         sampling_points_update(
-            self.only_sample_half_of_bottom_layer,
-            self.only_sample_half_of_top_layer,
-            self.nr_samples_per_layer,
-            self.sample_distribute_method,
+            &self.sampling_options,
             &mut self.stack_sampling_points,
             &mut self.sampling_points_control,
             &mut self.parameters_current_layer_control,
@@ -351,7 +337,7 @@ impl eframe::App for App {
             &mut self.metrics_control,
             self.current_layer,
             self.layer_lowest,
-            &self.sample_combine_method,
+            &self.sampling_options.sample_combine_method,
         );
 
         if self.metrics_control.update() {

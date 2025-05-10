@@ -19,6 +19,27 @@ pub enum SampleDistributeMethod {
     ExcludeEndpoints,
 }
 
+pub struct SamplingOptions {
+    pub only_sample_half_of_bottom_layer: bool,
+    pub only_sample_half_of_top_layer: bool,
+    pub nr_samples_per_layer: usize,
+    pub sample_combine_method: SampleCombineMethod,
+    pub sample_distribute_method: SampleDistributeMethod,
+}
+
+// todo: think about defaults. I think this is fine
+impl Default for SamplingOptions {
+    fn default() -> Self {
+        Self {
+            only_sample_half_of_bottom_layer: false,
+            only_sample_half_of_top_layer: false,
+            nr_samples_per_layer: 1,
+            sample_combine_method: SampleCombineMethod::AnySamples,
+            sample_distribute_method: SampleDistributeMethod::IncludeEndpoints,
+        }
+    }
+}
+
 /// The ZVec corresponds to the layers. Each float in the Vec for a particular layer corresponds to
 ///  a sample that that layer has
 /// Note! The layer number is the middle!
@@ -135,10 +156,7 @@ impl Display for SampleDistributeMethod {
 }
 
 pub fn sampling_points_update(
-    only_sample_half_of_bottom_layer: bool,
-    only_sample_half_of_top_layer: bool,
-    nr_samples_per_layer: usize,
-    sample_distribute_method: SampleDistributeMethod,
+    sampling_options: &SamplingOptions,
     stack_sampling_points: &mut ZVec<Vec<f64>>,
     sampling_points_control: &mut Control,
     parameters_current_layer_control: &mut Control,
@@ -155,12 +173,12 @@ pub fn sampling_points_update(
         parameters_all_layers_control.set_outdated();
 
         *stack_sampling_points = determine_sampling_points(
-            sample_distribute_method,
+            sampling_options.sample_distribute_method,
             layer_lowest,
             layer_highest,
-            nr_samples_per_layer,
-            only_sample_half_of_bottom_layer,
-            only_sample_half_of_top_layer,
+            sampling_options.nr_samples_per_layer,
+            sampling_options.only_sample_half_of_bottom_layer,
+            sampling_options.only_sample_half_of_top_layer,
         );
     }
 }
