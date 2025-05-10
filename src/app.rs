@@ -43,6 +43,9 @@ const PKG_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 // longterm: Option to run an external rhai file
 // longterm: sliders for "Dummy variables" that can be referenced in code (for easier visual tweaking)
+// longterm: save program state (with SERDE) as a JSON (for when working for multiple sessions on a single project)
+//  i think i want to wait with this until the structure is more stable
+// longterm: Export schematics (there is a rust crate for this)
 pub struct App {
     // Layer management
     current_layer: isize,
@@ -53,14 +56,17 @@ pub struct App {
     squircle_fields: SquircleFields,
     line_fields: LineFields,
 
-    // shape type for each layer
+    // shape type (do we have a squircle on layer 3 and a line on layer 4?) for each layer
     stack_shape_type: ZVec<ShapeType>,
+    // sliders for each layer
     stack_shape_sliders: ZVec<AllParams>,
+    // sampled parameters for each layer
     stack_layer_parameters: ZVec<LayerParameters>,
 
-    // additional configuration options
+    // additional configuration options, e.g., circle mode
     param_config: ParamConfig,
 
+    // what are the blocks for each layer?
     stack_blocks: ZVec<Blocks>,
 
     // Metrics
@@ -68,10 +74,11 @@ pub struct App {
     has_shape_changed: bool,  // has the shape changed this frame
     metrics_control: Control, // If the current layer has changed, recompute the metrics. By update order, this needs to be a global variable
 
-    // Generate new shape on this layer automatically from the provided parameters
+    // Generate new shape on this layer automatically from whatever the current parameters are
     blocks_current_layer_control: Control,
     blocks_all_layers_control: Control,
 
+    // Modes
     layers_enabled: bool,
     lock_stack_size: bool,
     code_enabled: bool,
@@ -94,8 +101,6 @@ pub struct App {
     reset_zoom_continuous: bool,
 }
 
-// longterm: save program state (with SERDE) as a JSON (for when working for multiple sessions on a single project)
-// longterm: Export schematics (there is a rust crate for this)
 impl App {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         cc.egui_ctx.style_mut(|style| {
@@ -138,11 +143,13 @@ impl App {
             // Initialize on simplest working mode of operation
             blocks_current_layer_control: Control::AUTO_UPDATE,
             blocks_all_layers_control: Control::FIRST_FRAME_UPDATE,
+
+            // start with the simplest modes
             layers_enabled: false,
             lock_stack_size: false,
-
-            // Code mode
             code_enabled: false,
+
+            //
             parameters_current_layer_control: Control::FIRST_FRAME_UPDATE,
             parameters_all_layers_control: Control::AUTO_UPDATE,
 
@@ -152,7 +159,7 @@ impl App {
             stack_sampling_points: ZVec::new(VecDeque::from([vec![0.0]]), 0), // start with middle sample
             sampling_points_control: Control::AUTO_UPDATE,
 
-            // Simplest working configuration
+            // Simplest configuration
             view: Default::default(),
 
             // Start with continuously updating zoom

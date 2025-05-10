@@ -3,6 +3,7 @@ use egui::Color32;
 use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 use std::hash::{DefaultHasher, Hash, Hasher};
+use std::mem::swap;
 
 /// Sparse representation of a blocks object (that forgets about the origin)
 /// `indices` contains x iff there is a block at index x
@@ -28,6 +29,21 @@ impl From<&Blocks> for SparseBlocks {
         SparseBlocks {
             indices: HashSet::from_iter(blocks.get_all_block_coords_usize().into_iter()),
         }
+    }
+}
+
+impl Hash for SparseBlocks {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        // sort coordinates into a vector and then hash
+        let mut indices: Vec<&[isize; 2]> = self.indices.iter().collect();
+        indices.sort_by(|a, b| {
+            if a[0] != b[0] {
+                a[0].partial_cmp(&b[0]).unwrap()
+            } else {
+                a[1].partial_cmp(&b[1]).unwrap()
+            }
+        });
+        indices.hash(state)
     }
 }
 
@@ -130,51 +146,144 @@ impl SparseBlocks {
         dim
     }
 
-    // this is not the right way to go about the coloring process. rather put every shape in a canonical form that we can color/hash
-    // /// Is self a translate of other? I.e., is there some offset of self which transforms it into other?
-    // pub fn is_translate_of(&self, other: &Self) -> bool {
-    //     // use bounds of the self and other to get a range for the indices to loop over
-    //     // short circuit if self and other contain different amounts of blocks
-    //     if self.indices.len() != other.indices.len() {
-    //         return false;
-    //     }
-    //
-    //     let [self_bounds_min, self_bounds_max] = self.get_bounds();
-    //     let [other_bounds_min, other_bounds_max] = other.get_bounds();
-    //
-    //     // short circuit if the self and other have different profile sizes
-    //     if self.get_dimensions() != other.get_dimensions() {
-    //         return false;
-    //     }
-    //
-    //     // we can calculate the necessary offset exactly from the bounds.
-    //     let [x_offset, y_offset] = [
-    //         other_bounds_min[0] - self_bounds_min[0],
-    //         other_bounds_min[1] - self_bounds_min[1],
-    //     ];
-    //     // do a loop over the indices in self, add the offset, then check if they're all in the other.
-    //     //  (this works since both sets have the same size.) short-circuiting by the use of .all()
-    //     self.indices
-    //         .iter()
-    //         .all(|[x, y]| !other.indices.contains(&[x + x_offset, y + y_offset]))
-    // }
-
     // todo: try to influence the colors for the small dimension like [1,1], [2,1], etc., as they're
     //  very common and influence the look a lot
     // todo: give the colors some theming...
-    // todo: it is possible but not common for two shapes to have the same rotated dimensions but
-    //  not being a translation/rotation/reflection of eachother, but then they still get the same
-    //  color from this function.
     /// Get color from the rotated dimension of a shape (by a hash function)
     pub fn hash_color(&self) -> Color32 {
         let mut hasher = DefaultHasher::new();
-        let dim = self.get_rotated_dimensions();
-        dim.hash(&mut hasher);
+        let normal_form = self.normal_form();
+        normal_form.hash(&mut hasher);
         let int = hasher.finish();
+        println!("normal form: {:?}, hash: {}", normal_form, int);
         // get first 3 sets of 8 bits as rgb
         let r = (int & 255) as u8;
         let g = ((int & (255 * 256)) / 256) as u8;
         let b = ((int & (255 * 256 * 256)) / (256 * 256)) as u8;
         Color32::from_rgb(r, g, b)
+    }
+
+    /// Put the input in "normal form".
+    /// Left-bottom coordinate is (0,0)
+    /// More mass is below the x=y line than above it
+    pub fn normal_form(&self) -> Self {
+        let bounds = self.get_bounds();
+        // Make left bottom coordinate [0,0]
+        let mut indices: Vec<_> = self
+            .indices
+            .iter()
+            .map(|[x, y]| [(x - bounds[0][0]), (y - bounds[0][1])])
+            .collect();
+
+        let [x, y] = self.get_dimensions();
+        let mut x = x as isize;
+        let mut y = y as isize;
+        // Make long side the x coordinate
+        if y < x {
+            swap(&mut x, &mut y);
+            indices = indices.iter().map(|[x, y]| [*y, *x]).collect()
+        }
+
+        // println!("x: {x}, y: {y}");
+        // println!("translated indices {:?}", indices);
+
+        // candidate orderings
+        #[derive(Debug)]
+        enum Candidates {
+            LRB, // ordinary x y ordering (left to right, then top to bottom)
+            RLB, // flipped x coordinate
+            LRT, // flipped y coordinate
+            RLT, // flipped both x and y coordinates
+            BTR, // bottom to top, then left to right (only for squares)
+            BTL,
+            TBR,
+            TBL,
+        }
+        impl Candidates {
+            fn is_member(&self, indices: &Vec<[isize; 2]>, x: isize, y: isize, i: isize) -> bool {
+                indices.contains(&self.flip(
+                    x,
+                    y,
+                    &Candidates::get_coord_nonflipped_from_index(x, y, i),
+                ))
+            }
+
+            fn get_coord_nonflipped_from_index(x: isize, y: isize, i: isize) -> [isize; 2] {
+                [i % x, i / y]
+            }
+
+            fn flip(&self, x: isize, y: isize, coord: &[isize; 2]) -> [isize; 2] {
+                match self {
+                    Candidates::LRB => [coord[0], coord[1]],
+                    Candidates::RLB => [(x - 1) - coord[0], coord[1]],
+                    Candidates::LRT => [coord[0], (y - 1) - coord[1]],
+                    Candidates::RLT => [(x - 1) - coord[0], (y - 1) - coord[1]],
+                    Candidates::BTR => [coord[1], coord[0]],
+                    Candidates::BTL => [coord[1], (y - 1) - coord[0]],
+                    Candidates::TBR => [(x - 1) - coord[0], coord[1]],
+                    Candidates::TBL => [(x - 1) - coord[0], (y - 1) - coord[1]],
+                }
+            }
+        }
+
+        let mut current_candidates = if x != y {
+            // Rectangle case
+            vec![
+                Candidates::LRB,
+                Candidates::RLB,
+                Candidates::LRT,
+                Candidates::RLT,
+            ]
+        } else {
+            // Square case, there are now 8 symmetries instead of 4
+            vec![
+                Candidates::LRB,
+                Candidates::RLB,
+                Candidates::LRT,
+                Candidates::RLT,
+                Candidates::BTR,
+                Candidates::BTL,
+                Candidates::TBR,
+                Candidates::TBL,
+            ]
+        };
+
+        // Filter the candidates
+        for i in 0..(x * y) {
+            // println!(
+            //     "{:?}",
+            //     current_candidates
+            //         .iter()
+            //         .map(|c| c.is_member(&indices, x, y, i))
+            //         .collect::<Vec<_>>()
+            // );
+            // println!("{:?}", current_candidates);
+
+            if current_candidates
+                .iter()
+                .any(|c| c.is_member(&indices, x, y, i))
+            {
+                // if any ordering does contain i as a member, delete all candidates that
+                //  do not contain i from the list
+                current_candidates = current_candidates
+                    .into_iter()
+                    .filter(|c| c.is_member(&indices, x, y, i))
+                    .collect();
+            }
+
+            if current_candidates.len() == 1 {
+                break;
+            }
+        }
+        // the right ordering is now current_candidates[0] (if there are multiple
+        //  candidates left this indicates some sort of symmetry)
+
+        Self {
+            indices: HashSet::from_iter(
+                indices
+                    .iter()
+                    .map(|coord| current_candidates[0].flip(x, y, coord)),
+            ),
+        }
     }
 }
