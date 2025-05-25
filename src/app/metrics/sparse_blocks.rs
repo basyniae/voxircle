@@ -1,9 +1,45 @@
 use crate::app::data_structures::blocks::Blocks;
+use angular_units::Turns;
 use egui::Color32;
+use prisma::{FromColor, Hsl, Rgb};
 use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::mem::swap;
+
+static SMALL_SHAPE_HASHES: [u64; 10] = [
+    6420002640197838707,  // 1x1
+    2915436035146535286,  // 2x1
+    6444618775187902610,  // 3x1
+    7776891254995127166,  // 4x1
+    11950804322075204449, // 5x1
+    8096643921108516772,  // Triomino Bracket
+    17590444270234595342, // Tetromino Skew
+    8477383144400419704,  // Tetromino T
+    7757481152709758788,  // Tetromino Square
+    13159953227328387611, // Tetromino L
+];
+
+// From matplotlib qualitative Set 3 (colorpicked from site so not exact)
+// https://matplotlib.org/stable/users/explain/colors/colormaps.html#qualitative
+// HSL ranges:
+//  hue: any
+//  saturation: 0-66%
+//  lightness: 49-76%
+static SMALL_SHAPE_COLORS: [Color32; 11] = [
+    Color32::from_rgb(109, 176, 164),
+    Color32::from_rgb(219, 219, 145),
+    Color32::from_rgb(156, 151, 182),
+    Color32::from_rgb(216, 97, 82),
+    Color32::from_rgb(97, 144, 176),
+    Color32::from_rgb(217, 146, 68),
+    Color32::from_rgb(145, 188, 74),
+    Color32::from_rgb(216, 170, 193),
+    // Color32::from_rgb(182, 182, 182), // Too close to block gray
+    Color32::from_rgb(154, 97, 156),
+    Color32::from_rgb(170, 199, 162),
+    Color32::from_rgb(219, 201, 80),
+];
 
 /// Sparse representation of a blocks object (that forgets about the origin)
 /// `indices` contains x iff there is a block at index x
@@ -71,6 +107,9 @@ impl SparseBlocks {
         self.indices.iter()
     }
 
+    // todo: return graph of weak-connections (where we do count diagonals also
+    //  we will use that to make a path (Euler tour?) which will be the build sequence
+    //  also tag the leftmost connected component as the starting point and the preferred direction of turning
     /// Return a vector of the connected components of the input
     pub fn connected_components(&self) -> Vec<Self> {
         let mut a = self.indices.clone();
@@ -146,46 +185,73 @@ impl SparseBlocks {
         dim
     }
 
-    // todo: try to influence the colors for the small dimension like [1,1], [2,1], etc., as they're
-    //  very common and influence the look a lot
-    // todo: give the colors some theming...
+    // todo: only compute has if the blocks have changed (now it happens every frame), we need some tagged SparseBlocks
+    //  attached data: color, hash, normal form, translate-only normal form
     /// Get color from the rotated dimension of a shape (by a hash function)
     pub fn hash_color(&self) -> Color32 {
         let mut hasher = DefaultHasher::new();
         let normal_form = self.normal_form();
         normal_form.hash(&mut hasher);
-        let int = hasher.finish();
-        println!("normal form: {:?}, hash: {}", normal_form, int);
-        // get first 3 sets of 8 bits as rgb
-        let r = (int & 255) as u8;
-        let g = ((int & (255 * 256)) / 256) as u8;
-        let b = ((int & (255 * 256 * 256)) / (256 * 256)) as u8;
-        Color32::from_rgb(r, g, b)
+        let hash = hasher.finish();
+        // for getting small shapes:
+        // println!("Shape: {:?}, Hash: {}", normal_form, int);
+        SMALL_SHAPE_HASHES
+            .iter()
+            .position(|&h| h == hash)
+            .map(|h| SMALL_SHAPE_COLORS[h]) // if the shape is small, look up a hardcoded color
+            .unwrap_or_else(|| {
+                // random float between 0.0 and 1.0 for hue
+                let random1 = (hash & 255) as f64 / 256.0;
+                // generate 2 random floats between 0.0 and 1.0 from the hash
+                let random2 = ((hash >> 8) & 255) as f64 / 256.0;
+                let random3 = ((hash >> 16) & 255) as f64 / 256.0;
+
+                // make range match those of SMALL_SHAPE_COLORS
+                let hsl = Hsl::new(
+                    Turns(random1),
+                    0.66 * random3 + 0.34,
+                    (0.76 - 0.49) * random2 + 0.49,
+                );
+
+                let rgb = Rgb::from_color(&hsl);
+                let rgb_u8: Rgb<u8> = rgb.color_cast();
+
+                println!("Hash: {hash}");
+                println!("Normal form: {normal_form:?}");
+                println!(
+                    "Color: {}, {}, {}",
+                    rgb_u8.red(),
+                    rgb_u8.green(),
+                    rgb_u8.blue()
+                );
+
+                Color32::from_rgb(rgb_u8.red(), rgb_u8.green(), rgb_u8.blue())
+            })
     }
 
+    // fixme: there are some small errors in this code, namely the symmetry does not work 100% of the
+    //  time. Have to fiddle around with special cases
     /// Put the input in "normal form".
     /// Left-bottom coordinate is (0,0)
-    /// More mass is below the x=y line than above it
+    /// Rotated/flipped so that as many blocks as possible are close to (0,0), with priority given
+    /// to blocks close to the x-axis. todo: correctify
     pub fn normal_form(&self) -> Self {
         let bounds = self.get_bounds();
         // Make left bottom coordinate [0,0]
         let mut indices: Vec<_> = self
             .indices
             .iter()
-            .map(|[x, y]| [(x - bounds[0][0]), (y - bounds[0][1])])
+            .map(|[x, y]| [x - bounds[0][0], y - bounds[0][1]])
             .collect();
 
         let [x, y] = self.get_dimensions();
         let mut x = x as isize;
         let mut y = y as isize;
         // Make long side the x coordinate
-        if y < x {
+        if y > x {
             swap(&mut x, &mut y);
             indices = indices.iter().map(|[x, y]| [*y, *x]).collect()
         }
-
-        // println!("x: {x}, y: {y}");
-        // println!("translated indices {:?}", indices);
 
         // candidate orderings
         #[derive(Debug)]
@@ -250,15 +316,6 @@ impl SparseBlocks {
 
         // Filter the candidates
         for i in 0..(x * y) {
-            // println!(
-            //     "{:?}",
-            //     current_candidates
-            //         .iter()
-            //         .map(|c| c.is_member(&indices, x, y, i))
-            //         .collect::<Vec<_>>()
-            // );
-            // println!("{:?}", current_candidates);
-
             if current_candidates
                 .iter()
                 .any(|c| c.is_member(&indices, x, y, i))
