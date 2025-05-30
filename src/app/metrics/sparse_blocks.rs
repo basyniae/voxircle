@@ -45,7 +45,7 @@ static SMALL_SHAPE_COLORS: [Color32; 11] = [
 /// `indices` contains x iff there is a block at index x
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SparseBlocks {
-    indices: HashSet<[isize; 2]>, //todo: make private
+    indices: HashSet<[isize; 2]>,
 }
 
 // todo:
@@ -185,13 +185,11 @@ impl SparseBlocks {
         dim
     }
 
-    // todo: only compute has if the blocks have changed (now it happens every frame), we need some tagged SparseBlocks
-    //  attached data: color, hash, normal form, translate-only normal form
     /// Get color from the rotated dimension of a shape (by a hash function)
-    pub fn hash_color(&self) -> Color32 {
+    /// Assuming the input is in normal form already, allows slight optimization
+    pub fn hash_color_from_normal_form(&self) -> Color32 {
         let mut hasher = DefaultHasher::new();
-        let normal_form = self.normal_form();
-        normal_form.hash(&mut hasher);
+        self.hash(&mut hasher);
         let hash = hasher.finish();
         // for getting small shapes:
         // println!("Shape: {:?}, Hash: {}", normal_form, int);
@@ -216,14 +214,15 @@ impl SparseBlocks {
                 let rgb = Rgb::from_color(&hsl);
                 let rgb_u8: Rgb<u8> = rgb.color_cast();
 
-                println!("Hash: {hash}");
-                println!("Normal form: {normal_form:?}");
-                println!(
-                    "Color: {}, {}, {}",
-                    rgb_u8.red(),
-                    rgb_u8.green(),
-                    rgb_u8.blue()
-                );
+                // debug
+                // println!("Hash: {hash}");
+                // println!("Normal form: {self:?}");
+                // println!(
+                //     "Color: {}, {}, {}",
+                //     rgb_u8.red(),
+                //     rgb_u8.green(),
+                //     rgb_u8.blue()
+                // );
 
                 Color32::from_rgb(rgb_u8.red(), rgb_u8.green(), rgb_u8.blue())
             })

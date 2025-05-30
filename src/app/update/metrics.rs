@@ -6,6 +6,7 @@ use crate::app::math::square_max::square_max;
 use crate::app::metrics::sparse_blocks::SparseBlocks;
 use crate::app::metrics::symmetry_type::SymmetryType;
 use app::metrics::convex_hull::get_convex_hull;
+use egui::Color32;
 
 #[derive(Default)]
 pub struct Metrics {
@@ -14,7 +15,7 @@ pub struct Metrics {
     pub nr_blocks_boundary: u64,
 
     pub boundary_2d: Blocks,
-    pub boundary_conn_comp: Vec<SparseBlocks>,
+    pub boundary_conn_comp: Vec<(SparseBlocks, SparseBlocks, Color32)>,
     pub interior_2d: Blocks,
     pub complement_2d: Blocks,
     pub boundary_3d: ZVec<Blocks>,
@@ -37,12 +38,26 @@ impl Metrics {
         stack_blocks: &ZVec<Blocks>,
         stack_layer_config: &ZVec<AllParams>,
     ) {
-        // update 2d spatial metrics
+        // get boundary and interior and complement
         self.interior_2d = current_layer_blocks.get_interior();
         self.boundary_2d = current_layer_blocks.get_boundary();
         self.complement_2d = current_layer_blocks.get_complement();
-        self.boundary_conn_comp =
-            SparseBlocks::from(self.boundary_2d.clone()).connected_components();
+
+        // get connected components with right tags
+        // two maps instead of one so we don't have to compute the normal form twice
+        // the cloning is still weird
+        self.boundary_conn_comp = SparseBlocks::from(self.boundary_2d.clone())
+            .connected_components()
+            .iter()
+            .map(|conn_comp| (conn_comp.clone(), conn_comp.normal_form()))
+            .map(|(conn_comp, normal_form)| {
+                (
+                    conn_comp,
+                    normal_form.clone(),
+                    normal_form.hash_color_from_normal_form(),
+                )
+            })
+            .collect();
 
         // update 3d spatial metrics
         self.boundary_3d = app::metrics::boundary_3d::boundary_3d(

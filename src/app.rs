@@ -35,6 +35,7 @@ mod param_config;
 mod param_field;
 mod plotting;
 mod sampling;
+mod shortcuts;
 mod ui;
 mod update;
 mod view;
@@ -440,5 +441,8 @@ impl eframe::App for App {
                 &self.metrics,
             );
         });
+
+        // Shortcuts
+        ctx.input_mut(|i| shortcuts::shortcuts(i));
     }
 }

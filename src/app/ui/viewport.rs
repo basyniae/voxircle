@@ -14,6 +14,9 @@ use egui_plot::{
     uniform_grid_spacer, HLine, Line, Plot, PlotBounds, PlotPoints, PlotUi, Points, VLine,
 };
 
+// longterm: Change drawing of individual squares to writing to a texture (which only updates when
+//  the blocks change) for performance reasons (and possibly exporting)
+//  https://docs.rs/egui_plot/latest/egui_plot/struct.PlotImage.html
 pub fn ui_viewport(
     ui: &mut Ui,
     shape_parameters: &AllParams,
@@ -135,17 +138,17 @@ pub fn ui_viewport(
                 COLOR_CENTER_BLOCKS,
             );
 
-            // draw build color help
+            // draw colorful 2d boundary
             if view.boundary_2d_colorful && view.boundary_2d {
                 for comp in metrics.boundary_conn_comp.iter() {
-                    for [x, y] in comp.get_coords() {
+                    for [x, y] in comp.0.get_coords() {
                         plot_ui.polygon(
                             plotting::square_at_coords([*x as f64, *y as f64])
                                 .stroke(Stroke {
                                     width: 1.0,
                                     color: COLOR_WIRE,
                                 })
-                                .fill_color(comp.hash_color()),
+                                .fill_color(comp.2),
                         )
                     }
                 }
