@@ -25,6 +25,9 @@ pub struct Metrics {
     pub symmetry_type: SymmetryType,
     pub center_coord: [f64; 2],
 
+    pub boundary_conn_comp_centers: Vec<[f64; 2]>,
+    pub boundary_conn_comp_graph: Vec<Vec<bool>>,
+
     pub global_bounding_box: [[f64; 2]; 2],
 }
 
@@ -43,11 +46,11 @@ impl Metrics {
         self.boundary_2d = current_layer_blocks.get_boundary();
         self.complement_2d = current_layer_blocks.get_complement();
 
+        let conn_comps = SparseBlocks::from(self.boundary_2d.clone()).connected_components();
         // get connected components with right tags
         // two maps instead of one so we don't have to compute the normal form twice
         // the cloning is still weird
-        self.boundary_conn_comp = SparseBlocks::from(self.boundary_2d.clone())
-            .connected_components()
+        self.boundary_conn_comp = conn_comps
             .iter()
             .map(|conn_comp| (conn_comp.clone(), conn_comp.normal_form()))
             .map(|(conn_comp, normal_form)| {
@@ -58,6 +61,13 @@ impl Metrics {
                 )
             })
             .collect();
+
+        // Graph & centers
+        self.boundary_conn_comp_centers = conn_comps
+            .iter()
+            .map(|conn_com| conn_com.get_center())
+            .collect();
+        self.boundary_conn_comp_graph = SparseBlocks::weak_connection_graph(&conn_comps);
 
         // update 3d spatial metrics
         self.boundary_3d = app::metrics::boundary_3d::boundary_3d(

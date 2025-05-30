@@ -83,7 +83,6 @@ impl Hash for SparseBlocks {
     }
 }
 
-/// For build sequence
 impl Display for SparseBlocks {
     /// The length of the segment if it is a segment, otherwise a random (from hash) letter
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -107,9 +106,100 @@ impl SparseBlocks {
         self.indices.iter()
     }
 
-    // todo: return graph of weak-connections (where we do count diagonals also
-    //  we will use that to make a path (Euler tour?) which will be the build sequence
-    //  also tag the leftmost connected component as the starting point and the preferred direction of turning
+    /// Get the maximal and minimal coordinates of the blocks (for pattern matching) in the form
+    ///  [[min_x, min_y], [max_x, max_y]] (same as in the rest of the program)
+    fn get_bounds(&self) -> [[isize; 2]; 2] {
+        /// Return largest square (specified by min and max vector) (bottom left and top right)
+        fn include_in_square(a: [[isize; 2]; 2], b: &[isize; 2]) -> [[isize; 2]; 2] {
+            let low_x = a[0][0].min(b[0]);
+            let high_x = a[1][0].max(b[0]);
+            let low_y = a[0][1].min(b[1]);
+            let high_y = a[1][1].max(b[1]);
+
+            [[low_x, low_y], [high_x, high_y]]
+        }
+        self.indices.iter().fold(
+            [[isize::MAX, isize::MAX], [isize::MIN, isize::MIN]],
+            include_in_square,
+        )
+    }
+
+    fn get_dimensions(&self) -> [usize; 2] {
+        let bounds = self.get_bounds();
+        [
+            (bounds[1][0] - bounds[0][0] + 1) as usize,
+            (bounds[1][1] - bounds[0][1] + 1) as usize,
+        ]
+    }
+
+    /// Get the dimensions rotated such that the long size is the first coordinate
+    /// For now serves as "canonical form" on which we base coloring and lettering
+    fn get_rotated_dimensions(&self) -> [usize; 2] {
+        let mut dim = self.get_dimensions();
+        if dim[0] < dim[1] {
+            dim = [dim[1], dim[0]]
+        }
+        dim
+    }
+
+    /// Get the center of the sparse blocks (mean of the coordinates)
+    pub fn get_center(&self) -> [f64; 2] {
+        let mut x = 0.0;
+        let mut y = 0.0;
+        let nr_blocks = self.indices.len() as f64;
+
+        for i in self.indices.iter() {
+            x += i[0] as f64;
+            y += i[1] as f64;
+        }
+
+        [x / nr_blocks + 0.5, y / nr_blocks + 0.5]
+    }
+}
+
+impl SparseBlocks {
+    /// Return true iff the two sparse blocks have overlap
+    fn is_overlapping(comp_a: &SparseBlocks, comp_b: &SparseBlocks) -> bool {
+        comp_a.indices.iter().any(|x| comp_b.indices.contains(x))
+    }
+
+    /// Return true iff the two sparse blocks are strongly connected (share an edge)
+    fn is_strongly_connected(comp_a: &SparseBlocks, comp_b: &SparseBlocks) -> bool {
+        comp_a.indices.iter().any(|p| {
+            // loop over points around p
+            [
+                [p[0] + 1, p[1]],
+                [p[0] - 1, p[1]],
+                [p[0], p[1] + 1],
+                [p[0], p[1] - 1],
+                [p[0], p[1]],
+            ]
+            .iter()
+            .any(|p_offset| comp_b.indices.contains(p_offset))
+        })
+    }
+
+    /// Return true iff the two sparse blocks are weakly connected (share a vertex)
+    fn is_weakly_connected(comp_a: &SparseBlocks, comp_b: &SparseBlocks) -> bool {
+        comp_a.indices.iter().any(|p| {
+            // loop over 3x3 grid around p
+            [
+                [p[0] + 1, p[1] + 1],
+                [p[0] + 1, p[1] - 1],
+                [p[0] + 1, p[1]],
+                [p[0] - 1, p[1] + 1],
+                [p[0] - 1, p[1] - 1],
+                [p[0] - 1, p[1]],
+                [p[0], p[1] + 1],
+                [p[0], p[1] - 1],
+                [p[0], p[1]],
+            ]
+            .iter()
+            .any(|p_offset| comp_b.indices.contains(p_offset))
+        })
+    }
+}
+impl SparseBlocks {
     /// Return a vector of the connected components of the input
     pub fn connected_components(&self) -> Vec<Self> {
         let mut a = self.indices.clone();
@@ -149,40 +239,34 @@ impl SparseBlocks {
         running_conn_components
     }
 
-    /// Get the maximal and minimal coordinates of the blocks (for pattern matching) in the form
-    ///  [[min_x, min_y], [max_x, max_y]] (same as in the rest of the program)
-    fn get_bounds(&self) -> [[isize; 2]; 2] {
-        /// Return largest square (specified by min and max vector) (bottom left and top right)
-        fn include_in_square(a: [[isize; 2]; 2], b: &[isize; 2]) -> [[isize; 2]; 2] {
-            let low_x = a[0][0].min(b[0]);
-            let high_x = a[1][0].max(b[0]);
-            let low_y = a[0][1].min(b[1]);
-            let high_y = a[1][1].max(b[1]);
-
-            [[low_x, low_y], [high_x, high_y]]
-        }
-        self.indices.iter().fold(
-            [[isize::MAX, isize::MAX], [isize::MIN, isize::MIN]],
-            include_in_square,
-        )
-    }
-
-    fn get_dimensions(&self) -> [usize; 2] {
-        let bounds = self.get_bounds();
-        [
-            (bounds[1][0] - bounds[0][0] + 1) as usize,
-            (bounds[1][1] - bounds[0][1] + 1) as usize,
-        ]
-    }
-
-    /// Get the dimensions rotated such that the long size is the first coordinate
-    /// For now serves as "canonical form" on which we base coloring and lettering
-    fn get_rotated_dimensions(&self) -> [usize; 2] {
-        let mut dim = self.get_dimensions();
-        if dim[0] < dim[1] {
-            dim = [dim[1], dim[0]]
-        }
-        dim
+    // todo: found tour in this graph that is as efficient as possible.
+    //  at least the graph is planar.
+    //  try: identify largest cycle in the graph, expand that to include the components which
+    //  are only connected to one other (the 'leaves').
+    //  does this generally visit all points? no.
+    //  We can decompose into graph-connected components
+    //  throw explict error when the algorithm fails
+    /// For a vector of sparse_blocks, check which ones are weakly connected (so also diagonally)
+    /// If the input has length n, the output looks as follows.
+    /// `weak_connection_graph(vec_sparse_blocks)[i][n-1 - j] == true` if and only if component i and j
+    /// are connected (i,j=0,...,n-1).
+    /// As convention, we pick that blocks aren't connected to themselves.
+    pub fn weak_connection_graph(all_comps: &Vec<Self>) -> Vec<Vec<bool>> {
+        let n = all_comps.len();
+        (0..n)
+            .map(|i| {
+                (i..n)
+                    .map(|j| {
+                        if i == j {
+                            false
+                        } else {
+                            // Check if the i and jth entries of vec_sparse_blocks are weakly connected
+                            SparseBlocks::is_weakly_connected(&all_comps[i], &all_comps[j])
+                        }
+                    })
+                    .collect()
+            })
+            .collect()
     }
 
     /// Get color from the rotated dimension of a shape (by a hash function)

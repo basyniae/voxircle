@@ -12,6 +12,7 @@ pub struct View {
     pub bounds: bool,
     pub mirrors: bool,
     pub boundary_2d_colorful: bool,
+    pub boundary_2d_graph: bool,
 }
 
 impl Default for View {
@@ -30,6 +31,7 @@ impl Default for View {
             bounds: false,
             mirrors: false,
             boundary_2d_colorful: true,
+            boundary_2d_graph: false,
         }
     }
 }

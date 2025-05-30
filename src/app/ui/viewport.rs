@@ -306,7 +306,26 @@ pub fn ui_viewport(
             // Plot target shape
             shape_parameters.draw(plot_ui, COLOR_TARGET_SHAPE);
 
-            shape_parameters.draw_widgets(plot_ui)
+            shape_parameters.draw_widgets(plot_ui);
+
+            // Draw connected component weak connection graph
+            if view.boundary_2d_graph {
+                // nr boundary connected components
+                let n = metrics.boundary_conn_comp_centers.len();
+                for i in 0..n {
+                    for j in i..n {
+                        if metrics.boundary_conn_comp_graph[i][j - i] {
+                            plot_ui.line(
+                                Line::new(vec![
+                                    metrics.boundary_conn_comp_centers[i],
+                                    metrics.boundary_conn_comp_centers[j],
+                                ])
+                                .stroke(Stroke::new(5.0, COLOR_WIRE)),
+                            )
+                        }
+                    }
+                }
+            }
         });
 }
 
