@@ -9,6 +9,7 @@ pub fn ui_viewport_options(
     ui: &mut Ui,
     layers_enabled: bool,
     symmetry_type: &SymmetryType,
+    nr_connected_comp_bdry_2d: usize,
     view: &mut View,
 ) {
     ui.checkbox(&mut view.blocks, "Blocks");
@@ -45,6 +46,10 @@ pub fn ui_viewport_options(
     });
 
     ui.collapsing("Technical", |ui| {
+        ui.label(format!(
+            "Nr. connected components of 2D boundary: {}",
+            nr_connected_comp_bdry_2d
+        ));
         ui.checkbox(&mut view.complement, "Complement");
         ui.checkbox(&mut view.convex_hull, "Convex hull");
         ui.checkbox(&mut view.outer_corners, "Outer corners");

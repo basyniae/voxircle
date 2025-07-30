@@ -2,6 +2,7 @@ use crate::app;
 use crate::app::data_structures::blocks::Blocks;
 use crate::app::data_structures::zvec::ZVec;
 use crate::app::generation::AllParams;
+use crate::app::math::sparse_graph::SparseGraph;
 use crate::app::math::square_max::square_max;
 use crate::app::metrics::sparse_blocks::SparseBlocks;
 use crate::app::metrics::symmetry_type::SymmetryType;
@@ -26,7 +27,7 @@ pub struct Metrics {
     pub center_coord: [f64; 2],
 
     pub boundary_conn_comp_centers: Vec<[f64; 2]>,
-    pub boundary_conn_comp_graph: Vec<Vec<bool>>,
+    pub boundary_conn_comp_graph: SparseGraph,
 
     pub global_bounding_box: [[f64; 2]; 2],
 }

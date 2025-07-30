@@ -1,4 +1,5 @@
 use crate::app::data_structures::blocks::Blocks;
+use crate::app::math::sparse_graph::SparseGraph;
 use angular_units::Turns;
 use egui::Color32;
 use prisma::{FromColor, Hsl, Rgb};
@@ -245,28 +246,24 @@ impl SparseBlocks {
     //  are only connected to one other (the 'leaves').
     //  does this generally visit all points? no.
     //  We can decompose into graph-connected components
-    //  throw explict error when the algorithm fails
+    //  throw explicit error when the algorithm fails
     /// For a vector of sparse_blocks, check which ones are weakly connected (so also diagonally)
     /// If the input has length n, the output looks as follows.
     /// `weak_connection_graph(vec_sparse_blocks)[i][n-1 - j] == true` if and only if component i and j
     /// are connected (i,j=0,...,n-1).
     /// As convention, we pick that blocks aren't connected to themselves.
-    pub fn weak_connection_graph(all_comps: &Vec<Self>) -> Vec<Vec<bool>> {
+    pub fn weak_connection_graph(all_comps: &Vec<Self>) -> SparseGraph {
         let n = all_comps.len();
-        (0..n)
-            .map(|i| {
-                (i..n)
-                    .map(|j| {
-                        if i == j {
-                            false
-                        } else {
-                            // Check if the i and jth entries of vec_sparse_blocks are weakly connected
-                            SparseBlocks::is_weakly_connected(&all_comps[i], &all_comps[j])
-                        }
-                    })
-                    .collect()
-            })
-            .collect()
+        let mut running_edges = vec![];
+        for i in 0..n {
+            for j in i..n {
+                if i != j && SparseBlocks::is_weakly_connected(&all_comps[i], &all_comps[j]) {
+                    running_edges.push([i, j])
+                }
+            }
+        }
+
+        SparseGraph::new(n, running_edges)
     }
 
     /// Get color from the rotated dimension of a shape (by a hash function)

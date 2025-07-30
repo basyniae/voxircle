@@ -292,6 +292,7 @@ impl eframe::App for App {
                         ui,
                         self.layers_enabled,
                         &self.metrics.symmetry_type,
+                        self.metrics.boundary_conn_comp_centers.len(),
                         &mut self.view,
                     )
                 });
