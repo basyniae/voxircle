@@ -13,13 +13,14 @@ pub struct View {
     pub mirrors: bool,
     pub boundary_2d_colorful: bool,
     pub boundary_2d_graph: bool,
+    pub build_loop: bool,
 }
 
 impl Default for View {
     fn default() -> Self {
         Self {
             blocks: true,
-            boundary_2d: false,
+            boundary_2d: true, // todo: change default
             interior_2d: false,
             intersect_area: false,
             complement: false,
@@ -32,6 +33,7 @@ impl Default for View {
             mirrors: false,
             boundary_2d_colorful: true,
             boundary_2d_graph: false,
+            build_loop: true, // todo: change default
         }
     }
 }

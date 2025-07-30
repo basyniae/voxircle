@@ -3,10 +3,10 @@ use crate::app::math::sparse_graph::SparseGraph;
 use angular_units::Turns;
 use egui::Color32;
 use prisma::{FromColor, Hsl, Rgb};
-use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::mem::swap;
+use std::slice::Iter;
 
 static SMALL_SHAPE_HASHES: [u64; 10] = [
     6420002640197838707,  // 1x1
@@ -46,7 +46,7 @@ static SMALL_SHAPE_COLORS: [Color32; 11] = [
 /// `indices` contains x iff there is a block at index x
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SparseBlocks {
-    indices: HashSet<[isize; 2]>,
+    indices: Vec<[isize; 2]>,
 }
 
 // todo:
@@ -56,7 +56,7 @@ pub struct SparseBlocks {
 impl From<Blocks> for SparseBlocks {
     fn from(blocks: Blocks) -> Self {
         SparseBlocks {
-            indices: HashSet::from_iter(blocks.get_all_block_coords_usize().into_iter()),
+            indices: Vec::from_iter(blocks.get_all_block_coords_usize().into_iter()),
         }
     }
 }
@@ -64,7 +64,7 @@ impl From<Blocks> for SparseBlocks {
 impl From<&Blocks> for SparseBlocks {
     fn from(blocks: &Blocks) -> Self {
         SparseBlocks {
-            indices: HashSet::from_iter(blocks.get_all_block_coords_usize().into_iter()),
+            indices: Vec::from_iter(blocks.get_all_block_coords_usize().into_iter()),
         }
     }
 }
@@ -103,7 +103,7 @@ impl Display for SparseBlocks {
 }
 
 impl SparseBlocks {
-    pub fn get_coords(&self) -> std::collections::hash_set::Iter<'_, [isize; 2]> {
+    pub fn get_coords(&self) -> Iter<'_, [isize; 2]> {
         self.indices.iter()
     }
 
@@ -210,10 +210,8 @@ impl SparseBlocks {
         while !a.is_empty() {
             // a is not empty, select the first element. we will find the connected component of
             // this first element
-            let first_random_index = *a.iter().next().unwrap();
-            a.remove(&first_random_index);
-            let mut running_component: HashSet<[isize; 2]> =
-                vec![first_random_index].into_iter().collect();
+            let first_random_index = a.pop().unwrap();
+            let mut running_component: Vec<[isize; 2]> = vec![first_random_index];
             let mut moving_boundary = vec![first_random_index];
 
             // now iterate over the boundary neighbors of the moving_boundary, removing them from a and
@@ -225,8 +223,8 @@ impl SparseBlocks {
                 for neighbor in [[x, y + 1], [x, y - 1], [x + 1, y], [x - 1, y]].iter() {
                     if a.contains(neighbor) {
                         // neighbor is in the same connected component. (it is a neighbor of the boundary)
-                        a.remove(neighbor);
-                        running_component.insert(neighbor.clone());
+                        a.retain(|i| i != neighbor);
+                        running_component.push(neighbor.clone());
                         moving_boundary.push(neighbor.clone());
                     }
                 }
@@ -417,7 +415,7 @@ impl SparseBlocks {
         //  candidates left this indicates some sort of symmetry)
 
         Self {
-            indices: HashSet::from_iter(
+            indices: Vec::from_iter(
                 indices
                     .iter()
                     .map(|coord| current_candidates[0].flip(x, y, coord)),

@@ -54,7 +54,10 @@ impl SparseGraph {
 }
 
 impl SparseGraph {
-    /// Find a maximal length cycle in the graph
+    /// Find a maximal length cycle in the graph.
+    /// Output: Vec of usizes, [a_1, ..., a_n] where a_i is a neighbor of a_i+1 for all i and a_n of a_1.
+    /// These algorithms are slow, but they work. Potentially upgrade later, although speed is not
+    /// really a requirement.
     pub fn longest_cycle(&self) -> Vec<usize> {
         let mut record_cycle = self.longest_cycle_starting_at(&0);
         let mut record_length = record_cycle.len();

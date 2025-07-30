@@ -57,6 +57,7 @@ pub fn ui_viewport_options(
             &mut view.intersect_area,
             "Intersect area (not in this version)",
         );
-        ui.checkbox(&mut view.boundary_2d_graph, "Graph of boundary components")
+        ui.checkbox(&mut view.boundary_2d_graph, "Graph of boundary components");
+        ui.checkbox(&mut view.build_loop, "Build loop"); // todo: place in symmetry and building section
     });
 }

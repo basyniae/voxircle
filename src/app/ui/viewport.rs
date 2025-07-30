@@ -320,6 +320,29 @@ pub fn ui_viewport(
                     )
                 }
             }
+
+            if view.build_loop {
+                // loop over all consecutive pairs in the build loop
+                // todo: precompute the longest cycle
+                let build_loop = metrics.boundary_conn_comp_graph.longest_cycle();
+                let n = build_loop.len();
+                for [i, j] in (0..n).map(|i| [build_loop[i], build_loop[(i + 1) % n]]) {
+                    plot_ui.line(
+                        Line::new(vec![
+                            metrics.boundary_conn_comp_centers[i],
+                            metrics.boundary_conn_comp_centers[j],
+                        ])
+                        .stroke(Stroke::new(5.0, COLOR_WIRE)),
+                    )
+                }
+
+                // highlight the first in the build loop
+                plot_ui.points(
+                    Points::new(vec![metrics.boundary_conn_comp_centers[build_loop[0]]])
+                        .radius(10.0)
+                        .color(COLOR_OUTER_CORNERS),
+                );
+            }
         });
 }
 
