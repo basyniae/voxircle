@@ -4,6 +4,7 @@ use crate::app::generation::shape_type::ShapeType;
 use crate::app::generation::squircle::SquircleFields;
 use crate::app::param_config::ParamConfig;
 use crate::app::sampling::SamplingOptions;
+use crate::app::ui::build_seq::ui_build_seq;
 use crate::app::update::metrics::Metrics;
 use crate::app::view::View;
 use data_structures::blocks::Blocks;
@@ -358,6 +359,18 @@ impl eframe::App for App {
                 &self.stack_blocks,
                 &self.stack_shape_sliders,
             )
+        }
+
+        // Build sequence panel
+        if self.view.build_sequence_panel {
+            egui::SidePanel::left("build_seq_panel").show(ctx, |ui| {
+                ui_build_seq(
+                    ui,
+                    &self.metrics.boundary_conn_comp,
+                    &self.metrics.boundary_conn_comp_centers,
+                    &self.metrics.build_seq,
+                )
+            });
         }
 
         // Status bar (bottom)

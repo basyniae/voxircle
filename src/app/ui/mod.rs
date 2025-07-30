@@ -1,4 +1,5 @@
 pub mod bits;
+pub mod build_seq;
 pub mod generation;
 pub mod layer_navigation;
 pub mod options;

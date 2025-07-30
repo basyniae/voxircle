@@ -4,15 +4,15 @@ use crate::app::generation::squircle::squircle_params::SquircleParams;
 use egui_plot::{Line, PlotBounds, PlotPoints, Polygon};
 
 /// Specifiying the bottom left coordinates of the square.
-pub fn square_at_coords(coord: [f64; 2]) -> Polygon<'static> {
+pub fn square_at_coords(coord: [f64; 2], size: f64) -> Polygon<'static> {
     let x = coord[0];
     let y = coord[1];
 
     let square_pts = PlotPoints::new(vec![
         [x + 0.0, y + 0.0],
-        [x + 0.0, y + 1.0],
-        [x + 1.0, y + 1.0],
-        [x + 1.0, y + 0.0],
+        [x + 0.0, y + size],
+        [x + size, y + size],
+        [x + size, y + 0.0],
     ]);
 
     Polygon::new(square_pts).name("square".to_owned())

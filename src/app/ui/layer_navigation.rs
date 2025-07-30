@@ -38,8 +38,7 @@ pub fn ui_layer_navigation(
                 );
                 if ui
                     .add(
-                        egui::Button::new("|<")
-                            .min_size(egui::Vec2::from([controls_width, height])),
+                        egui::Button::new("⏮").min_size(egui::Vec2::from([controls_width, height])),
                     )
                     .clicked()
                 {
@@ -47,7 +46,7 @@ pub fn ui_layer_navigation(
                 }
                 if ui
                     .add(
-                        egui::Button::new("<").min_size(egui::Vec2::from([controls_width, height])),
+                        egui::Button::new("⏴").min_size(egui::Vec2::from([controls_width, height])),
                     )
                     .clicked()
                 {
@@ -67,7 +66,7 @@ pub fn ui_layer_navigation(
 
                 if ui
                     .add(
-                        egui::Button::new(">").min_size(egui::Vec2::from([controls_width, height])),
+                        egui::Button::new("⏵").min_size(egui::Vec2::from([controls_width, height])),
                     )
                     .clicked()
                 {
@@ -77,8 +76,7 @@ pub fn ui_layer_navigation(
                 }
                 if ui
                     .add(
-                        egui::Button::new(">|")
-                            .min_size(egui::Vec2::from([controls_width, height])),
+                        egui::Button::new("⏭").min_size(egui::Vec2::from([controls_width, height])),
                     )
                     .clicked()
                 {

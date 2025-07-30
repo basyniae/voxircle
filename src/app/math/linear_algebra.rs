@@ -17,6 +17,12 @@ impl From<[f64; 2]> for Vec2 {
     }
 }
 
+impl Into<[f64; 2]> for Vec2 {
+    fn into(self) -> [f64; 2] {
+        [self.x, self.y]
+    }
+}
+
 #[allow(dead_code)]
 impl Vec2 {
     pub const UNIT_X: Vec2 = Vec2 { x: 1.0, y: 0.0 };

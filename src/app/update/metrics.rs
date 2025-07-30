@@ -28,6 +28,7 @@ pub struct Metrics {
 
     pub boundary_conn_comp_centers: Vec<[f64; 2]>,
     pub boundary_conn_comp_graph: SparseGraph,
+    pub build_seq: Vec<usize>,
 
     pub global_bounding_box: [[f64; 2]; 2],
 }
@@ -53,7 +54,7 @@ impl Metrics {
         // the cloning is still weird
         self.boundary_conn_comp = conn_comps
             .iter()
-            .map(|conn_comp| (conn_comp.clone(), conn_comp.normal_form()))
+            .map(|conn_comp| (conn_comp.clone(), conn_comp.trans_rot_flip_normal_form()))
             .map(|(conn_comp, normal_form)| {
                 (
                     conn_comp,
@@ -69,6 +70,9 @@ impl Metrics {
             .map(|conn_com| conn_com.get_center())
             .collect();
         self.boundary_conn_comp_graph = SparseBlocks::weak_connection_graph(&conn_comps);
+
+        // Build sequence
+        self.build_seq = self.boundary_conn_comp_graph.longest_cycle();
 
         // update 3d spatial metrics
         self.boundary_3d = app::metrics::boundary_3d::boundary_3d(

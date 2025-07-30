@@ -43,6 +43,11 @@ pub fn ui_viewport_options(
         ui.checkbox(&mut view.center_blocks, "Center blocks");
         ui.checkbox(&mut view.bounds, "Bounds");
         ui.checkbox(&mut view.mirrors, "Mirrors");
+        ui.checkbox(
+            &mut view.build_sequence_viewport,
+            "Build sequence in viewport",
+        );
+        ui.checkbox(&mut view.build_sequence_panel, "Build sequence panel")
     });
 
     ui.collapsing("Technical", |ui| {
@@ -58,6 +63,5 @@ pub fn ui_viewport_options(
             "Intersect area (not in this version)",
         );
         ui.checkbox(&mut view.boundary_2d_graph, "Graph of boundary components");
-        ui.checkbox(&mut view.build_loop, "Build loop"); // todo: place in symmetry and building section
     });
 }

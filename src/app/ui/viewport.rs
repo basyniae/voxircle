@@ -44,7 +44,7 @@ pub fn ui_viewport(
         })
     }
 
-    Plot::new("my_plot")
+    Plot::new("viewport_plot")
         .data_aspect(1.0) // so that squares in the rasterization always look square in the viewport
         // Grid lines of increasing thickness at distance 1.0, 5.0, 10.0 for counting
         .x_grid_spacer(uniform_grid_spacer(|_gridinput| [1.0, 5.0, 10.0]))
@@ -143,7 +143,7 @@ pub fn ui_viewport(
                 for comp in metrics.boundary_conn_comp.iter() {
                     for [x, y] in comp.0.get_coords() {
                         plot_ui.polygon(
-                            plotting::square_at_coords([*x as f64, *y as f64])
+                            plotting::square_at_coords([*x as f64, *y as f64], 1.0)
                                 .stroke(Stroke {
                                     width: 1.0,
                                     color: COLOR_WIRE,
@@ -321,10 +321,10 @@ pub fn ui_viewport(
                 }
             }
 
-            if view.build_loop {
+            if view.build_sequence_viewport {
                 // loop over all consecutive pairs in the build loop
                 // todo: precompute the longest cycle
-                let build_loop = metrics.boundary_conn_comp_graph.longest_cycle();
+                let build_loop = &metrics.build_seq;
                 let n = build_loop.len();
                 for [i, j] in (0..n).map(|i| [build_loop[i], build_loop[(i + 1) % n]]) {
                     plot_ui.line(
@@ -351,7 +351,7 @@ fn draw_blocks(plot_ui: &mut PlotUi, view: bool, option_blocks: &Option<&Blocks>
         if let Some(blocks) = option_blocks {
             for coord in blocks.get_all_block_coords() {
                 plot_ui.polygon(
-                    plotting::square_at_coords(coord)
+                    plotting::square_at_coords(coord, 1.0)
                         .stroke(Stroke {
                             width: 1.0,
                             color: COLOR_WIRE,

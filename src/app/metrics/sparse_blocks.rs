@@ -69,6 +69,12 @@ impl From<&Blocks> for SparseBlocks {
     }
 }
 
+impl Default for SparseBlocks {
+    fn default() -> Self {
+        SparseBlocks { indices: vec![] }
+    }
+}
+
 impl Hash for SparseBlocks {
     fn hash<H: Hasher>(&self, state: &mut H) {
         // sort coordinates into a vector and then hash
@@ -125,7 +131,7 @@ impl SparseBlocks {
         )
     }
 
-    fn get_dimensions(&self) -> [usize; 2] {
+    pub fn get_dimensions(&self) -> [usize; 2] {
         let bounds = self.get_bounds();
         [
             (bounds[1][0] - bounds[0][0] + 1) as usize,
@@ -314,7 +320,7 @@ impl SparseBlocks {
     /// Rotated/flipped so that the associated binary number is lowest. This is computed as,
     /// scanning from right to left, bottom to top starting at (0,0), adding 2^i if there is a block
     /// at scan index i.
-    pub fn normal_form(&self) -> Self {
+    pub fn trans_rot_flip_normal_form(&self) -> Self {
         let bounds = self.get_bounds();
         // Make left bottom coordinate [0,0]
         let mut indices: Vec<_> = self
@@ -421,5 +427,17 @@ impl SparseBlocks {
                     .map(|coord| current_candidates[0].flip(x, y, coord)),
             ),
         }
+    }
+
+    pub fn trans_normal_form(&self) -> Self {
+        let bounds = self.get_bounds();
+        // Make left bottom coordinate [0,0]
+        let mut indices: Vec<_> = self
+            .indices
+            .iter()
+            .map(|[x, y]| [x - bounds[0][0], y - bounds[0][1]])
+            .collect();
+
+        Self { indices }
     }
 }
