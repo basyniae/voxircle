@@ -34,8 +34,8 @@ impl Default for View {
             mirrors: false,
             boundary_2d_colorful: true,
             boundary_2d_graph: false,
-            build_sequence_viewport: true, // todo: change default
-            build_sequence_panel: true,    // todo: change default
+            build_sequence_viewport: false,
+            build_sequence_panel: true, // todo: change default
         }
     }
 }
